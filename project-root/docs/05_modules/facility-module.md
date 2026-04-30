@@ -540,14 +540,14 @@ Route 模块不直接作为查询依赖，但两者共享图结构与 `MapServic
 ## 17. 与其他文档的关系
 本文件应与以下文档保持一致：
 
-- `docs/01_requirements/prd.md`
-- `docs/01_requirements/use-cases.md`
-- `docs/01_requirements/scope-mvp.md`
-- `docs/02_architecture/architecture.md`
-- `docs/02_architecture/module-map.md`
-- `docs/02_architecture/dependency-map.md`
-- `docs/03_data/schema.md`
-- `docs/04_api/api-spec.md`
+- `project-root/docs/01_requirements/prd.md`
+- `project-root/docs/01_requirements/use-cases.md`
+- `project-root/docs/01_requirements/scope-mvp.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/02_architecture/module-map.md`
+- `project-root/docs/02_architecture/dependency-map.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/04_api/api-spec.md`
 
 如果设施分类、排序策略、图上可达规则、接口或模块依赖发生变化，应同步更新以上文档。
 

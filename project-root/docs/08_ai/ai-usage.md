@@ -16,10 +16,10 @@
 本文件不替代项目规则文件。  
 AI 在本项目中的所有行为，仍必须优先遵守：
 
-1. `README.md`
-2. `AGENTS.md`
-3. `coding-rules.md`
-4. `security-rules.md`
+1. `project-root/README.md`
+2. `project-root/AGENTS.md`
+3. `project-root/coding-rules.md`
+4. `project-root/security-rules.md`
 5. 当前模块相关文档
 6. 当前数据库与 API 定义文档
 
@@ -66,7 +66,7 @@ AI 可参与：
 
 1. AI 输出后必须人工确认是否符合讲义要求
 2. 不允许让 AI 擅自扩展无关的大型功能
-3. 需求文档必须最终落地到 `docs/01_requirements/`
+3. 需求文档必须最终落地到 `project-root/docs/01_requirements/`
 
 ---
 
@@ -86,7 +86,7 @@ AI 可参与：
 
 1. 所有设计稿必须与项目实际技术栈一致
 2. 核心算法必须能解释清楚“为什么这样选”
-3. 数据库与 API 设计必须最终落地到 `docs/02_architecture/`、`docs/03_data/`、`docs/04_api/`
+3. 数据库与 API 设计必须最终落地到 `project-root/docs/02_architecture/`、`project-root/docs/03_data/`、`project-root/docs/04_api/`
 
 ---
 
@@ -129,7 +129,7 @@ AI 可参与：
 
 1. 测试计划和测试用例必须结合当前实现状态
 2. 不允许只写形式化测试文档而不验证实际功能
-3. 测试结果必须落地到 `docs/06_testing/`
+3. 测试结果必须落地到 `project-root/docs/06_testing/`
 
 ---
 
@@ -187,8 +187,8 @@ AI 可参与：
 
 1. 明确当前只做哪个模块
 2. 先让 AI 阅读：
-   - `README.md`
-   - `AGENTS.md`
+   - `project-root/README.md`
+   - `project-root/AGENTS.md`
    - 本地规则文件
    - 当前模块文档
    - 当前模块代码
@@ -231,15 +231,15 @@ AI 生成的内容不能长期停留在聊天记录里。
 
 建议落地方式：
 
-- 需求分析类 → `docs/01_requirements/`
-- 架构设计类 → `docs/02_architecture/`
-- 数据与数据库类 → `docs/03_data/`
-- API 类 → `docs/04_api/`
-- 模块说明类 → `docs/05_modules/`
-- 测试类 → `docs/06_testing/`
-- 交付类 → `docs/07_delivery/`
-- prompt / AI 协作类 → `docs/08_ai/`
-- 决策类 → `docs/09_decisions/`
+- 需求分析类 → `project-root/docs/01_requirements/`
+- 架构设计类 → `project-root/docs/02_architecture/`
+- 数据与数据库类 → `project-root/docs/03_data/`
+- API 类 → `project-root/docs/04_api/`
+- 模块说明类 → `project-root/docs/05_modules/`
+- 测试类 → `project-root/docs/06_testing/`
+- 交付类 → `project-root/docs/07_delivery/`
+- prompt / AI 协作类 → `project-root/docs/08_ai/`
+- 决策类 → `project-root/docs/09_decisions/`
 
 一句话：
 
@@ -356,7 +356,7 @@ AI 生成的内容不能长期停留在聊天记录里。
 - 写入项目计划书
 - 写入 README
 - 写入课程设计报告相关章节
-- 写入 `docs/08_ai/` 说明文件
+- 写入 `project-root/docs/08_ai/` 说明文件
 
 目的不是“炫工具”，而是让项目过程更可说明、可回溯。
 

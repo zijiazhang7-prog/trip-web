@@ -13,10 +13,10 @@
 - 是否需要做回归测试
 
 相关文档：
-- `docs/04_api/api-spec.md`
-- `docs/04_api/error-codes.md`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/bug-log.md`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/04_api/error-codes.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/bug-log.md`
 
 ---
 
@@ -108,6 +108,7 @@
   - Admin
   - Import
   - AI
+  - UserPreference
 
 ### Notes
 - 当前版本主要用于搭建接口变更记录机制，尚不代表所有接口已实现。
@@ -325,11 +326,11 @@
 
 本文件应与以下文档保持一致：
 
-- `docs/04_api/api-spec.md`
-- `docs/04_api/error-codes.md`
-- `docs/05_modules/*`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/bug-log.md`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/04_api/error-codes.md`
+- `project-root/docs/05_modules/*`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/bug-log.md`
 
 如果接口路径、方法、参数、返回结构、错误码口径或权限要求发生变化，应同步更新本文件。
 

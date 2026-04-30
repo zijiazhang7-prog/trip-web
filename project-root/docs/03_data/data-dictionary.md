@@ -15,8 +15,8 @@
 
 本文件不负责说明完整 ER 关系推导和整体结构设计，相关内容请参见：
 
-- `docs/03_data/schema.md`
-- `docs/03_data/er-model.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/03_data/er-model.md`
 
 ---
 
@@ -26,6 +26,7 @@
 2. 如果数据库表结构发生变化，应优先同步本文件。
 3. 接口文档、模块说明、测试文档中涉及数据字段时，应尽量与本文件保持一致。
 4. 若 ER 图与表设计说明表存在细节不一致，以当前已确认的项目表设计为准，并在后续同步更新相关文档。
+5. 当前阶段对于创新需求相关表，允许先以“预留扩展表”形式存在，不要求全部立即落地实现。
 
 ---
 
@@ -37,6 +38,9 @@
 - 主键统一命名为 `id`
 - 外键统一命名为 `xxx_id`
 - 时间字段统一命名为 `created_at`、`updated_at`
+- JSON 扩展字段统一命名为 `xxx_json`
+- 可见性字段统一使用 `visibility`
+- 状态字段统一使用 `status`
 
 ### 3.2 数据库基础建议
 
@@ -64,6 +68,12 @@
 |11|`diary_rating`|日记评分表|保存用户对日记的评分|
 |12|`route_history`|路线记录表|保存用户历史规划路线|
 |13|`import_batch`|导入批次表（可选）|记录批量导入的数据来源与状态|
+|14|`travel_journal`|旅行手账表（可选）|保存一次旅行记录的主体信息|
+|15|`travel_journal_entry`|旅行手账条目表（可选）|保存一次旅行中的地点条目或内容片段|
+|16|`group_plan_session`|多人规划会话表（可选）|保存一次多人旅游规划协商会话|
+|17|`group_plan_member`|多人规划成员表（可选）|保存会话中的参与者偏好快照|
+|18|`ai_discussion_record`|AI 协商记录表（可选）|保存多人协商的摘要、理由与冲突点|
+|19|`travel_trace`|轨迹记录表（可选）|保存真实轨迹或轨迹摘要数据|
 
 ---
 
@@ -87,7 +97,6 @@
 |updated_at|datetime|否|是||更新时间|
 
 **建议索引：**
-
 - `username` 唯一索引
 - `role` 普通索引
 
@@ -96,22 +105,28 @@
 ## 5.2 用户偏好表 `user_preference`
 
 **表功能说明：**  
-用于保存用户偏好信息，为推荐模块提供输入。当前设计按“一用户一份偏好配置”处理。
+用于保存用户偏好信息，为推荐模块、AI 推荐解释和多人协同决策提供输入。当前设计按“一用户一份偏好配置”处理。
 
 |字段名|数据类型|主键|非空|默认值|字段说明|
 |---|---|--:|--:|---|---|
 |id|bigint|是|是||主键|
 |user_id|bigint|否|是||关联用户 ID|
 |prefer_hot_level|int|否|否||对热门程度的偏好|
-|prefer_theme|varchar(100)|否|否||偏好主题，如文化/自然/红色|
+|prefer_theme|varchar(255)|否|否||偏好主题，可存单值或多选序列|
 |prefer_food_type|varchar(100)|否|否||偏好菜系|
 |prefer_crowd_level|int|否|否||对拥挤度的接受程度|
-|travel_style|varchar(50)|否|否||旅游风格，如小众/打卡/轻松|
+|travel_style|varchar(50)|否|否||旅游风格，如小众 / 打卡 / 轻松|
+|custom_preference_text|text|否|否||自由偏好描述文本|
+|created_at|datetime|否|否||创建时间|
 |updated_at|datetime|否|是||更新时间|
 
 **建议索引：**
-
 - `user_id` 唯一索引
+
+**说明：**
+- 当前阶段建议先支持“偏好标签 + 自由文本”；
+- `prefer_theme` 首版可以先用字符串或 JSON 风格序列保存；
+- 若后续偏好体系变复杂，可再拆标签表或中间表。
 
 ---
 
@@ -136,7 +151,6 @@
 |created_at|datetime|否|是||创建时间|
 
 **建议索引：**
-
 - `name`
 - `type`
 - `category`
@@ -147,7 +161,7 @@
 ## 5.4 场所/建筑表 `place`
 
 **表功能说明：**  
-用于保存目的地内部的景点、教学楼、办公楼、宿舍楼等场所信息，支撑内部查询和导航。
+用于保存目的地内部的景点、教学楼、办公楼、宿舍楼等场所信息，支撑内部查询和导航，并为后续路线增强提供基础属性。
 
 |字段名|数据类型|主键|非空|默认值|字段说明|
 |---|---|--:|--:|---|---|
@@ -161,12 +175,17 @@
 |floor_info|varchar(100)|否|否||楼层信息|
 |heat_score|decimal(5,2)|否|否|0|热度分|
 |rating_score|decimal(3,2)|否|否|0|评分|
+|open_time_rule|varchar(255)|否|否||开放时间规则描述|
+|suggested_duration_min|int|否|否||建议游玩时长（分钟）|
+|cost_level|int|否|否||成本/价格等级，供后续性价比扩展使用|
 
 **建议索引：**
-
 - `destination_id`
 - `name`
 - `place_type`
+
+**说明：**
+- `open_time_rule`、`suggested_duration_min`、`cost_level` 主要用于后续路线规划增强，不是当前 P0 必需依赖字段。
 
 ---
 
@@ -188,7 +207,6 @@
 |status|tinyint|否|否|1|状态|
 
 **建议索引：**
-
 - `destination_id`
 - `facility_type`
 - `name`
@@ -212,7 +230,6 @@
 |floor_no|int|否|否||楼层号|
 
 **建议索引：**
-
 - `destination_id`
 - `(node_type, ref_id)`
 
@@ -237,7 +254,6 @@
 |bidirectional_flag|tinyint|否|否|0|是否双向|
 
 **建议索引：**
-
 - `destination_id`
 - `from_node_id`
 - `to_node_id`
@@ -265,7 +281,6 @@
 |cover_url|varchar(255)|否|否||封面图地址|
 
 **建议索引：**
-
 - `destination_id`
 - `name`
 - `food_type`
@@ -278,32 +293,30 @@
 **表功能说明：**  
 用于保存日记主体内容，支撑日记发布、浏览、详情展示和后续推荐、检索能力。
 
-> 说明：为与当前表设计说明表保持一致，本表保留 `content_compressed` 扩展字段；该字段尚未在当前 ER 图主图中展开。
+> 说明：本表当前不仅承接普通图文日记，也为后续手账基础形态、AI 草稿和路线回顾联动预留字段。
 
 |字段名|数据类型|主键|非空|默认值|字段说明|
 |---|---|--:|--:|---|---|
 |id|bigint|是|是||主键|
 |user_id|bigint|否|是||作者用户 ID|
 |destination_id|bigint|否|是||关联目的地 ID|
+|route_history_id|bigint|否|否||关联路线记录 ID，可为空|
 |title|varchar(150)|否|是||日记标题|
 |content_text|longtext|否|是||日记正文|
 |content_compressed|longblob|否|否||压缩内容，扩展字段|
 |heat_score|decimal(5,2)|否|否|0|热度分|
 |rating_score|decimal(3,2)|否|否|0|平均评分|
+|visibility|varchar(20)|否|否|public|可见性，如 `public/private`|
 |status|tinyint|否|否|1|状态|
 |created_at|datetime|否|是||创建时间|
 |updated_at|datetime|否|是||更新时间|
 
 **建议索引：**
-
 - `user_id`
-    
 - `destination_id`
-    
+- `route_history_id`
 - `title`
-    
 - `(heat_score, rating_score)`
-    
 
 ---
 
@@ -322,9 +335,7 @@
 |sort_no|int|否|否|0|排序号|
 
 **建议索引：**
-
 - `diary_id`
-    
 
 ---
 
@@ -342,9 +353,7 @@
 |created_at|datetime|否|是||评分时间|
 
 **建议索引：**
-
 - `(diary_id, user_id)` 唯一索引
-    
 
 ---
 
@@ -361,17 +370,17 @@
 |start_node_id|bigint|否|否||起点节点 ID|
 |end_node_id|bigint|否|否||终点节点 ID|
 |path_node_json|text|否|否||路径节点序列 JSON|
+|path_edge_json|text|否|否||路径边序列 JSON，可选扩展|
 |strategy_type|varchar(50)|否|否||路径策略类型|
+|transport_type|varchar(20)|否|否||交通方式|
+|total_distance|decimal(10,2)|否|否||总距离|
+|estimated_time|int|否|否||预计时间，建议按分钟存储|
 |created_at|datetime|否|是||创建时间|
 
 **建议索引：**
-
 - `user_id`
-    
 - `destination_id`
-    
 - `created_at`
-    
 
 ---
 
@@ -379,8 +388,6 @@
 
 **表功能说明：**  
 用于记录批量导入的数据来源、文件路径和状态，便于排查导入问题。
-
-> 说明：本表在当前表设计说明表中已列出，但未在当前 ER 主图中展开，可作为后续数据导入阶段补充落地的支撑表。
 
 |字段名|数据类型|主键|非空|默认值|字段说明|
 |---|---|--:|--:|---|---|
@@ -393,6 +400,150 @@
 
 ---
 
+## 5.14 旅行手账表 `travel_journal`（可选）
+
+**表功能说明：**  
+用于保存“一次旅行记录”的主体信息，是后续手账式旅行记录从单篇日记扩展为独立对象时的主表。
+
+|字段名|数据类型|主键|非空|默认值|字段说明|
+|---|---|--:|--:|---|---|
+|id|bigint|是|是||主键|
+|user_id|bigint|否|是||所属用户 ID|
+|destination_id|bigint|否|是||目的地 ID|
+|route_history_id|bigint|否|否||关联路线记录 ID|
+|title|varchar(150)|否|否||手账标题|
+|summary|text|否|否||手账摘要|
+|cover_url|varchar(255)|否|否||封面图地址|
+|visibility|varchar(20)|否|否|public|可见性|
+|status|tinyint|否|否|1|状态|
+|start_time|datetime|否|否||旅行开始时间|
+|end_time|datetime|否|否||旅行结束时间|
+|created_at|datetime|否|是||创建时间|
+|updated_at|datetime|否|是||更新时间|
+
+**建议索引：**
+- `user_id`
+- `destination_id`
+- `route_history_id`
+
+---
+
+## 5.15 旅行手账条目表 `travel_journal_entry`（可选）
+
+**表功能说明：**  
+用于保存一次旅行中的单个地点条目、内容片段或时间顺序信息。
+
+|字段名|数据类型|主键|非空|默认值|字段说明|
+|---|---|--:|--:|---|---|
+|id|bigint|是|是||主键|
+|travel_journal_id|bigint|否|是||所属手账 ID|
+|place_id|bigint|否|否||关联地点 ID|
+|diary_id|bigint|否|否||关联日记 ID|
+|entry_order|int|否|否|0|条目顺序|
+|title|varchar(150)|否|否||条目标题|
+|content_text|text|否|否||条目内容|
+|visited_at|datetime|否|否||到访时间|
+|lng|decimal(10,6)|否|否||经度|
+|lat|decimal(10,6)|否|否||纬度|
+|created_at|datetime|否|是||创建时间|
+
+**建议索引：**
+- `travel_journal_id`
+- `(travel_journal_id, entry_order)`
+
+---
+
+## 5.16 多人规划会话表 `group_plan_session`（可选）
+
+**表功能说明：**  
+用于保存一次多人旅游规划协商会话的基础信息。
+
+|字段名|数据类型|主键|非空|默认值|字段说明|
+|---|---|--:|--:|---|---|
+|id|bigint|是|是||主键|
+|creator_user_id|bigint|否|是||创建者用户 ID|
+|destination_id|bigint|否|是||目的地 ID|
+|title|varchar(150)|否|否||会话标题|
+|constraint_json|text|否|否||约束条件 JSON|
+|candidate_plan_json|text|否|否||候选方案 JSON|
+|status|varchar(20)|否|否||会话状态|
+|created_at|datetime|否|是||创建时间|
+|updated_at|datetime|否|是||更新时间|
+
+**建议索引：**
+- `creator_user_id`
+- `destination_id`
+
+---
+
+## 5.17 多人规划成员表 `group_plan_member`（可选）
+
+**表功能说明：**  
+用于保存一次多人规划会话中的参与者偏好快照。
+
+|字段名|数据类型|主键|非空|默认值|字段说明|
+|---|---|--:|--:|---|---|
+|id|bigint|是|是||主键|
+|session_id|bigint|否|是||所属会话 ID|
+|related_user_id|bigint|否|否||关联系统用户 ID，可为空|
+|display_name|varchar(100)|否|否||展示名称|
+|prefer_theme|varchar(255)|否|否||偏好主题快照|
+|custom_preference_text|text|否|否||自由偏好描述快照|
+|weight|decimal(5,2)|否|否||偏好权重|
+|status|varchar(20)|否|否||成员状态|
+
+**建议索引：**
+- `session_id`
+- `related_user_id`
+
+---
+
+## 5.18 AI 协商记录表 `ai_discussion_record`（可选）
+
+**表功能说明：**  
+用于保存 AI 对多人规划的讨论摘要、推荐理由、冲突点说明等结果。
+
+|字段名|数据类型|主键|非空|默认值|字段说明|
+|---|---|--:|--:|---|---|
+|id|bigint|是|是||主键|
+|session_id|bigint|否|是||所属会话 ID|
+|summary_text|text|否|否||讨论摘要文本|
+|reason_json|text|否|否||理由列表 JSON|
+|conflict_json|text|否|否||冲突点 JSON|
+|recommend_json|text|否|否||推荐方案 JSON|
+|model_name|varchar(100)|否|否||生成该记录的模型名称|
+|created_at|datetime|否|是||创建时间|
+
+**建议索引：**
+- `session_id`
+- `created_at`
+
+---
+
+## 5.19 轨迹记录表 `travel_trace`（可选）
+
+**表功能说明：**  
+用于保存真实轨迹记录，为后续轨迹回顾、路线图展示和地图 API 增强提供支撑。
+
+|字段名|数据类型|主键|非空|默认值|字段说明|
+|---|---|--:|--:|---|---|
+|id|bigint|是|是||主键|
+|user_id|bigint|否|是||用户 ID|
+|destination_id|bigint|否|是||目的地 ID|
+|route_history_id|bigint|否|否||关联路线记录 ID|
+|trace_json|text|否|否||轨迹点序列 JSON|
+|source_type|varchar(50)|否|否||轨迹来源，如 `manual/map_api`|
+|start_time|datetime|否|否||轨迹开始时间|
+|end_time|datetime|否|否||轨迹结束时间|
+|created_at|datetime|否|是||创建时间|
+
+**建议索引：**
+- `user_id`
+- `destination_id`
+- `route_history_id`
+
+---
+
 ## 6. 主要表关系摘要
 
 |主表|从表|关系|说明|
@@ -401,23 +552,28 @@
 |`user`|`diary`|1:N|一个用户可发布多篇日记|
 |`user`|`diary_rating`|1:N|一个用户可对多篇日记评分|
 |`user`|`route_history`|1:N|一个用户可保存多条路线|
+|`user`|`travel_journal`|1:N|一个用户后续可拥有多份旅行手账|
 |`destination`|`place`|1:N|一个目的地下有多个场所|
 |`destination`|`facility`|1:N|一个目的地下有多个设施|
 |`destination`|`map_node`|1:N|一个目的地下有多个地图节点|
 |`destination`|`map_edge`|1:N|一个目的地下有多条地图边|
 |`destination`|`food`|1:N|一个目的地下有多条美食数据|
 |`destination`|`diary`|1:N|一个目的地关联多篇日记|
+|`destination`|`route_history`|1:N|一个目的地关联多条路线记录|
 |`place`|`facility`|1:N|一个场所可包含多个设施|
 |`facility`|`food`|1:N|一个设施可关联多个美食|
 |`diary`|`diary_media`|1:N|一篇日记可关联多个媒体文件|
 |`diary`|`diary_rating`|1:N|一篇日记可收到多个评分|
+|`route_history`|`diary`|1:N（可选）|一条路线记录可被多篇日记引用|
+|`travel_journal`|`travel_journal_entry`|1:N|一份手账包含多个条目|
+|`group_plan_session`|`group_plan_member`|1:N|一场协商包含多个参与者|
+|`group_plan_session`|`ai_discussion_record`|1:N|一场协商可关联多个 AI 记录|
 
 ---
 
 ## 7. 当前阶段落地建议
 
 ### 7.1 P0（当前优先）
-
 建议当前先优先保证以下表可落地并可用：
 
 - `user`
@@ -432,16 +588,25 @@
 - `route_history`
 
 ### 7.2 P1（基础闭环后补充）
-
 - `food`
 - `diary_rating`
 - `import_batch`
 
-### 7.3 原因
+### 7.3 P1 / P2（按创新需求逐步补充）
+- `travel_journal`
+- `travel_journal_entry`
 
+### 7.4 P2（创新预留）
+- `group_plan_session`
+- `group_plan_member`
+- `ai_discussion_record`
+- `travel_trace`
+
+### 7.5 原因
 这样可以先跑通：
 
 - 用户登录
+- 用户偏好输入
 - 推荐与搜索
 - 路径规划
 - 周边设施查询
@@ -458,3 +623,6 @@
 3. ER 图与实际表结构出现偏差时
 4. 创新功能正式落表时
 5. 数据导入、日记增强、推荐增强引入新字段时
+6. 手账基础形态决定独立拆表时
+7. 多人协同决策正式落表时
+8. 外部地图 API 或轨迹记录能力正式接入时

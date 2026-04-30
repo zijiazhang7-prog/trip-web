@@ -40,6 +40,16 @@
 9. 修改代码后，必须检查是否需要同步数据库、API、模块、测试和进度文档。
 10. 禁止为了“先跑通”而把临时代码直接留在正式实现中。
 
+#### 2.1 当前阶段优先级约束  
+  
+当前开发与代码生成必须遵循项目已冻结的优先级：  
+  
+- P0：Auth、UserPreference、Recommend、Route（单目标）、Facility、Diary（基础版）、FileService  
+- P1：Food、Admin、ImportService、SearchService、Route 多目标 / 最短时间、Diary 检索与评分增强  
+- P2：AIService、AI 日记草稿、图片摘要、路线回顾、多人规划协商、外部地图 / 外部模型服务增强  
+  
+不得默认把 P1 / P2 能力提升为当前主线阻塞项。
+
 ---
 
 ## 3. 项目结构规范
@@ -47,12 +57,12 @@
 ### 3.1 仓库结构
 
 项目目录默认包含：
-- `frontend/`
-- `backend/`
-- `scripts/`
-- `data/`
-- `docs/`
-- `assets/`
+- `project-root/frontend/`
+- `project-root/backend/`
+- `project-root/scripts/`
+- `project-root/data/`
+- `project-root/docs/`
+- `project-root/assets/`
 
 ### 3.2 后端结构规范
 
@@ -86,6 +96,17 @@
 - `SearchService`
 - `AIService`
 - `FileService`
+
+#### 3.3.1 当前公共能力优先级
+- `QueryService`：P0
+- `RankService`：P0
+- `MapService`：P0
+- `FileService`：P0
+- `SearchService`：P1
+- `ImportService`：P1
+- `AIService`：P2
+
+当前必须优先复用 P0 公共能力；P1 / P2 能力在未进入实现范围前，可先保留接口、骨架和 TODO，不强行落地完整实现。
 
 ### 3.4 前端结构规范
 
@@ -157,7 +178,7 @@
 ## 5. 返回体、异常与错误码
 
 1. 所有接口统一返回 `ApiResponse`。
-2. 错误码统一由 `docs/04_api/error-codes.md` 管理。
+2. 错误码统一由 `project-root/docs/04_api/error-codes.md` 管理。
 3. 使用全局异常处理，不允许吞异常。
 4. 业务异常与系统异常分开处理。
 5. 用户可见信息应简洁明确，不返回堆栈。
@@ -259,12 +280,15 @@
 
 修改以下内容时，必须同步文档：
 
-- 表结构 → `docs/03_data/schema.md`、`data-dictionary.md`、`er-model.md`
-- 接口 → `docs/04_api/api-spec.md`、必要时同步 `swagger-draft.yaml`
-- 模块职责/依赖 → `docs/02_architecture/module-map.md` 与 `dependency-map.md`
-- 算法方案 → `docs/09_decisions/ADR-004-algorithm-choice.md`
-- 测试策略/用例 → `docs/06_testing/*`
-- 进度 → `docs/00_project/progress.md`
+- 表结构 → `project-root/docs/03_data/schema.md`、`data-dictionary.md`、`er-model.md`
+- 接口 → `project-root/docs/04_api/api-spec.md`、必要时同步 `swagger-draft.yaml`
+- 模块职责 / 优先级 / 依赖 → `project-root/docs/02_architecture/module-map.md`、`dependency-map.md`、`project-root/docs/05_modules/*`
+- 技术路线 / 外部集成边界 → `project-root/docs/02_architecture/*`、`project-root/docs/09_decisions/*`
+- 测试策略 / 用例 → `project-root/docs/06_testing/*`
+- 进度与阶段状态 → `project-root/docs/00_project/progress.md`、必要时同步 `project-overview.md`
+
+若修改涉及外部地图服务、外部 AI 服务、配置项、降级策略或接入边界，还必须同步：
+- `project-root/docs/04_api/external-integrations.md`
 
 ---
 

@@ -73,7 +73,7 @@
 - 前端：Vue 3 + Vite + Element Plus
 - 数据处理：Python
 - 文档很多，且很多文档和目录名是中文
-- 请优先阅读仓库中的 README.md、AGENTS.md、docs/ 目录下的相关文档，再开始动代码
+- 请优先阅读仓库中的 project-root/README.md、project-root/AGENTS.md、project-root/docs/ 目录下的相关文档，再开始动代码
 
 你必须遵守：
 1. 不要一次性生成整个系统

@@ -24,7 +24,8 @@
 2. 覆盖旅游前推荐、旅游中路线规划与场所查询、旅游后日记管理与交流的主线功能；
 3. 将排序、查找、图、最短路径、多点路径等数据结构与算法能力落到实际系统中；
 4. 在三人协作和课程设计周期内，保证系统可实现、可联调、可演示、可扩展；
-5. 为后续创新需求预留清晰扩展空间，但不让创新需求阻塞基础主线落地。
+5. 为用户偏好输入、手账式旅行记录、多人协同决策、AI 日记草稿、路线回顾等创新需求预留清晰扩展空间，但不让创新需求阻塞基础主线落地；
+6. 在未确定具体外部地图 API 和多模态模型 API 前，先保留统一接入位置和降级边界，不把系统架构直接绑定到某一家服务商。
 
 ## 2.2 设计原则
 本项目架构遵循以下原则：
@@ -59,7 +60,8 @@ flowchart LR
 
     subgraph Frontend["前端层 Vue 3 + Vite + Element Plus"]
         SPA[Web 前端应用 SPA]
-        UserUI[用户端页面<br/>推荐 / 导航 / 周边 / 美食 / 日记]
+        UserUI[用户端页面<br/>推荐 / 导航 / 周边 / 美食 / 日记 / 手账]
+        PrefUI[偏好设置页]
         AdminUI[管理端页面<br/>用户 / 景点 / 地图 / 设施 / 日记管理]
         State[Pinia 状态管理]
         Http[Axios API 调用]
@@ -67,6 +69,7 @@ flowchart LR
 
     Browser --> SPA
     SPA --> UserUI
+    SPA --> PrefUI
     SPA --> AdminUI
     SPA --> State
     SPA --> Http
@@ -75,23 +78,26 @@ flowchart LR
         Gateway[REST API 网关 / Controller]
 
         Auth[用户与权限模块]
+        Pref[用户偏好模块]
         Rec[推荐与查询模块]
         Route[路线规划模块]
         Poi[周边设施 / 美食模块]
-        Diary[旅游日记模块]
+        Diary[旅游日记 / 手账基础形态]
         Admin[管理端数据维护模块]
 
         QuerySvc[QueryService<br/>统一查询]
         RankSvc[RankService<br/>排序 / Top-K]
-        MapSvc[MapService<br/>图建模 / Dijkstra / A* / 多点启发式]
+        MapSvc[MapService<br/>图建模 / Dijkstra / 多点启发式]
         SearchSvc[SearchService<br/>全文检索]
         FileSvc[FileService<br/>文件上传 / 文件访问]
+        AISvc[AIService<br/>日记草稿 / 图片摘要 / 路线回顾 / 协商说明]
         ImportSvc[ImportService<br/>批量导入]
     end
 
     Http --> Gateway
 
     Gateway --> Auth
+    Gateway --> Pref
     Gateway --> Rec
     Gateway --> Route
     Gateway --> Poi
@@ -100,19 +106,30 @@ flowchart LR
 
     Rec --> QuerySvc
     Rec --> RankSvc
+    Rec --> Pref
     Route --> MapSvc
     Poi --> QuerySvc
     Poi --> RankSvc
     Diary --> SearchSvc
     Diary --> FileSvc
+    Diary --> AISvc
     Admin --> ImportSvc
 
+    subgraph External["外部增强能力（P2 / 后续评估）"]
+        ExtMap[地图 API<br/>导航 / 轨迹 / 路线回顾增强]
+        ExtAI[多模态模型 API<br/>文本生成 / 图片理解]
+    end
+
+    AISvc -.后续接入.-> ExtAI
+    MapSvc -.后续增强接入.-> ExtMap
+
     subgraph DataLayer["数据存储层"]
-        MySQL[(MySQL 8<br/>用户 / 景点 / 边 / 设施 / 美食 / 日记 / 评分)]
+        MySQL[(MySQL 8<br/>用户 / 偏好 / 景点 / 边 / 设施 / 美食 / 日记 / 路线历史)]
         FileStore[(文件存储<br/>图片 / 视频 / 地图 JSON/CSV / 上传附件)]
     end
 
     Auth --> MySQL
+    Pref --> MySQL
     QuerySvc --> MySQL
     RankSvc --> MySQL
     MapSvc --> MySQL
@@ -130,7 +147,8 @@ flowchart LR
 
     PyETL --> ImportSvc
     PyETL --> FileStore
-````
+```
+
 
 ## 3.2 总体架构说明
 
@@ -139,17 +157,21 @@ flowchart LR
 前端层用于承载用户端和管理端页面，包括推荐页、导航页、周边设施页、美食页、日记页以及管理端数据维护页面。  
 前端采用 Vue 3 实现单页应用，使用 Element Plus 提供基础 UI 组件，使用 Pinia 管理状态，使用 Axios 调用后端接口。
 
-### 3.2.2 后端层
-
-后端层作为整个系统的核心业务承载层，负责：
-
-- 用户认证与权限校验
-- 推荐与查询逻辑
-- 路线规划与图算法调度
-- 周边设施与美食查询
-- 旅游日记保存、检索与文件管理
-- 管理端数据维护
-- 数据导入与基础支撑能力
+### 3.2.2 后端层  
+  
+后端层作为整个系统的核心业务承载层，负责：  
+  
+- 用户认证与权限校验  
+- 用户偏好输入与读取  
+- 推荐与查询逻辑  
+- 路线规划与图算法调度  
+- 周边设施与美食查询  
+- 旅游日记保存、检索、手账基础形态与文件管理  
+- 管理端数据维护  
+- 数据导入与基础支撑能力  
+- 为后续 AI 创新能力和外部 API 接入预留统一能力入口  
+  
+当前阶段仍以基础主线闭环为优先，AIService 和外部地图 / 模型能力作为后续增强层存在，不阻塞推荐、规划、查询和日记主线。
 
 ### 3.2.3 数据存储层
 
@@ -235,6 +257,7 @@ flowchart TB
 
     subgraph ApiLayer["接口层 Controller"]
         CTRL_AUTH["AuthController"]
+        CTRL_PREF["UserPreferenceController"]
         CTRL_REC["RecommendController"]
         CTRL_ROUTE["RouteController"]
         CTRL_FAC["FacilityController"]
@@ -242,10 +265,12 @@ flowchart TB
         CTRL_DIARY["DiaryController"]
         CTRL_ADMIN["AdminController"]
         CTRL_UPLOAD["UploadController"]
+        CTRL_AI["AIController（后续）"]
     end
 
     subgraph ServiceLayer["业务层 Service"]
         SVC_AUTH["AuthService"]
+        SVC_PREF["UserPreferenceService"]
         SVC_REC["RecommendService"]
         SVC_ROUTE["RoutePlanService"]
         SVC_FAC["FacilityService"]
@@ -259,8 +284,8 @@ flowchart TB
         CORE_QUERY["QueryService<br/>统一查询"]
         CORE_RANK["RankService<br/>排序 / Top-K"]
         CORE_SEARCH["SearchService<br/>全文检索"]
-        CORE_MAP["MapService<br/>图建模 / Dijkstra / A* / 多点启发式"]
-        CORE_AI["AIService<br/>日记生成 / 图片摘要 / 标签提取"]
+        CORE_MAP["MapService<br/>图建模 / Dijkstra / 多点启发式"]
+        CORE_AI["AIService<br/>日记草稿 / 图片摘要 / 路线回顾 / 协商说明"]
         CORE_FILE["FileService<br/>文件上传 / 文件访问"]
     end
 
@@ -275,6 +300,7 @@ flowchart TB
 
     subgraph DaoLayer["数据访问层 Mapper"]
         MAP_USER["UserMapper"]
+        MAP_PREF["UserPreferenceMapper"]
         MAP_DEST["DestinationMapper"]
         MAP_PLACE["PlaceMapper"]
         MAP_NODE["MapNodeMapper"]
@@ -293,6 +319,7 @@ flowchart TB
     end
 
     FE_USER --> CTRL_AUTH
+    FE_USER --> CTRL_PREF
     FE_USER --> CTRL_REC
     FE_USER --> CTRL_ROUTE
     FE_USER --> CTRL_FAC
@@ -300,8 +327,10 @@ flowchart TB
     FE_USER --> CTRL_DIARY
     FE_ADMIN --> CTRL_ADMIN
     FE_ADMIN --> CTRL_UPLOAD
+    FE_USER --> CTRL_AI
 
     CTRL_AUTH --> SVC_AUTH
+    CTRL_PREF --> SVC_PREF
     CTRL_REC --> SVC_REC
     CTRL_ROUTE --> SVC_ROUTE
     CTRL_FAC --> SVC_FAC
@@ -309,8 +338,10 @@ flowchart TB
     CTRL_DIARY --> SVC_DIARY
     CTRL_ADMIN --> SVC_ADMIN
     CTRL_UPLOAD --> SVC_IMPORT
+    CTRL_AI --> CORE_AI
 
     SVC_AUTH --> CORE_QUERY
+    SVC_PREF --> CORE_QUERY
     SVC_REC --> CORE_QUERY
     SVC_REC --> CORE_RANK
     SVC_ROUTE --> CORE_MAP
@@ -332,6 +363,7 @@ flowchart TB
     SVC_AUTH --> ALG_SEC
 
     SVC_AUTH --> MAP_USER
+    SVC_PREF --> MAP_PREF
     SVC_REC --> MAP_DEST
     SVC_REC --> MAP_PLACE
     SVC_ROUTE --> MAP_NODE
@@ -350,6 +382,7 @@ flowchart TB
     SVC_ADMIN --> MAP_DIARY
 
     MAP_USER --> DB_MAIN
+    MAP_PREF --> DB_MAIN
     MAP_DEST --> DB_MAIN
     MAP_PLACE --> DB_MAIN
     MAP_NODE --> DB_MAIN
@@ -365,6 +398,7 @@ flowchart TB
     SVC_DIARY --> FS_MAIN
     SVC_IMPORT --> FS_MAIN
 ```
+
 
 ## 5.2 后端分层说明
 
@@ -399,16 +433,22 @@ flowchart TB
 - `AdminService`
 - `ImportService`
 
-### 5.2.3 公共能力层（Core Services）
-
-公共能力层用于复用多个模块都会依赖的基础能力，包括：
-
-- `QueryService`：统一查询逻辑
-- `RankService`：排序与 Top-K 能力
-- `SearchService`：全文检索能力
-- `MapService`：图建模、最短路径、多点路径等能力
-- `AIService`：AI 生成、摘要、标签提取等能力
-- `FileService`：文件上传与文件访问能力
+### 5.2.3 公共能力层（Core Services）  
+  
+公共能力层用于复用多个模块都会依赖的基础能力，包括：  
+  
+- `QueryService`：统一查询逻辑  
+- `RankService`：排序与 Top-K 能力  
+- `SearchService`：全文检索能力  
+- `MapService`：图建模、最短路径、多点路径等能力  
+- `AIService`：AI 日记草稿、图片摘要、路线回顾、多人协商说明等能力  
+- `FileService`：文件上传与文件访问能力  
+  
+当前阶段的边界说明如下：  
+  
+1. `MapService` 当前统一基于内部图数据与自建图结构实现，不依赖具体外部地图 API；  
+2. `AIService` 当前统一作为创新增强能力入口，在未确定具体模型 API 前，先采用统一输入输出结构和 mock / stub 方式预留；  
+3. 外部地图服务和多模态模型服务只作为后续增强接入位，不替代当前主路径算法和基础推荐算法。
 
 ### 5.2.4 算法与基础设施层
 
@@ -453,7 +493,13 @@ flowchart TB
 
 ## 6.2 推荐模块（Recommend）
 
-负责旅游前的目的地推荐、搜索与筛选，并依赖统一查询能力和排序能力实现结果组织。
+负责旅游前的目的地推荐、搜索与筛选，并依赖统一查询能力、排序能力和用户偏好输入实现结果组织。
+
+当前阶段说明：
+
+- 基础推荐仍以“检索 + 排序 + Top-K”为主；
+- 用户偏好标签已进入主线范围；
+- AI 推荐理由解释属于后续增强，不替代基础推荐算法。
 
 ## 6.3 路线规划模块（Route）
 
@@ -471,6 +517,14 @@ flowchart TB
 
 负责旅游日记的发布、浏览、详情展示、按目的地查看以及后续检索和 AI 扩展能力。
 
+当前阶段说明：
+
+- P0：图文日记基础版；
+- P1：手账式旅行记录基础形态；
+- P2：AI 日记草稿、图片摘要、手账增强。
+
+Diary 模块是当前旅游后主线的核心内容载体，后续 AI 增强、路线回顾与手账组织都基于该模块扩展。
+
 ## 6.7 管理模块（Admin）
 
 负责基础数据维护，包括目的地、场所、设施、美食、日记等数据的管理与导入支撑。
@@ -479,10 +533,20 @@ flowchart TB
 
 作为系统的扩展能力层，为后续创新需求提供统一接入点，例如：
 
-- 日记生成
+- 日记草稿生成
 - 图片摘要
 - 标签提取
+- 手账内容增强
+- 推荐理由解释
 - 多人规划协商说明
+- 路线回顾说明
+
+当前阶段说明：
+
+1. AI 模块属于 P2 创新增强层；
+2. AI 模块不阻塞基础主线闭环；
+3. 在未确定具体模型 API 前，统一通过 `AIService` 抽象输入输出，不在业务模块中直接绑定具体模型厂商；
+4. 外部多模态模型 API 接入后，应单独在外部 API 管理文档中记录配置变量、限流、失败降级和调用边界。
 
 ---
 
@@ -525,6 +589,7 @@ flowchart TB
 1. Python 脚本完成爬取、清洗和格式转换
 2. 通过导入服务或导入脚本写入数据库和文件存储
 3. 后续用户端功能基于这些数据运行
+4. 如果后续需要接入外部地图 API 或多模态模型 API，不直接影响当前导入主链路，而是通过独立集成方式补充增强能力
 
 ---
 
@@ -535,13 +600,20 @@ flowchart TB
 当前阶段优先实现以下最小闭环：
 
 1. 用户注册 / 登录
-2. 推荐目的地
-3. 搜索目的地
-4. 单目标路线规划
-5. 周边设施查询
-6. 发布图文日记
-7. 浏览 / 查看相关日记
-8. 基础数据导入与最小后台支撑
+2. 用户偏好标签设置
+3. 推荐目的地
+4. 搜索目的地
+5. 单目标路线规划
+6. 周边设施查询
+7. 发布图文日记
+8. 浏览 / 查看相关日记
+9. 基础数据导入与最小后台支撑
+
+说明：
+
+- 用户偏好标签已进入主线输入范围；
+- AIService 和外部地图服务不属于当前 MVP 的硬依赖；
+- 手账基础形态、美食、多目标路径和创新功能在主线稳定后再补。
 
 ## 8.2 当前暂不优先做的内容
 
@@ -549,6 +621,10 @@ flowchart TB
 - 复杂商业功能
 - 微服务与复杂中间件
 - 脱离主线的重型创新功能
+- 生产级外部地图 API 接入
+- 生产级多模态 AI 模型接入
+- 完整轨迹记录与地图回放
+- 自动发布 AI 内容
 
 ## 8.3 后续扩展方向
 
@@ -557,9 +633,15 @@ flowchart TB
 - 多目标路径规划
 - 最短时间策略
 - 更丰富的推荐模型
+- 用户自由偏好描述
 - 日记全文检索
-- 多模态日记生成
+- 手账式旅行记录
+- AI 日记草稿生成
+- 图片摘要与标签提取
 - 多人旅游规划协商
+- 路线回顾与轨迹摘要
+- 外部地图 API 接入
+- 外部多模态模型 API 接入
 - 更完整的管理端能力
 
 ---
@@ -583,17 +665,18 @@ flowchart TB
 
 本文件应与以下文档保持一致：
 
-- `docs/01_requirements/prd.md`
-- `docs/01_requirements/scope-mvp.md`
-- `docs/02_architecture/module-map.md`
-- `docs/02_architecture/dependency-map.md`
-- `docs/03_data/schema.md`
-- `docs/04_api/api-spec.md`
-- `docs/05_modules/*`
-- `docs/09_decisions/ADR-001-tech-stack.md`
-- `docs/09_decisions/ADR-003-module-split.md`
+- `project-root/docs/01_requirements/prd.md`
+- `project-root/docs/01_requirements/scope-mvp.md`
+- `project-root/docs/02_architecture/module-map.md`
+- `project-root/docs/02_architecture/dependency-map.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/05_modules/*`
+- `project-root/docs/09_decisions/ADR-001-tech-stack.md`
+- `project-root/docs/09_decisions/ADR-003-module-split.md`
+- `project-root/docs/04_api/external-integrations.md`（用于统一记录外部 API 接入方式、配置变量、调用限制与降级方案）
 
-如果总体架构、模块边界或技术路线发生明显变化，应同步更新上述文档。
+如果总体架构、模块边界、技术路线或外部 API 接入边界发生明显变化，应同步更新上述文档。
 
 ---
 

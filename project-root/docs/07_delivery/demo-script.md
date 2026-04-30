@@ -461,12 +461,12 @@
 
 本文件应与以下文档保持一致：
 
-- `docs/01_requirements/prd.md`
-- `docs/02_architecture/architecture.md`
-- `docs/04_api/api-spec.md`
-- `docs/05_modules/*`
-- `docs/06_testing/test-report.md`
-- `docs/07_delivery/user-manual.md`
+- `project-root/docs/01_requirements/prd.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/05_modules/*`
+- `project-root/docs/06_testing/test-report.md`
+- `project-root/docs/07_delivery/user-manual.md`
 
 如果当前实际实现范围、页面结构或主线功能发生变化，应同步更新本文件。
 

@@ -3,9 +3,9 @@
 # 模块划分说明（Module Map）
 
 ## 关联决策记录
-- `docs/09_decisions/ADR-002-mvp-scope.md`
-- `docs/09_decisions/ADR-003-module-split.md`
-- `docs/09_decisions/ADR-004-algorithm-choice.md`
+- `project-root/docs/09_decisions/ADR-002-mvp-scope.md`
+- `project-root/docs/09_decisions/ADR-003-module-split.md`
+- `project-root/docs/09_decisions/ADR-004-algorithm-choice.md`
 
 ## 1. 文档用途
 本文件用于说明系统的模块划分方式、各模块职责、模块边界、输入输出和依赖关系，为后续开发分工、接口设计、数据库设计和测试设计提供统一依据。
@@ -51,11 +51,12 @@
 
 ### 3.1 业务模块
 - Auth 模块（认证与用户基础）
+- UserPreference 模块（用户偏好设置）
 - Recommend 模块（推荐与目的地搜索）
 - Route 模块（路线规划）
 - Facility 模块（周边设施查询）
 - Food 模块（美食推荐）
-- Diary 模块（旅游日记）
+- Diary 模块（旅游日记与手账基础形态）
 - Admin 模块（管理端数据维护）
 
 ### 3.2 公共能力模块
@@ -76,22 +77,23 @@
 
 ## 4. 模块总表
 
-| 模块名 | 类型 | 当前优先级 | 主要职责 | 主要依赖 |
-|---|---|---|---|---|
-| Auth | 业务模块 | P0 | 注册、登录、当前用户、基础权限 | UserMapper、Security |
-| Recommend | 业务模块 | P0 | 推荐目的地、搜索、筛选、排序 | QueryService、RankService |
-| Route | 业务模块 | P0 | 单目标 / 多目标路径规划 | MapService |
-| Facility | 业务模块 | P0 | 周边设施查询、按可达距离返回结果 | QueryService、RankService、MapService |
-| Food | 业务模块 | P1 | 美食推荐、基础筛选与排序 | QueryService、RankService |
-| Diary | 业务模块 | P0 | 发布日记、浏览日记、按目的地查看日记 | SearchService、FileService、AIService |
-| Admin | 业务模块 | P1 | 基础数据维护与管理端操作 | QueryService、ImportService |
-| QueryService | 公共能力 | P0 | 统一查询能力 | Mapper、IndexEngine |
-| RankService | 公共能力 | P0 | 排序与 Top-K | QueryService |
-| MapService | 公共能力 | P0 | 图建模、最短路径、多点路径 | GraphEngine、MapNodeMapper、MapEdgeMapper |
-| SearchService | 公共能力 | P1 | 全文检索、模糊检索 | IndexEngine、Diary 数据 |
-| FileService | 公共能力 | P0 | 文件上传、文件访问 | 文件存储 |
-| AIService | 公共能力 | P2 | 日记生成、摘要、标签提取等 | 外部 AI 能力 |
-| ImportService | 公共能力 | P1 | 批量导入与数据初始化 | ImportEngine、MySQL、文件存储 |
+| 模块名            | 类型   | 当前优先级 | 主要职责                               | 主要依赖                                          |
+| -------------- | ---- | ----- | ---------------------------------- | --------------------------------------------- |
+| Auth           | 业务模块 | P0    | 注册、登录、当前用户、基础权限                    | UserMapper、Security                           |
+| UserPreference | 业务模块 | P0/P1 | 偏好标签设置、自由偏好描述、为推荐与创新功能提供输入         | UserPreferenceMapper、Auth                     |
+| Recommend      | 业务模块 | P0    | 推荐目的地、搜索、筛选、排序、为后续推荐理由解释提供基础结果     | QueryService、RankService、UserPreference       |
+| Route          | 业务模块 | P0    | 单目标 / 多目标路径规划、输出路线结果、为后续路线回顾提供输入来源 | MapService                                    |
+| Facility       | 业务模块 | P0    | 周边设施查询、按可达距离返回结果                   | QueryService、RankService、MapService           |
+| Food           | 业务模块 | P1    | 美食推荐、基础筛选与排序                       | QueryService、RankService                      |
+| Diary          | 业务模块 | P0/P1 | 发布日记、浏览日记、按目的地查看日记、手账基础形态          | SearchService、FileService、AIService           |
+| Admin          | 业务模块 | P1    | 基础数据维护与管理端操作                       | QueryService、ImportService                    |
+| QueryService   | 公共能力 | P0    | 统一查询能力                             | Mapper、IndexEngine                            |
+| RankService    | 公共能力 | P0    | 排序与 Top-K                          | QueryService                                  |
+| MapService     | 公共能力 | P0    | 图建模、最短路径、多点路径、设施可达距离计算             | GraphEngine、MapNodeMapper、MapEdgeMapper       |
+| SearchService  | 公共能力 | P1    | 全文检索、模糊检索                          | IndexEngine、Diary 数据                          |
+| FileService    | 公共能力 | P0    | 文件上传、文件访问                          | 文件存储                                          |
+| AIService      | 公共能力 | P2    | AI 日记草稿、图片摘要、路线回顾、推荐理由、多人协商说明      | 外部 AI 能力、Diary、Route、Recommend、UserPreference |
+| ImportService  | 公共能力 | P1    | 批量导入与数据初始化                         | ImportEngine、MySQL、文件存储                       |
 
 ---
 
@@ -137,6 +139,49 @@ P0
 
 ---
 
+## 5.1A UserPreference 模块
+
+### 5.1A.1 模块目标
+为用户提供旅游偏好输入能力，为推荐、路线规划增强、多人协同决策和 AI 推荐解释提供基础输入。
+
+### 5.1A.2 主要职责
+- 保存基础偏好标签
+- 保存自由偏好描述（后续增强）
+- 提供当前用户偏好读取能力
+- 为 Recommend、AIService 提供偏好上下文
+
+### 5.1A.3 不负责的内容
+- 不负责推荐排序本体
+- 不负责行为画像建模
+- 不负责复杂用户长期画像系统
+
+### 5.1A.4 主要输入
+- 偏好标签
+- 自由偏好描述
+- 当前用户身份信息
+
+### 5.1A.5 主要输出
+- 当前用户偏好数据
+- 偏好保存结果
+- 给 Recommend / AIService 的偏好上下文
+
+### 5.1A.6 依赖关系
+- 依赖 `Auth`
+- 依赖用户偏好相关数据表
+- 可被 `Recommend`、`AIService` 调用
+
+### 5.1A.7 当前优先级
+- P0：偏好标签
+- P1：自由偏好描述
+
+### 5.1A.8 与创新需求的关系
+创新需求中已经明确：
+- 用户可通过“选项选择 + 自由输入”表达旅游偏好；
+- 偏好信息可用于个性化推荐、多人协同决策和推荐理由解释。
+因此该模块不应再只是隐含输入，而应作为明确业务模块存在。
+
+---
+
 ## 5.2 Recommend 模块
 
 ### 5.2.1 模块目标
@@ -148,33 +193,43 @@ P0
 - 关键字搜索
 - 类型、主题等基础筛选
 - 输出推荐结果列表
+- 为后续 AI 推荐理由解释提供基础结果
 
 ### 5.2.3 不负责的内容
 - 不直接负责路径规划
 - 不直接负责日记生成
 - 不直接负责复杂用户画像训练
+- 不直接负责 AI 推荐解释生成
 
 ### 5.2.4 主要输入
 - 关键字
 - 类型 / 类别
 - 排序方式
-- 用户偏好（基础版可选）
+- 用户偏好标签
+- 用户自由偏好描述（后续增强）
 
 ### 5.2.5 主要输出
 - 推荐列表
 - 搜索结果列表
 - 目的地基础信息
+- 后续可供 AIService 使用的推荐结果摘要
 
 ### 5.2.6 依赖关系
 - 依赖 `QueryService`
 - 依赖 `RankService`
+- 可读取 `UserPreference`
 - 读取目的地与场所基础数据
+- 后续可与 `AIService` 协作生成推荐理由
 
 ### 5.2.7 当前优先级
 P0
 
 ### 5.2.8 与课程要求的关系
 课程要求中明确包含旅游推荐，并要求能够按热度、评价等进行排序和查询。课堂讨论还强调推荐不能单一化，应采用检索后二次排序。
+
+### 5.2.9 当前阶段说明
+当前推荐主实现仍以“检索 + 排序 + Top-K”为主。  
+AI 个性化推荐和推荐理由解释属于后续增强，不替代基础推荐算法。
 
 ---
 
@@ -188,34 +243,43 @@ P0
 - 多目标路径规划（后续增强）
 - 路径节点、距离、时间结果输出
 - 为前端路径展示提供结果数据
+- 为后续路线回顾提供输入来源
 
 ### 5.3.3 不负责的内容
 - 不负责目的地推荐
 - 不负责设施和美食数据本体管理
 - 不负责日记内容管理
+- 不直接负责路线回顾文案生成
+- 不直接负责外部地图 API 接入管理
 
 ### 5.3.4 主要输入
 - 当前节点
 - 目标节点 / 目标节点列表
 - 路径策略
 - 当前目的地图数据
+- 后续增强可接收时间、人数、偏好等约束条件
 
 ### 5.3.5 主要输出
 - 路径节点列表
 - 总距离
 - 预计时间
 - 路径展示相关结果
+- 可供 AIService 使用的路线摘要原始输入
 
 ### 5.3.6 依赖关系
 - 依赖 `MapService`
 - 依赖 `MapNodeMapper`、`MapEdgeMapper`
 - 依赖图建模与路径算法能力
+- 后续可为 `AIService` 提供 route_history、visitedPlaces 等上下文
 
 ### 5.3.7 当前优先级
 P0
 
 ### 5.3.8 与课程要求的关系
 课程要求中明确包含最短路径和多点路径规划，是数据结构与算法考查重点之一。
+
+### 5.3.9 当前阶段说明
+当前路线规划与周边设施查询统一基于内部 `MapService` 和自建图数据实现；在未确定具体地图 API 前，外部地图服务只作为后续导航、轨迹记录和路线回顾增强能力预留，不替代当前主路径算法。
 
 ---
 
@@ -296,7 +360,7 @@ P1
 ## 5.6 Diary 模块
 
 ### 5.6.1 模块目标
-为用户提供旅游后日记的发布、浏览、详情和关联查看能力。
+为用户提供旅游后日记的发布、浏览、详情和关联查看能力，并为后续手账式旅行记录和 AI 增强提供基础内容载体。
 
 ### 5.6.2 主要职责
 - 发布图文日记
@@ -304,35 +368,49 @@ P1
 - 查看日记详情
 - 按目的地查看相关日记
 - 后续支持检索、排序和 AI 增强
+- 承接手账式旅行记录基础形态
 
 ### 5.6.3 不负责的内容
 - 不负责复杂社交互动系统
 - 不负责复杂富文本平台化能力
+- 不直接负责 AI 生成内容的最终决策
+- 不直接负责图片理解和推荐理由生成
 
 ### 5.6.4 主要输入
 - 标题
 - 正文
 - 图片
 - 关联目的地
+- 地点记录（后续）
 - 检索关键字（后续增强）
+- AI 生成草稿结果（后续增强）
 
 ### 5.6.5 主要输出
 - 日记列表
 - 日记详情
 - 发布结果
 - 日记与目的地关联结果
+- 一次旅行记录的基础组织结果（后续）
 
 ### 5.6.6 依赖关系
 - 依赖 `SearchService`
 - 依赖 `FileService`
 - 可依赖 `AIService` 做后续增强
 - 依赖日记主表、评分表、媒体表
+- 后续可扩展到 travel_journal / travel_journal_entry 等旅行记录结构
 
 ### 5.6.7 当前优先级
-P0
+- P0：图文日记基础版
+- P1：手账基础形态、检索与排序增强
+- P2：AI 日记草稿、图片摘要、手账增强
 
 ### 5.6.8 与课程要求的关系
 课程要求中明确提出旅游后可根据照片和游览经历生成旅游日记。课堂讨论中还提到日记与推荐打通、支持全文检索和压缩存储。
+
+### 5.6.9 当前阶段说明
+当前优先实现“图文日记 + 目的地关联 + 文件上传”。  
+手账式旅行记录作为 P1，在基础日记稳定后补充。  
+AI 日记草稿、图片摘要、手账自动排版等作为 P2 增强，不阻塞基础发布与浏览链路。
 
 ---
 
@@ -342,14 +420,16 @@ P0
 提供最小可用的后台支撑能力，维护系统运行所需基础数据。
 
 ### 5.7.2 主要职责
-- 维护目的地、场所、设施、美食、日记等基础数据
+- 维护目的地、场所、设施、美食、地图节点、地图边、日记等基础数据
 - 提供基础导入入口
 - 支持管理端查看和修正数据
+- 后续可维护偏好标签、景点开放时间等辅助数据
 
 ### 5.7.3 不负责的内容
 - 不做复杂运营后台
 - 不做复杂权限平台
 - 不做完整审计平台
+- 不直接负责 AI 服务接入配置管理
 
 ### 5.7.4 主要输入
 - 管理端表单数据
@@ -404,15 +484,19 @@ P0
 
 ## 6.3 MapService
 ### 职责
-提供图建模、最短路径、多点路径等能力。
+提供图建模、最短路径、多点路径、设施可达距离计算等能力。
 
 ### 主要作用
 - 路线规划
 - 周边设施可达距离计算
 - 后续交通策略、最短时间策略扩展
+- 为后续路线回顾和轨迹摘要提供内部路线数据来源
 
 ### 当前优先级
 P0
+
+### 当前阶段约束说明
+当前路线规划与周边设施查询统一基于内部 `MapService` 和自建图数据实现；在未确定具体地图 API 前，外部地图服务只作为后续导航、轨迹记录和路线回顾增强能力预留，不替代当前主路径算法。
 
 ---
 
@@ -449,15 +533,20 @@ P0
 
 ### 主要作用
 - 日记草稿生成
-- 图片摘要
-- 标签提取
+- 图片摘要与标签提取
+- 手账内容增强
+- 路线回顾说明
 - 多人规划协商说明
+- 推荐理由解释
 
 ### 当前优先级
 P2
 
 ### 当前处理原则
 当前阶段保留模块位置，但不让 AI 创新功能阻塞基础主线闭环。
+
+### 当前阶段实现约束
+当前 AI 能力统一通过 `AIService` 抽象；在未确定具体模型 API 前，先使用统一输入输出结构和 mock / stub 实现，不在业务模块中直接绑定具体模型厂商。
 
 ---
 
@@ -505,6 +594,9 @@ P1
 - Auth  
   → 用户登录进入系统
 
+- UserPreference  
+  → 用户设置偏好标签或补充偏好描述
+
 - Recommend  
   → 用户选择或搜索目的地
 
@@ -512,13 +604,24 @@ P1
   → 用户在目的地内规划路线、查询周边、查看美食
 
 - Diary  
-  → 用户旅游后发布和浏览日记
+  → 用户旅游后发布和浏览日记，并逐步扩展到手账式旅行记录
+
+- AIService（后续增强）  
+  → 为 Diary、Recommend、Route 和多人规划能力提供创新增强支持
 
 ## 8.2 关键协作说明
-- Recommend 依赖 QueryService 和 RankService
-- Route 强依赖 MapService
+- UserPreference 为 Recommend 和 AIService 提供偏好输入
+- Recommend 依赖 QueryService 和 RankService，并可后续与 AIService 协作生成推荐理由
+- Route 强依赖 MapService，并为 AIService 提供路线回顾输入来源
 - Facility 同时依赖 QueryService、RankService 和 MapService
 - Diary 依赖 FileService，后续依赖 SearchService 和 AIService
+- Diary 是手账基础形态的主要承接模块
+- AIService 承接以下创新增强能力：
+  - AI 日记草稿
+  - 图片摘要与标签提取
+  - 路线回顾
+  - 多人规划协商
+  - 推荐理由解释
 - Admin 为多个业务模块提供数据维护支撑
 
 ---
@@ -527,10 +630,11 @@ P1
 
 ## 9.1 P0（当前必须优先完成）
 - Auth
+- UserPreference（先做偏好标签）
 - Recommend
 - Route（先单目标）
 - Facility
-- Diary（基础版）
+- Diary（图文基础版）
 - QueryService
 - RankService
 - MapService
@@ -539,17 +643,24 @@ P1
 - Config / Exception / Response
 
 ## 9.2 P1（基础主线跑通后补充）
+- UserPreference（自由偏好描述）
 - Food
 - Admin
 - SearchService
 - ImportService
 - Route 多目标路径
 - Diary 检索与排序
+- Diary 手账基础形态
 
 ## 9.3 P2（创新与增强）
 - AIService
-- 多模态日记增强
+- AI 日记草稿
+- 图片摘要与标签提取
+- 手账 AI 增强
+- 路线回顾
 - 多人规划协商
+- 推荐理由解释
+- 外部地图 API 接入
 - 更复杂推荐模型
 - 更复杂管理功能
 
@@ -571,17 +682,18 @@ P1
 
 本文件应与以下文档保持一致：
 
-- `docs/01_requirements/prd.md`
-- `docs/01_requirements/use-cases.md`
-- `docs/01_requirements/scope-mvp.md`
-- `docs/02_architecture/architecture.md`
-- `docs/02_architecture/dependency-map.md`
-- `docs/03_data/schema.md`
-- `docs/04_api/api-spec.md`
-- `docs/05_modules/*`
-- `docs/09_decisions/ADR-002-mvp-scope.md`
-- `docs/09_decisions/ADR-003-module-split.md`
-- `docs/09_decisions/ADR-004-algorithm-choice.md`
+- `project-root/docs/01_requirements/prd.md`
+- `project-root/docs/01_requirements/use-cases.md`
+- `project-root/docs/01_requirements/scope-mvp.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/02_architecture/dependency-map.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/05_modules/*`
+- `project-root/docs/09_decisions/ADR-002-mvp-scope.md`
+- `project-root/docs/09_decisions/ADR-003-module-split.md`
+- `project-root/docs/09_decisions/ADR-004-algorithm-choice.md`
+- `project-root/docs/04_api/external-integrations.md`（用于统一记录外部 API 接入方式、配置变量、调用限制与降级方案）
 
 如果模块边界、模块优先级、公共能力拆分方式或核心算法归属发生变化，应同步更新本文件及相关 ADR。
 
@@ -596,3 +708,7 @@ P1
 3. 创新功能正式纳入系统时
 4. 某模块职责边界发生明显调整时
 5. MVP 优先级发生变化时
+6. UserPreference 从增强输入变为独立模块时
+7. Diary 正式承接手账基础形态时
+8. AIService 正式接入外部模型 API 时
+9. 外部地图 API 正式接入并影响 Route / MapService 边界时

@@ -26,10 +26,10 @@
 
 ### 2.3 本地规则优先
 无论使用哪个 AI 工具，都必须优先遵守：
-1. `README.md`
-2. `AGENTS.md`
-3. `docs/coding-rules.md`
-4. `docs/security-rules.md`
+1. `project-root/README.md`
+2. `project-root/AGENTS.md`
+3. `project-root/docs/coding-rules.md`
+4. `project-root/docs/security-rules.md`
 5. 当前模块相关文档
 
 ### 2.4 AI 输出不是最终结果
@@ -263,7 +263,7 @@
 2. 所有高频 prompt 进入 prompt-library
 3. 所有工具分工写清楚
 4. 所有项目级规则写进仓库
-5. 重要决策写进 `docs/09_decisions/`
+5. 重要决策写进 `project-root/docs/09_decisions/`
 
 ---
 

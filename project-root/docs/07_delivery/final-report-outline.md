@@ -67,9 +67,9 @@
 控制在 **300~500 字** 左右。
 
 ### 4.3 可对应文档来源
-- `docs/00_project/project-overview.md`
-- `docs/01_requirements/prd.md`
-- `docs/02_architecture/architecture.md`
+- `project-root/docs/00_project/project-overview.md`
+- `project-root/docs/01_requirements/prd.md`
+- `project-root/docs/02_architecture/architecture.md`
 
 ---
 
@@ -91,9 +91,9 @@
 - 说明系统中确实包含推荐、图路径规划、查询、内容记录等典型数据结构与算法问题
 
 ### 5.3 可引用材料
-- `docs/00_project/project-overview.md`
-- `docs/01_requirements/prd.md`
-- `docs/01_requirements/use-cases.md`
+- `project-root/docs/00_project/project-overview.md`
+- `project-root/docs/01_requirements/prd.md`
+- `project-root/docs/01_requirements/use-cases.md`
 
 ---
 
@@ -136,9 +136,9 @@
 明确哪些是必做功能，哪些是增强功能。
 
 ### 6.3 可引用材料
-- `docs/01_requirements/prd.md`
-- `docs/01_requirements/use-cases.md`
-- `docs/01_requirements/scope-mvp.md`
+- `project-root/docs/01_requirements/prd.md`
+- `project-root/docs/01_requirements/use-cases.md`
+- `project-root/docs/01_requirements/scope-mvp.md`
 
 ---
 
@@ -194,11 +194,11 @@
 - 依赖关系图
 
 ### 7.4 可引用材料
-- `docs/02_architecture/architecture.md`
-- `docs/02_architecture/module-map.md`
-- `docs/02_architecture/dependency-map.md`
-- `docs/02_architecture/tech-stack.md`
-- `docs/02_architecture/coding-plan.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/02_architecture/module-map.md`
+- `project-root/docs/02_architecture/dependency-map.md`
+- `project-root/docs/02_architecture/tech-stack.md`
+- `project-root/docs/02_architecture/coding-plan.md`
 
 ---
 
@@ -238,11 +238,11 @@
 - 数据来源分类表
 
 ### 8.5 可引用材料
-- `docs/03_data/schema.md`
-- `docs/03_data/er-model.md`
-- `docs/03_data/data-dictionary.md`
-- `docs/03_data/data-source.md`
-- `docs/03_data/import-plan.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/03_data/er-model.md`
+- `project-root/docs/03_data/data-dictionary.md`
+- `project-root/docs/03_data/data-source.md`
+- `project-root/docs/03_data/import-plan.md`
 
 ---
 
@@ -309,9 +309,9 @@
 - 关键接口示例
 
 ### 9.4 可引用材料
-- `docs/05_modules/*`
-- `docs/04_api/api-spec.md`
-- `docs/04_api/swagger-draft.yaml`
+- `project-root/docs/05_modules/*`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/04_api/swagger-draft.yaml`
 
 ---
 
@@ -351,10 +351,10 @@
 - 算法结果示例截图
 
 ### 10.5 可引用材料
-- `docs/05_modules/recommend-module.md`
-- `docs/05_modules/route-module.md`
-- `docs/05_modules/facility-module.md`
-- `docs/05_modules/diary-module.md`
+- `project-root/docs/05_modules/recommend-module.md`
+- `project-root/docs/05_modules/route-module.md`
+- `project-root/docs/05_modules/facility-module.md`
+- `project-root/docs/05_modules/diary-module.md`
 
 ---
 
@@ -388,7 +388,7 @@
 - 少讲抽象话，多放实际页面和结果
 
 ### 11.4 可引用材料
-- `docs/07_delivery/demo-script.md`
+- `project-root/docs/07_delivery/demo-script.md`
 - 页面截图
 - 运行结果截图
 
@@ -425,11 +425,11 @@
 - 性能观察摘要
 
 ### 12.4 可引用材料
-- `docs/06_testing/test-plan.md`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/bug-log.md`
-- `docs/06_testing/test-report.md`
-- `docs/06_testing/performance-notes.md`
+- `project-root/docs/06_testing/test-plan.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/bug-log.md`
+- `project-root/docs/06_testing/test-report.md`
+- `project-root/docs/06_testing/performance-notes.md`
 
 ---
 
@@ -457,8 +457,8 @@
 - 测试覆盖以主线为主，增强模块覆盖不足
 
 ### 13.4 可引用材料
-- `docs/05_modules/ai-module.md`
-- `docs/07_delivery/improvement-notes.md`（后续补充后）
+- `project-root/docs/05_modules/ai-module.md`
+- `project-root/docs/07_delivery/improvement-notes.md`（后续补充后）
 
 ---
 
@@ -488,7 +488,7 @@
 3. OpenAPI / Swagger 规范
 4. 地图开放平台资料
 5. 技术官方文档
-6. 你们 `docs/08_ai/references.md` 中整理过的参考资料
+6. 你们 `project-root/docs/08_ai/references.md` 中整理过的参考资料
 
 ---
 
@@ -559,15 +559,15 @@
 
 本文件应与以下文档保持一致：
 
-- `docs/00_project/project-overview.md`
-- `docs/01_requirements/*`
-- `docs/02_architecture/*`
-- `docs/03_data/*`
-- `docs/04_api/*`
-- `docs/05_modules/*`
-- `docs/06_testing/*`
-- `docs/07_delivery/demo-script.md`
-- `docs/07_delivery/acceptance-checklist.md`
+- `project-root/docs/00_project/project-overview.md`
+- `project-root/docs/01_requirements/*`
+- `project-root/docs/02_architecture/*`
+- `project-root/docs/03_data/*`
+- `project-root/docs/04_api/*`
+- `project-root/docs/05_modules/*`
+- `project-root/docs/06_testing/*`
+- `project-root/docs/07_delivery/demo-script.md`
+- `project-root/docs/07_delivery/acceptance-checklist.md`
 
 如果项目实际实现范围、演示范围或最终提交要求发生变化，应同步更新本文件。
 

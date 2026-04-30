@@ -180,7 +180,7 @@ View Object，返回给前端展示使用的数据对象。
 AI 在当前任务中读取和依赖的项目上下文，包括需求文档、架构文档、模块文档、规则文件等。
 
 ### 8.5 项目级规则文件
-指根目录中的 `coding-rules.md`、`security-rules.md`、`AGENTS.md`、`CLAUDE.md` 等仓库级说明文件，用于约束 AI 和人工协作行为。
+指`project-root/`根目录中的 `coding-rules.md`、`security-rules.md`、`AGENTS.md`、`CLAUDE.md` 等仓库级说明文件，用于约束 AI 和人工协作行为。
 
 ---
 

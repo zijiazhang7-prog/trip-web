@@ -13,10 +13,10 @@
 本文件记录的是**实际发现的问题**，不是需求建议清单，也不是未来优化愿望清单。
 
 相关文档：
-- `docs/06_testing/test-plan.md`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/test-report.md`
-- `docs/00_project/progress.md`
+- `project-root/docs/06_testing/test-plan.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/test-report.md`
+- `project-root/docs/00_project/progress.md`
 
 ---
 
@@ -392,12 +392,12 @@
 
 本文件应与以下文档保持一致：
 
-- `docs/06_testing/test-plan.md`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/test-report.md`
-- `docs/00_project/progress.md`
-- `docs/00_project/risk-log.md`
-- `docs/04_api/error-codes.md`（若后续编写）
+- `project-root/docs/06_testing/test-plan.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/test-report.md`
+- `project-root/docs/00_project/progress.md`
+- `project-root/docs/00_project/risk-log.md`
+- `project-root/docs/04_api/error-codes.md`（若后续编写）
 
 如果缺陷分级规则、模块范围或主线优先级发生变化，应同步更新本文件。
 

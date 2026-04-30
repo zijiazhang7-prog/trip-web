@@ -13,11 +13,11 @@
 
 本文件建议在项目后期作为总检查入口使用，并与以下文档配套维护：
 
-- `docs/00_project/progress.md`
-- `docs/00_project/risk-log.md`
-- `docs/06_testing/test-report.md`
-- `docs/07_delivery/demo-script.md`
-- `docs/07_delivery/final-report-outline.md`
+- `project-root/docs/00_project/progress.md`
+- `project-root/docs/00_project/risk-log.md`
+- `project-root/docs/06_testing/test-report.md`
+- `project-root/docs/07_delivery/demo-script.md`
+- `project-root/docs/07_delivery/final-report-outline.md`
 
 ---
 
@@ -73,75 +73,75 @@
 ## 5. 文档验收清单
 
 ## 5.1 项目管理类文档
-- [ ] `docs/00_project/project-overview.md`
-- [ ] `docs/00_project/team-roles.md`（若使用）
-- [ ] `docs/00_project/progress.md`
-- [ ] `docs/00_project/weekly-report-template.md`
-- [ ] `docs/00_project/risk-log.md`
+- [ ] `project-root/docs/00_project/project-overview.md`
+- [ ] `project-root/docs/00_project/team-roles.md`（若使用）
+- [ ] `project-root/docs/00_project/progress.md`
+- [ ] `project-root/docs/00_project/weekly-report-template.md`
+- [ ] `project-root/docs/00_project/risk-log.md`
 
 ## 5.2 需求分析类文档
-- [ ] `docs/01_requirements/prd.md`
-- [ ] `docs/01_requirements/use-cases.md`
-- [ ] `docs/01_requirements/scope-mvp.md`
-- [ ] `docs/01_requirements/glossary.md`（若使用）
+- [ ] `project-root/docs/01_requirements/prd.md`
+- [ ] `project-root/docs/01_requirements/use-cases.md`
+- [ ] `project-root/docs/01_requirements/scope-mvp.md`
+- [ ] `project-root/docs/01_requirements/glossary.md`（若使用）
 
 ## 5.3 架构设计类文档
-- [ ] `docs/02_architecture/architecture.md`
-- [ ] `docs/02_architecture/module-map.md`
-- [ ] `docs/02_architecture/dependency-map.md`
-- [ ] `docs/02_architecture/tech-stack.md`
-- [ ] `docs/02_architecture/coding-plan.md`
+- [ ] `project-root/docs/02_architecture/architecture.md`
+- [ ] `project-root/docs/02_architecture/module-map.md`
+- [ ] `project-root/docs/02_architecture/dependency-map.md`
+- [ ] `project-root/docs/02_architecture/tech-stack.md`
+- [ ] `project-root/docs/02_architecture/coding-plan.md`
 
 ## 5.4 数据设计类文档
-- [ ] `docs/03_data/schema.md`
-- [ ] `docs/03_data/er-model.md`
-- [ ] `docs/03_data/data-dictionary.md`
-- [ ] `docs/03_data/data-source.md`
-- [ ] `docs/03_data/import-plan.md`
+- [ ] `project-root/docs/03_data/schema.md`
+- [ ] `project-root/docs/03_data/er-model.md`
+- [ ] `project-root/docs/03_data/data-dictionary.md`
+- [ ] `project-root/docs/03_data/data-source.md`
+- [ ] `project-root/docs/03_data/import-plan.md`
 
 ## 5.5 接口文档
-- [ ] `docs/04_api/api-spec.md`
-- [ ] `docs/04_api/error-codes.md`
-- [ ] `docs/04_api/api-changelog.md`
-- [ ] `docs/04_api/swagger-draft.yaml`
+- [ ] `project-root/docs/04_api/api-spec.md`
+- [ ] `project-root/docs/04_api/error-codes.md`
+- [ ] `project-root/docs/04_api/api-changelog.md`
+- [ ] `project-root/docs/04_api/swagger-draft.yaml`
 
 ## 5.6 模块设计文档
-- [ ] `docs/05_modules/auth-module.md`
-- [ ] `docs/05_modules/recommend-module.md`
-- [ ] `docs/05_modules/route-module.md`
-- [ ] `docs/05_modules/facility-module.md`
-- [ ] `docs/05_modules/food-module.md`
-- [ ] `docs/05_modules/diary-module.md`
-- [ ] `docs/05_modules/admin-module.md`
-- [ ] `docs/05_modules/ai-module.md`
+- [ ] `project-root/docs/05_modules/auth-module.md`
+- [ ] `project-root/docs/05_modules/recommend-module.md`
+- [ ] `project-root/docs/05_modules/route-module.md`
+- [ ] `project-root/docs/05_modules/facility-module.md`
+- [ ] `project-root/docs/05_modules/food-module.md`
+- [ ] `project-root/docs/05_modules/diary-module.md`
+- [ ] `project-root/docs/05_modules/admin-module.md`
+- [ ] `project-root/docs/05_modules/ai-module.md`
+- [ ] `project-root/docs/05_modules/user-preference-module.md`
 
 ## 5.7 测试文档
-- [ ] `docs/06_testing/test-plan.md`
-- [ ] `docs/06_testing/test-cases.md`
-- [ ] `docs/06_testing/bug-log.md`
-- [ ] `docs/06_testing/test-report.md`
-- [ ] `docs/06_testing/performance-notes.md`
+- [ ] `project-root/docs/06_testing/test-plan.md`
+- [ ] `project-root/docs/06_testing/test-cases.md`
+- [ ] `project-root/docs/06_testing/bug-log.md`
+- [ ] `project-root/docs/06_testing/test-report.md`
+- [ ] `project-root/docs/06_testing/performance-notes.md`
 
 ## 5.8 交付与展示文档
-- [ ] `docs/07_delivery/user-manual.md`
-- [ ] `docs/07_delivery/demo-script.md`
-- [ ] `docs/07_delivery/acceptance-checklist.md`
-- [ ] `docs/07_delivery/improvement-notes.md`
-- [ ] `docs/07_delivery/final-report-outline.md`
+- [ ] `project-root/docs/07_delivery/user-manual.md`
+- [ ] `project-root/docs/07_delivery/demo-script.md`
+- [ ] `project-root/docs/07_delivery/acceptance-checklist.md`
+- [ ] `project-root/docs/07_delivery/improvement-notes.md`
+- [ ] `project-root/docs/07_delivery/final-report-outline.md`
 
 ## 5.9 AI 协作相关文档
-- [ ] `docs/08_ai/ai-usage.md`
-- [ ] `docs/08_ai/prompt-library.md`
-- [ ] `docs/08_ai/references.md`
-- [ ] `docs/08_ai/tool-guide.md`
-- [ ] `docs/08_ai/context-files.md`
+- [ ] `project-root/docs/08_ai/ai-usage.md`
+- [ ] `project-root/docs/08_ai/prompt-library.md`
+- [ ] `project-root/docs/08_ai/references.md`
+- [ ] `project-root/docs/08_ai/tool-guide.md`
+- [ ] `project-root/docs/08_ai/context-files.md`
 
 ## 5.10 项目级规范文件
-- [ ] `README.md`
-- [ ] `AGENTS.md`
-- [ ] `CLAUDE.md`
-- [ ] `coding-rules.md`
-- [ ] `security-rules.md`
+- [ ] `project-root/README.md`
+- [ ] `project-root/AGENTS.md`
+- [ ] `project-root/coding-rules.md`
+- [ ] `project-root/security-rules.md`
 - [ ] `.gitignore`
 
 ### 文档总评

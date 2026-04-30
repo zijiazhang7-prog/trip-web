@@ -13,10 +13,10 @@
 - 当前版本是否达到阶段性可交付标准
 
 相关文档：
-- `docs/06_testing/test-plan.md`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/bug-log.md`
-- `docs/00_project/progress.md`
+- `project-root/docs/06_testing/test-plan.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/bug-log.md`
+- `project-root/docs/00_project/progress.md`
 
 ---
 
@@ -466,11 +466,11 @@
 ## 16. 附录
 
 ## 16.1 相关文档引用
-- `docs/06_testing/test-plan.md`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/bug-log.md`
-- `docs/05_modules/*`
-- `docs/04_api/api-spec.md`
+- `project-root/docs/06_testing/test-plan.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/bug-log.md`
+- `project-root/docs/05_modules/*`
+- `project-root/docs/04_api/api-spec.md`
 
 ## 16.2 可附加材料
 后续可在此附加：
@@ -486,11 +486,11 @@
 
 本文件应与以下文档保持一致：
 
-- `docs/06_testing/test-plan.md`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/bug-log.md`
-- `docs/00_project/progress.md`
-- `docs/00_project/risk-log.md`
+- `project-root/docs/06_testing/test-plan.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/bug-log.md`
+- `project-root/docs/00_project/progress.md`
+- `project-root/docs/00_project/risk-log.md`
 
 如果测试范围、模块实现范围、缺陷统计口径或阶段结论发生变化，应同步更新本文件。
 

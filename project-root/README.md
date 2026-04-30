@@ -2,184 +2,211 @@
 
 ## 1. 项目简介
 本项目为《数据结构课程设计》课程项目，目标是实现一个面向旅游活动全流程的 Web 个性化旅游系统。  
-系统覆盖旅行前推荐、旅行中路线规划与场所查询、旅行后旅游日记生成与交流，并结合 AI 能力实现创新功能。
+系统围绕“旅行前推荐—旅行中规划与查询—旅行后日记记录与交流”构建完整功能链路，并在实现过程中体现排序、查找、图、最短路径、多点路径、全文检索、压缩等数据结构与算法能力。
 
-## 2. 项目目标
-- 实现旅游推荐、旅游路线规划、场所查询、旅游日记交流、美食推荐等核心功能
-- 将排序、查找、最短路径、多点路径、全文检索、压缩等数据结构与算法落到真实系统中
-- 使用智能体辅助需求分析、设计、开发、测试与文档整理
-- 形成完整的课程设计文档、测试文档与交付材料
+## 2. 当前项目目标
+- 实现一个可远程访问的 Web 个性化旅游系统
+- 先跑通当前 P0 主线闭环
+- 形成前后端、数据库、接口、测试与文档的一致版本
+- 为后续 P1 / P2 增强能力与创新能力预留扩展空间
+- 形成可用于中期汇报与最终课程验收的代码和材料
 
-## 3. 小组成员与分工
-- 成员A：后端 / 推荐模块 / API文档
-- 成员B：算法 / 路线规划 / 数据导入
-- 成员C：前端 / 日记模块 / 测试与交付文档
+## 3. 当前范围说明
 
-详细分工见：`docs/00_project/team-roles.md`
+### P0（当前优先）
+- 用户注册 / 登录
+- 用户偏好输入
+- 目的地推荐与搜索
+- 单目标路线规划
+- 周边设施查询
+- 图文日记发布 / 浏览 / 详情
+- 文件上传与媒体访问
 
-## 4. 系统形态与架构
+### P1（主线跑通后补）
+- 美食推荐
+- 多目标路径规划
+- 最短时间策略
+- 日记评分
+- 日记检索
+- 管理端基础数据维护
+- 导入流程完善
+
+### P2（后续增强）
+- AI 日记草稿
+- 图片摘要
+- 路线回顾
+- 推荐理由解释
+- 多人旅游规划协商
+- 外部地图 / 外部模型服务增强接入
+
+## 4. 小组成员与分工
+- 成员 A：后端 / Auth / UserPreference / Recommend / API 文档
+- 成员 B：算法 / Route / Facility / 数据导入
+- 成员 C：前端 / Diary / 测试与交付文档
+
+详细分工见：`project-root/docs/00_project/team-roles.md`
+
+## 5. 系统形态与架构
 - Web 远程系统
 - B/S 架构
 - 前后端分离
 - 单体后端
 - 算法模块化封装
 
-## 5. 技术栈
+## 6. 技术栈
+
 ### 前端
 - Vue 3
+- Vite
 - Element Plus
 - Axios
-- Vue Router / Pinia
+- Vue Router
+- Pinia
 
 ### 后端
 - Java 17
 - Spring Boot 3
 - MyBatis-Plus
 - Maven
+- Spring Security + JWT
 
 ### 数据与脚本
 - MySQL 8
-- Python（数据清洗、导入、辅助脚本）
+- 本地文件存储 / 统一文件目录
+- Python
+- pandas
 
 ### AI / Agent 工具
-
-
-## 6. 核心功能
-### 旅行前
-- 目的地推荐
-- 景点 / 学校搜索
-- 多维筛选与排序
-
-### 旅行中
-- 单目标路线规划
-- 多目标路线规划
-- 周边设施查询
-- 美食推荐
-
-### 旅行后
-- 旅游日记发布与浏览
-- 日记检索与排序
-- AI 辅助日记生成 / 创新功能
+- Claude Code
+- OpenClaw
+- ChatGPT
+- Codex
 
 ## 7. 仓库结构
+
 ```text
-project-root/
-├─ README.md
-├─ AGENTS.md
-├─ CLAUDE.md
-├─ coding-rules.md
-├─ security-rules.md
+trip-web/
+├─ project-root/
+│  ├─ README.md
+│  ├─ AGENTS.md
+│  ├─ CLAUDE.md
+│  ├─ coding-rules.md
+│  ├─ security-rules.md
+│  ├─ frontend/
+│  ├─ backend/
+│  ├─ scripts/
+│  ├─ data/
+│  ├─ docs/
+│  └─ assets/
+│  
 ├─ .gitignore
-├─ frontend/
-├─ backend/
-├─ scripts/
-├─ data/
-├─ docs/
-└─ assets/
+├─ README.md
+└─ LICENSE
 ```
 
 ## 8. 快速启动
 
 ### 前端
 
-cd frontend  
-npm install  
-npm run dev
+```
+cd frontendnpm installnpm run dev
+```
 
 ### 后端
 
-cd backend  
-mvn clean spring-boot:run
+```
+cd backendmvn clean spring-boot:run
+```
 
 ### 数据库
 
 1. 启动 MySQL 8
 2. 创建数据库 `tour_system`
-3. 按 `docs/03_data/schema.md` 初始化表结构
-4. 按 `docs/03_data/import-plan.md` 导入初始数据
+3. 按 `project-root/docs/03_data/schema.md` 初始化表结构
+4. 按导入方案准备基础样例数据
 
-## 9. 根目录关键文件说明
+## 9. project-root/根目录关键文件说明
 
 - `AGENTS.md`：AI 工具协作总规则
 - `CLAUDE.md`：Claude Code 补充约定
 - `coding-rules.md`：项目级编码规范
 - `security-rules.md`：项目级安全规范
-- `.gitignore`：Git 忽略规则
 
 ## 10. 关键文档入口
 
 ### 项目管理
 
-- 项目总览：`docs/00_project/project-overview.md`
-- 成员分工：`docs/00_project/team-roles.md`
-- 项目进度：`docs/00_project/progress.md`
-- 风险记录：`docs/00_project/risk-log.md`
+- 项目总览：`project-root/docs/00_project/project-overview.md`
+- 成员分工：`project-root/docs/00_project/team-roles.md`
+- 项目进度：`project-root/docs/00_project/progress.md`
+- 风险记录：`project-root/docs/00_project/risk-log.md`
 
 ### 需求与范围
 
-- PRD：`docs/01_requirements/prd.md`
-- 用例：`docs/01_requirements/use-cases.md`
-- MVP范围：`docs/01_requirements/scope-mvp.md`
-- 术语表：`docs/01_requirements/glossary.md`
+- PRD：`project-root/docs/01_requirements/prd.md`
+- 用例：`project-root/docs/01_requirements/use-cases.md`
+- MVP 范围：`project-root/docs/01_requirements/scope-mvp.md`
+- 术语表：`project-root/docs/01_requirements/glossary.md`
 
 ### 架构与设计
 
-- 总体架构：`docs/02_architecture/architecture.md`
-- 模块划分：`docs/02_architecture/module-map.md`
-- 依赖关系：`docs/02_architecture/dependency-map.md`
-- 技术栈：`docs/02_architecture/tech-stack.md`
+- 总体架构：`project-root/docs/02_architecture/architecture.md`
+- 技术栈：`project-root/docs/02_architecture/tech-stack.md`
+- 模块划分：`project-root/docs/02_architecture/module-map.md`
+- 依赖关系：`project-root/docs/02_architecture/dependency-map.md`
+- 外部集成：`project-root/docs/04_api/external-integrations.md`
 
 ### 数据与接口
 
-- 数据库设计：`docs/03_data/schema.md`
-- 数据字典：`docs/03_data/data-dictionary.md`
-- ER图：`docs/03_data/er-model.md`
-- API文档：`docs/04_api/api-spec.md`
-- Swagger草稿：`docs/04_api/swagger-draft.yaml`
+- 数据库设计：`project-root/docs/03_data/schema.md`
+- 数据字典：`project-root/docs/03_data/data-dictionary.md`
+- ER 图：`project-root/docs/03_data/er-model.md`
+- API 文档：`project-root/docs/04_api/api-spec.md`
+- Swagger 草稿：`project-root/docs/04_api/swagger-draft.yaml`
 
 ### 模块设计
 
-- 认证模块：`docs/05_modules/auth-module.md`
-- 推荐模块：`docs/05_modules/recommend-module.md`
-- 路线模块：`docs/05_modules/route-module.md`
-- 日记模块：`docs/05_modules/diary-module.md`
-- AI模块：`docs/05_modules/ai-module.md`
+- 认证模块：`project-root/docs/05_modules/auth-module.md`
+- 用户偏好模块：`project-root/docs/05_modules/user-preference-module.md`
+- 推荐模块：`project-root/docs/05_modules/recommend-module.md`
+- 路线模块：`project-root/docs/05_modules/route-module.md`
+- 日记模块：`project-root/docs/05_modules/diary-module.md`
+- AI 模块：`project-root/docs/05_modules/ai-module.md`
 
 ### 测试与交付
 
-- 测试计划：`docs/06_testing/test-plan.md`
-- 测试用例：`docs/06_testing/test-cases.md`
-- 测试报告：`docs/06_testing/test-report.md`
-- 用户手册：`docs/07_delivery/user-manual.md`
-- 演示脚本：`docs/07_delivery/demo-script.md`
+- 测试计划：`project-root/docs/06_testing/test-plan.md`
+- 测试用例：`project-root/docs/06_testing/test-cases.md`
+- 测试报告：`project-root/docs/06_testing/test-report.md`
+- 用户手册：`project-root/docs/07_delivery/user-manual.md`
+- 演示脚本：`project-root/docs/07_delivery/demo-script.md`
 
 ### AI 协作
 
-- AI 使用记录：`docs/08_ai/ai-usage.md`
-- 提示词库：`docs/08_ai/prompt-library.md`
-- 工具说明：`docs/08_ai/tool-guide.md`
-- 上下文文件：`docs/08_ai/context-files.md`
+- AI 使用记录：`project-root/docs/08_ai/ai-usage.md`
+- 提示词库：`project-root/docs/08_ai/prompt-library.md`
+- 工具说明：`project-root/docs/08_ai/tool-guide.md`
+- 上下文文件：`project-root/docs/08_ai/context-files.md`
 
 ### 决策记录
 
-- 技术选型：`docs/09_decisions/ADR-001-tech-stack.md`
-- MVP 范围：`docs/09_decisions/ADR-002-mvp-scope.md`
-- 模块拆分：`docs/09_decisions/ADR-003-module-split.md`
-- 算法选择：`docs/09_decisions/ADR-004-algorithm-choice.md`
+- 技术选型：`project-root/docs/09_decisions/ADR-001-tech-stack.md`
+- MVP 范围：`project-root/docs/09_decisions/ADR-002-mvp-scope.md`
+- 模块拆分：`project-root/docs/09_decisions/ADR-003-module-split.md`
+- 算法选择：`project-root/docs/09_decisions/ADR-004-algorithm-choice.md`
 
-## 11. 参考资料目录
-
-- `docs/08_ai/references.md：外部参考规范、标准、资料索引
-
-> 注意：参考资料不是项目最终事实来源，项目事实以本仓库当前已确认文档为准。
-
-## 12. 当前开发约定
+## 11. 当前开发约定
 
 - 一次只实现一个模块，不一次性生成整个系统
-- 优先保证最小可运行版本，再逐步增强
-- 修改数据库/API/模块依赖后必须同步文档
-- 重要设计决策记录在 `docs/09_decisions/`
-- 编码与安全规则分别遵循根目录 `coding-rules.md`、`security-rules.md`
+- 优先保证 P0 主线跑通，再逐步增强
+- 修改数据库 / API / 模块依赖后必须同步文档
+- 重要设计决策记录在 `project-root/docs/09_decisions/`
+- 编码与安全规则分别遵循`project-root/`根目录 `coding-rules.md`、`security-rules.md`
+- 外部地图与外部 AI 服务当前只做预留，不作为当前主链路硬依赖
+
+## 12. 当前项目状态
+
+当前项目已完成项目前期核心文档整理，当前正准备按 P0 主线进入正式开发与联调阶段。
 
 ## 13. 课程说明
 

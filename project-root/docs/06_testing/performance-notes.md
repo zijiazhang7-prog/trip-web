@@ -13,11 +13,11 @@
 - 为最终测试报告和验收材料提供性能相关依据
 
 相关文档：
-- `docs/06_testing/test-plan.md`
-- `docs/06_testing/test-report.md`
-- `docs/06_testing/test-cases.md`
-- `docs/02_architecture/architecture.md`
-- `docs/05_modules/*`
+- `project-root/docs/06_testing/test-plan.md`
+- `project-root/docs/06_testing/test-report.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/05_modules/*`
 
 ---
 
@@ -416,12 +416,12 @@
 
 本文件应与以下文档保持一致：
 
-- `docs/06_testing/test-plan.md`
-- `docs/06_testing/test-report.md`
-- `docs/06_testing/bug-log.md`
-- `docs/04_api/api-spec.md`
-- `docs/05_modules/*`
-- `docs/03_data/import-plan.md`
+- `project-root/docs/06_testing/test-plan.md`
+- `project-root/docs/06_testing/test-report.md`
+- `project-root/docs/06_testing/bug-log.md`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/05_modules/*`
+- `project-root/docs/03_data/import-plan.md`
 
 如果核心模块实现范围、接口行为或测试重点发生变化，应同步更新本文件。
 

@@ -712,12 +712,12 @@
 ## 17. 与其他文档的关系
 本文件应与以下文档保持一致：
 
-- `docs/02_architecture/architecture.md`
-- `docs/02_architecture/module-map.md`
-- `docs/02_architecture/dependency-map.md`
-- `docs/03_data/schema.md`
-- `docs/03_data/import-plan.md`
-- `docs/04_api/api-spec.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/02_architecture/module-map.md`
+- `project-root/docs/02_architecture/dependency-map.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/03_data/import-plan.md`
+- `project-root/docs/04_api/api-spec.md`
 
 如果管理端职责、导入方式、状态管理、权限粒度或表结构发生变化，应同步更新以上文档。
 

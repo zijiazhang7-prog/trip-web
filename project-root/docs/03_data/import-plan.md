@@ -15,10 +15,10 @@
 本文件关注的是“数据怎么进系统”，不替代数据来源说明和数据库结构说明。
 
 相关文档：
-- `docs/03_data/data-source.md`
-- `docs/03_data/schema.md`
-- `docs/03_data/data-dictionary.md`
-- `docs/03_data/er-model.md`
+- `project-root/docs/03_data/data-source.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/03_data/data-dictionary.md`
+- `project-root/docs/03_data/er-model.md`
 
 ---
 
@@ -791,12 +791,12 @@ python scripts/import/run_import.py --batch init_demo
 
 本文件应与以下文档保持一致：
 
-- `docs/03_data/data-source.md
-- `docs/03_data/schema.md`
-- `docs/03_data/data-dictionary.md`
-- `docs/02_architecture/architecture.md`
-- `docs/02_architecture/coding-plan.md`
-- `docs/04_api/api-spec.md`
+- `project-root/docs/03_data/data-source.md
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/03_data/data-dictionary.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/02_architecture/coding-plan.md`
+- `project-root/docs/04_api/api-spec.md`
 
 如果导入顺序、文件格式、字段映射或导入方式发生变化，应同步更新这些文档。
 

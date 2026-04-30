@@ -15,11 +15,11 @@
 本文件关注的是“接口出错时怎么统一表达”，不替代接口文档本身，也不替代全局异常处理实现。
 
 相关文档：
-- `docs/04_api/api-spec.md`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/bug-log.md`
-- `coding-rules.md`
-- `security-rules.md`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/bug-log.md`
+- `project-root/coding-rules.md`
+- `project-root/security-rules.md`
 
 ---
 
@@ -446,12 +446,12 @@
 
 本文件应与以下文档保持一致：
 
-- `docs/04_api/api-spec.md`
-- `docs/06_testing/test-cases.md`
-- `docs/06_testing/bug-log.md`
-- `docs/05_modules/*`
-- `coding-rules.md`
-- `security-rules.md`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/06_testing/test-cases.md`
+- `project-root/docs/06_testing/bug-log.md`
+- `project-root/docs/05_modules/*`
+- `project-root/coding-rules.md`
+- `project-root/security-rules.md`
 
 如果接口行为、统一返回体、模块职责或权限规则发生变化，应同步更新本文件。
 

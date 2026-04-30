@@ -41,7 +41,7 @@
 
 系统的总体依赖关系可概括为：
 
-```text 
+```text
 第 0 层：工程与协作基础
 ├─ 仓库结构
 ├─ 开发规范
@@ -68,6 +68,7 @@
 
 第 3 层：核心业务模块
 ├─ Auth
+├─ UserPreference
 ├─ Recommend
 ├─ Route
 ├─ Facility
@@ -77,10 +78,11 @@
 
 第 4 层：前端页面与联调
 ├─ 首页 / 推荐页
+├─ 偏好设置页
 ├─ 规划页 / 导航页
 ├─ 周边设施页
 ├─ 美食页
-├─ 日记页
+├─ 日记页 / 手账页
 └─ 管理端页面
 
 第 5 层：测试、验收与交付
@@ -89,59 +91,63 @@
 ├─ 白盒测试
 ├─ 缺陷修复
 └─ 演示与答辩材料
-````
+```
 
 ---
 
-## 4. 模块依赖总图（文本版）
-
-```text
-[工程初始化]
-    ↓
-[数据库表结构] ───────→ [数据导入脚本]
-    ↓
-[统一返回体 / 错误码 / 全局异常]
-    ↓
-[Security / JWT / Auth 基础]
-    ↓
-[QueryService] ─────────────┐
-[RankService] ──────────────┼──→ [Recommend]
-[MapService] ───────────────┼──→ [Route]
-[MapService] ───────────────┼──→ [Facility]
-[SearchService] ────────────┼──→ [Diary 检索增强]
-[FileService] ──────────────┼──→ [Diary 发布]
-[ImportService] ────────────┼──→ [Admin / 数据初始化]
-[AIService] ────────────────┘    [创新功能扩展]
-
-[Auth] ─────────→ [Diary]
-[Auth] ─────────→ [Admin]
-[Auth] ─────────→ [用户偏好设置]
-[QueryService] ─→ [Admin]
-[FileService] ──→ [Admin]
-[ImportService] ─→ [Admin]
-
-[Admin] ───────→ [destination]
-[Admin] ───────→ [place]
-[Admin] ───────→ [facility]
-[Admin] ───────→ [food]
-[Admin] ───────→ [map_node]
-[Admin] ───────→ [map_edge]
-[Admin] ───────→ [diary]
-[Admin] ───────→ [import_batch]
-
-[Recommend] ─────→ [首页 / 推荐页 / 目的地详情页]
-[Route] ─────────→ [导航页]
-[Facility] ──────→ [周边设施页]
-[Food] ─────────→ [美食页]
-[Diary] ────────→ [日记页]
-[Admin] ────────→ [管理端页面]
-
-[后端接口完成]
-    ↓
-[前端页面联调]
-    ↓
-[测试]
-    ↓
+## 4. 模块依赖总图（文本版）  
+  
+```text  
+[工程初始化]  
+↓  
+[数据库表结构] ───────→ [数据导入脚本]  
+↓  
+[统一返回体 / 错误码 / 全局异常]  
+↓  
+[Security / JWT / Auth 基础]  
+↓  
+[QueryService] ───────────────┐  
+[RankService] ────────────────┼──→ [Recommend]  
+[MapService] ─────────────────┼──→ [Route]  
+[MapService] ─────────────────┼──→ [Facility]  
+[SearchService] ──────────────┼──→ [Diary 检索增强]  
+[FileService] ────────────────┼──→ [Diary 发布 / 手账基础形态]  
+[ImportService] ──────────────┼──→ [Admin / 数据初始化]  
+[AIService] ──────────────────┘ [创新功能扩展]  
+  
+[Auth] ─────────→ [Diary]  
+[Auth] ─────────→ [Admin]  
+[Auth] ─────────→ [UserPreference]  
+  
+[UserPreference] ─→ [Recommend]  
+[UserPreference] ─→ [AIService]  
+  
+[QueryService] ─→ [Admin]  
+[FileService] ──→ [Admin]  
+[ImportService] ─→ [Admin]  
+  
+[Recommend] ───→ [首页 / 推荐页 / 目的地详情页]  
+[Route] ───────→ [导航页 / 路线回顾输入来源]  
+[Facility] ────→ [周边设施页]  
+[Food] ───────→ [美食页]  
+[Diary] ──────→ [日记页 / 手账页]  
+[Admin] ──────→ [管理端页面]  
+  
+[Admin] ───────→ [destination]  
+[Admin] ───────→ [place]  
+[Admin] ───────→ [facility]  
+[Admin] ───────→ [food]  
+[Admin] ───────→ [map_node]  
+[Admin] ───────→ [map_edge]  
+[Admin] ───────→ [diary]  
+[Admin] ───────→ [import_batch]  
+  
+[后端接口完成]  
+↓  
+[前端页面联调]  
+↓  
+[测试]  
+↓  
 [交付]
 ```
 
@@ -149,26 +155,28 @@
 
 ## 5. 模块依赖总表
 
-| 模块 / 能力          | 它负责什么            | 前置依赖                                                                                                                     | 被谁依赖                               | 当前优先级 |
-| ---------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- | ----- |
-| 工程初始化            | 仓库、前后端骨架、环境、规范   | 无                                                                                                                        | 所有模块                               | P0    |
-| 数据库表结构           | 表、字段、索引、关系       | 需求文档、数据设计                                                                                                                | 所有后端模块                             | P0    |
-| 统一返回体 / 错误码 / 异常 | 接口统一输出与错误处理      | 后端骨架                                                                                                                     | 所有接口模块                             | P0    |
-| Security / JWT   | 认证校验、token 处理    | 用户表、后端骨架                                                                                                                 | Auth、管理端、需要登录的接口                   | P0    |
-| FileService      | 文件上传 / 文件访问      | 文件存储                                                                                                                     | Diary、Admin、后续 AI 功能               | P0    |
-| QueryService     | 统一查询能力           | 数据库表结构                                                                                                                   | Recommend、Facility、Food、Admin      | P0    |
-| RankService      | 排序 / Top-K       | QueryService                                                                                                             | Recommend、Facility、Food、Diary 排序增强 | P0    |
-| MapService       | 图建模、最短路径、多点路径    | MapNode / MapEdge 表                                                                                                      | Route、Facility                     | P0    |
-| SearchService    | 全文 / 模糊检索        | 索引能力、文本数据                                                                                                                | Diary 检索增强                         | P1    |
-| ImportService    | 导入与初始化           | ImportEngine、MySQL、文件存储                                                                                                  | Admin、数据准备                         | P1    |
-| AIService        | AI 扩展能力          | 外部 AI 能力、基础主线模块                                                                                                          | Diary 增强、创新功能                      | P2    |
-| Auth             | 注册、登录、当前用户       | User 表、Security                                                                                                          | Recommend 个性化、Diary、Admin          | P0    |
-| Recommend        | 推荐、搜索、筛选         | QueryService、RankService                                                                                                 | 首页、推荐页、目的地详情                       | P0    |
-| Route            | 路径规划             | MapService                                                                                                               | 导航页、部分 Diary 扩展                    | P0    |
-| Facility         | 周边设施查询           | QueryService、RankService、MapService                                                                                      | 周边页                                | P0    |
-| Food             | 美食推荐             | QueryService、RankService                                                                                                 | 美食页                                | P1    |
-| Diary            | 发布、浏览、关联查看       | FileService、基础数据、Auth                                                                                                    | 日记页、后续 AI 功能                       | P0    |
-| Admin            | 基础数据维护、状态管理、批量导入 | Auth、QueryService、ImportService、FileService、destination/place/facility<br>/food/map_node<br>/map_edge/diary/import_batch | 管理端页面                              | P1    |
+| 模块 / 能力          | 它负责什么             | 前置依赖                                                                                                             | 被谁依赖                               | 当前优先级   |
+| ---------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------- |
+| 工程初始化            | 仓库、前后端骨架、环境、规范    | 无                                                                                                                | 所有模块                               | P0      |
+| 数据库表结构           | 表、字段、索引、关系        | 需求文档、数据设计                                                                                                        | 所有后端模块                             | P0      |
+| 统一返回体 / 错误码 / 异常 | 接口统一输出与错误处理       | 后端骨架                                                                                                             | 所有接口模块                             | P0      |
+| Security / JWT   | 认证校验、token 处理     | 用户表、后端骨架                                                                                                         | Auth、管理端、需要登录的接口                   | P0      |
+| FileService      | 文件上传 / 文件访问       | 文件存储                                                                                                             | Diary、Admin、后续 AI 功能               | P0      |
+| QueryService     | 统一查询能力            | 数据库表结构                                                                                                           | Recommend、Facility、Food、Admin      | P0      |
+| RankService      | 排序 / Top-K        | QueryService                                                                                                     | Recommend、Facility、Food、Diary 排序增强 | P0      |
+| MapService       | 图建模、最短路径、多点路径     | MapNode / MapEdge 表                                                                                              | Route、Facility                     | P0      |
+| SearchService    | 全文 / 模糊检索         | 索引能力、文本数据                                                                                                        | Diary 检索增强                         | P1      |
+| ImportService    | 导入与初始化            | ImportEngine、MySQL、文件存储                                                                                          | Admin、数据准备                         | P1      |
+| AIService        | AI 扩展能力           | 外部 AI 能力、基础主线模块、统一输入输出定义                                                                                         | Diary 增强、Recommend 增强、创新功能         | P2      |
+| Auth             | 注册、登录、当前用户        | User 表、Security                                                                                                  | UserPreference、Diary、Admin         | P0      |
+| UserPreference   | 偏好标签、自由偏好描述       | Auth、用户偏好表                                                                                                       | Recommend、AIService                | P0 / P1 |
+| Recommend        | 推荐、搜索、筛选          | QueryService、RankService、UserPreference                                                                          | 首页、推荐页、目的地详情                       | P0      |
+| Route            | 路径规划              | MapService                                                                                                       | 导航页、部分 Diary / AI 扩展               | P0      |
+| Facility         | 周边设施查询            | QueryService、RankService、MapService                                                                              | 周边页                                | P0      |
+| Food             | 美食推荐              | QueryService、RankService                                                                                         | 美食页                                | P1      |
+| Diary            | 发布、浏览、关联查看、手账基础形态 | FileService、基础数据、Auth                                                                                            | 日记页、后续 AI 功能                       | P0 / P1 |
+| Admin            | 基础数据维护、状态管理、批量导入  | Auth、QueryService、ImportService、FileService、destination/place/facility/food/map_node/map_edge/diary/import_batch | 管理端页面                              | P1      |
+
 
 ---
 
@@ -184,14 +192,14 @@
 
 ### 为什么必须先做
 
-登录和身份识别是后续日记、管理端、个性化能力的前提。没有 Auth，很多接口会缺少最基本的用户上下文。
+登录和身份识别是后续日记、管理端、用户偏好设置和个性化能力的前提。没有 Auth，很多接口会缺少最基本的用户上下文。
 
 ### 被哪些模块依赖
 
+- UserPreference
 - Diary
 - Admin
 - 个性化推荐增强
-- 用户偏好设置
 
 ---
 
@@ -202,16 +210,44 @@
 - 目的地相关数据表
 - QueryService
 - RankService
+- UserPreference（当前至少包含偏好标签）
 
 ### 为什么依赖这些能力
 
-推荐模块本质上依赖“先召回候选数据，再进行排序或 Top-K 输出”的能力，不适合把查询和排序逻辑直接写死在控制器或业务层中。课堂讨论也明确提到推荐应采用检索后二次排序。
+推荐模块本质上依赖“先召回候选数据，再进行排序或 Top-K 输出”的能力，不适合把查询和排序逻辑直接写死在控制器或业务层中。  
+当前用户偏好标签已经进入 P0，因此 Recommend 应预留读取用户偏好的能力。  
+课堂讨论也明确提到推荐应采用检索后二次排序。
 
 ### 被哪些模块依赖
 
 - 首页推荐流
 - 推荐页
 - 目的地详情页
+- 后续 AI 推荐理由解释
+
+---
+
+## 6.2A UserPreference 模块依赖关系
+
+### 前置依赖
+
+- Auth
+- 用户偏好相关数据表
+- 统一返回体 / 异常处理
+
+### 为什么必须明确出来
+
+当前项目中，用户偏好不再只是 Recommend 的隐含输入，而是已经纳入正式需求范围：
+- 偏好标签进入 P0
+- 自由偏好描述进入 P1
+
+如果不单独作为依赖关系说明，后续 Recommend、AIService、多人协同决策等功能会反复各自维护一套偏好输入逻辑。
+
+### 被哪些模块依赖
+
+- Recommend
+- AIService
+- 后续多人规划创新功能
 
 ---
 
@@ -233,6 +269,11 @@
 - 导航页
 - 后续多目标路径增强
 - 部分日记路线回顾功能（后续）
+- AI 路线回顾说明生成（后续）
+
+### 当前阶段说明
+
+当前 Route 模块统一基于内部 `MapService` 和自建图数据实现；在未确定具体地图 API 前，外部地图服务只作为后续导航、轨迹记录和路线回顾增强能力预留，不替代当前主路径算法。
 
 ---
 
@@ -286,13 +327,20 @@ Food 模块重要，但它不阻塞“推荐—规划—查询—日记”这条
 
 ### 为什么 Diary 先不强依赖 SearchService
 
-当前 MVP 里，日记模块先要跑通“发布—浏览—详情—按目的地查看”这条主线；全文检索属于增强项，可以后续再加 SearchService。
+当前 MVP 里，Diary 模块先要跑通“发布—浏览—详情—按目的地查看”这条主线；全文检索属于增强项，可以后续再加 SearchService。
 
 ### 被哪些模块依赖
 
 - 日记页
 - 目的地相关日记入口
+- 手账基础形态
 - 后续 AI 增强能力
+
+### 当前阶段说明
+
+Diary 当前优先承接图文日记基础版；  
+手账式旅行记录作为 P1，在基础日记稳定后补充；  
+AI 日记草稿、图片摘要、手账增强作为 P2 能力后接，不阻塞基础发布与浏览链路。
 
 ---
 
@@ -360,7 +408,7 @@ P0
 
 ### 作用
 
-统一承接图建模、最短路径和多点路径能力。
+统一承接图建模、最短路径和多点路径能力，并为周边设施可达距离计算提供基础支撑。
 
 ### 前置依赖
 
@@ -370,6 +418,10 @@ P0
 ### 开发优先级
 
 P0
+
+### 当前阶段约束说明
+
+当前路线规划与设施查询统一基于内部 `MapService` 和自建图数据实现；在未确定具体地图 API 前，外部地图服务只作为后续导航、轨迹记录和路线回顾增强能力预留，不替代当前主路径算法。
 
 ---
 
@@ -416,12 +468,23 @@ P0
 ### 前置依赖
 
 - 外部 AI 能力
-- Diary 等基础主线模块
+- Diary、Recommend、Route、UserPreference 等基础主线模块
 - 必要的输入输出定义
 
 ### 开发优先级
 
 P2
+
+### 当前阶段约束说明
+
+当前 AI 能力统一通过 `AIService` 抽象；在未确定具体模型 API 前，先使用统一输入输出结构和 mock / stub 实现，不在业务模块中直接绑定具体模型厂商。
+
+### 被哪些能力依赖
+
+- Diary 增强（AI 日记草稿、图片摘要、手账增强）
+- Recommend 增强（推荐理由解释）
+- Route / Diary 扩展（路线回顾）
+- 多人旅游规划协商
 
 ---
 
@@ -472,25 +535,30 @@ P1
 ### 第四步：核心业务模块
 
 13. Auth
-14. Recommend
-15. Route（先单目标）
-16. Facility
-17. Diary（基础版）
+14. UserPreference（先偏好标签）
+15. Recommend
+16. Route（先单目标）
+17. Facility
+18. Diary（图文基础版）
 
 ### 第五步：联调与增强
 
-18. 前端页面联调
-19. Food
-20. Admin（Admin 当前优先实现最小后台能力：目的地、场所、设施、美食的基础维护与导入入口；地图节点 / 边维护和日记管理可后续补齐。）
-21. SearchService
-22. Route 多目标增强
-23. Diary 检索增强
+19. 前端页面联调
+20. Food
+21. Admin（Admin 当前优先实现最小后台能力：目的地、场所、设施、美食的基础维护与导入入口；地图节点 / 边维护和日记管理可后续补齐。）
+22. SearchService
+23. Route 多目标增强
+24. Diary 检索增强
+25. Diary 手账基础形态
+26. UserPreference 自由偏好描述
 
 ### 第六步：创新与扩展
 
-24. AIService
-25. 多模态日记增强
-26. 多人规划协商
+27. AIService
+28. AI 日记草稿 / 图片摘要
+29. 路线回顾
+30. 多人规划协商
+31. 外部地图 API / 多模态 AI API 评估与接入
 
 ---
 
@@ -501,9 +569,12 @@ P1
 1. 数据库表结构未稳定
 2. 统一返回体和异常机制未定
 3. Auth 未完成却尝试做完整日记能力
-4. MapService 未完成却尝试强行联调路线规划
-5. FileService 未完成却尝试做完整日记上传
-6. QueryService / RankService 未完成却在多个模块中重复手写查询与排序
+4. UserPreference 未完成却尝试做依赖真实偏好的推荐或多人协同
+5. MapService 未完成却尝试强行联调路线规划
+6. FileService 未完成却尝试做完整日记上传
+7. QueryService / RankService 未完成却在多个模块中重复手写查询与排序
+8. AIService 未完成却在 Diary / Recommend / Route 中直接绑定具体模型厂商
+9. 外部地图 API 未定却试图让它替代当前内部图规划主实现
 
 ---
 
@@ -546,16 +617,17 @@ P1
 
 本文件应与以下文档保持一致：
 
-- `docs/01_requirements/scope-mvp.md`
-- `docs/01_requirements/use-cases.md`
-- `docs/02_architecture/architecture.md`
-- `docs/02_architecture/module-map.md`
-- `docs/03_data/schema.md`
-- `docs/04_api/api-spec.md`
-- `docs/05_modules/*`
-- `docs/09_decisions/ADR-003-module-split.md`
+- `project-root/docs/01_requirements/scope-mvp.md`
+- `project-root/docs/01_requirements/use-cases.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/02_architecture/module-map.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/04_api/api-spec.md`
+- `project-root/docs/05_modules/*`
+- `project-root/docs/09_decisions/ADR-003-module-split.md`
+- `project-root/docs/04_api/external-integrations.md`（用于统一记录外部 API 接入方式、配置变量、调用限制与降级方案）
 
-如果开发顺序、依赖边界或模块优先级发生变化，应同步更新这些文档。
+如果开发顺序、依赖边界、模块优先级或外部 API 接入边界发生变化，应同步更新这些文档。
 
 ---
 
@@ -568,3 +640,7 @@ P1
 3. MVP 开发顺序调整时
 4. 创新需求正式接入架构时
 5. 联调阶段发现原有依赖判断不准确时
+6. UserPreference 从隐含输入变为独立模块时
+7. Diary 正式承接手账基础形态时
+8. AIService 正式接入外部模型 API 时
+9. 外部地图 API 正式接入并影响 Route / MapService 边界时

@@ -476,14 +476,14 @@ Auth 模块后续可扩展：
 ## 17. 与其他文档的关系
 本文件应与以下文档保持一致：
 
-- `docs/01_requirements/prd.md`
-- `docs/01_requirements/use-cases.md`
-- `docs/01_requirements/scope-mvp.md`
-- `docs/02_architecture/architecture.md`
-- `docs/02_architecture/module-map.md`
-- `docs/02_architecture/dependency-map.md`
-- `docs/03_data/schema.md`
-- `docs/04_api/api-spec.md`
+- `project-root/docs/01_requirements/prd.md`
+- `project-root/docs/01_requirements/use-cases.md`
+- `project-root/docs/01_requirements/scope-mvp.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/02_architecture/module-map.md`
+- `project-root/docs/02_architecture/dependency-map.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/04_api/api-spec.md`
 
 如果认证模块职责、角色设计、接口或表结构发生变化，应同步更新以上文档。
 

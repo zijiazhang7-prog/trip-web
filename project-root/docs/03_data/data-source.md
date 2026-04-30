@@ -14,10 +14,10 @@
 本文件关注的是“数据从哪里来、怎么进入系统、当前阶段怎么用”，不替代字段级数据字典和数据库表结构说明。
 
 相关文档：
-- `docs/03_data/schema.md`
-- `docs/03_data/er-model.md`
-- `docs/03_data/data-dictionary.md`
-- `docs/03_data/import-plan.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/03_data/er-model.md`
+- `project-root/docs/03_data/data-dictionary.md`
+- `project-root/docs/03_data/import-plan.md`
 
 ---
 
@@ -590,12 +590,12 @@ OpenStreetMap 官方提供开放地图数据；其生态中也有区域数据下
 
 本文件应与以下文档保持一致：
 
-- `docs/03_data/schema.md`
-- `docs/03_data/er-model.md`
-- `docs/03_data/data-dictionary.md`
-- `docs/03_data/import-plan.md`
-- `docs/02_architecture/architecture.md`
-- `docs/02_architecture/coding-plan.md`
+- `project-root/docs/03_data/schema.md`
+- `project-root/docs/03_data/er-model.md`
+- `project-root/docs/03_data/data-dictionary.md`
+- `project-root/docs/03_data/import-plan.md`
+- `project-root/docs/02_architecture/architecture.md`
+- `project-root/docs/02_architecture/coding-plan.md`
 
 如果数据来源类别、采集方式或导入方式发生变化，应同步更新这些文档。
 
