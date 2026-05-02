@@ -1,0 +1,2183 @@
+openapi: 3.0.3
+info:
+  title: 个性化旅游系统 API
+  version: 1.1.0-draft
+  description: |
+    个性化旅游系统后端接口文档（Swagger / OpenAPI 3.0）。
+    覆盖用户认证、偏好设置、目的地推荐、路线规划、周边设施、美食推荐、
+    旅游日记、文件上传、管理端基础维护、AI 增强能力等接口。
+    AI 接口属于 P2 增强能力，当前阶段可暂不实现，可先使用 mock / stub。
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: 本地开发环境
+
+tags:
+  - name: Auth
+  - name: UserPreference
+  - name: Destination
+  - name: Route
+  - name: Facility
+  - name: Food
+  - name: Diary
+  - name: File
+  - name: Admin
+  - name: AI
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 用户注册
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRegisterResult'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 用户登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLoginResult'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: 获取当前登录用户信息
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserVO'
+
+  /user-preferences/me:
+    get:
+      tags: [UserPreference]
+      summary: 获取当前用户偏好
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserPreferenceVO'
+    put:
+      tags: [UserPreference]
+      summary: 保存或更新当前用户偏好
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPreferenceUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserPreferenceVO'
+
+  /destinations/recommend:
+    get:
+      tags: [Destination]
+      summary: 获取推荐目的地列表
+      security: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [scenic, campus]
+        - name: theme
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [heat, rating, recommend]
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: topK
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageDestinationVO'
+
+  /destinations/search:
+    get:
+      tags: [Destination]
+      summary: 搜索目的地
+      security: []
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [scenic, campus]
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [heat, rating]
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 搜索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageDestinationVO'
+
+  /destinations/{id}:
+    get:
+      tags: [Destination]
+      summary: 获取目的地详情
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 获取详情成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDestinationVO'
+
+  /destinations/{id}/places:
+    get:
+      tags: [Destination]
+      summary: 获取目的地下的场所列表
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: placeType
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取场所列表成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlaceVOList'
+
+  /destinations/{id}/diaries:
+    get:
+      tags: [Destination]
+      summary: 获取目的地相关日记列表
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [heat, rating, latest]
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageDiaryVO'
+
+  /routes/plan/single:
+    post:
+      tags: [Route]
+      summary: 单目标路线规划
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SingleRoutePlanRequest'
+      responses:
+        '200':
+          description: 规划成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRoutePlanVO'
+
+  /routes/plan/multi:
+    post:
+      tags: [Route]
+      summary: 多目标路线规划
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MultiRoutePlanRequest'
+      responses:
+        '200':
+          description: 规划成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMultiRoutePlanVO'
+
+  /routes/history:
+    get:
+      tags: [Route]
+      summary: 获取当前用户路线历史
+      parameters:
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 获取路线历史成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageRouteHistoryVO'
+
+  /routes/history/{id}:
+    get:
+      tags: [Route]
+      summary: 获取单条路线历史详情
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 获取详情成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRouteHistoryVO'
+
+  /facilities/search:
+    get:
+      tags: [Facility]
+      summary: 按类别或关键字搜索设施
+      security: []
+      parameters:
+        - name: destinationId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: facilityType
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [distance, time]
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageFacilityVO'
+
+  /facilities/nearby:
+    get:
+      tags: [Facility]
+      summary: 查询附近设施
+      security: []
+      parameters:
+        - name: destinationId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: sourceNodeId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: facilityType
+          in: query
+          schema:
+            type: string
+        - name: radius
+          in: query
+          schema:
+            type: integer
+            default: 1000
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [distance, time]
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFacilityNearbyVOList'
+
+  /foods/recommend:
+    get:
+      tags: [Food]
+      summary: 获取美食推荐列表
+      security: []
+      parameters:
+        - name: destinationId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: sourceNodeId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: foodType
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [heat, rating, distance]
+        - name: topK
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageFoodVO'
+
+  /foods/search:
+    get:
+      tags: [Food]
+      summary: 搜索美食
+      security: []
+      parameters:
+        - name: destinationId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [heat, rating, distance]
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 搜索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageFoodVO'
+
+  /diaries:
+    post:
+      tags: [Diary]
+      summary: 发布日记
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDiaryRequest'
+      responses:
+        '200':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCreateDiaryResult'
+    get:
+      tags: [Diary]
+      summary: 获取日记列表
+      security: []
+      parameters:
+        - name: destinationId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [heat, rating, latest]
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 获取列表成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageDiaryVO'
+
+  /diaries/me:
+    get:
+      tags: [Diary]
+      summary: 获取我的日记列表
+      parameters:
+        - name: visibility
+          in: query
+          schema:
+            type: string
+            enum: [public, private]
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageDiaryVO'
+
+  /diaries/{id}:
+    get:
+      tags: [Diary]
+      summary: 获取日记详情
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 获取详情成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDiaryVO'
+
+  /diaries/search/title:
+    get:
+      tags: [Diary]
+      summary: 按标题精确查询日记
+      security: []
+      parameters:
+        - name: title
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageDiaryVO'
+
+  /diaries/search/fulltext:
+    get:
+      tags: [Diary]
+      summary: 日记全文检索
+      security: []
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: destinationId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 检索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageDiaryVO'
+
+  /diaries/{id}/ratings:
+    post:
+      tags: [Diary]
+      summary: 对日记评分
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiaryRatingRequest'
+      responses:
+        '200':
+          description: 评分成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseBoolean'
+
+  /files/upload:
+    post:
+      tags: [File]
+      summary: 上传图片或视频
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, bizType]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                bizType:
+                  type: string
+                refId:
+                  type: integer
+                  format: int64
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFileUploadResult'
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: 分页查询用户
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageUserVO'
+
+  /admin/destinations:
+    post:
+      tags: [Admin]
+      summary: 新增目的地
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDestinationUpsertRequest'
+      responses:
+        '200':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseIdResult'
+
+  /admin/destinations/{id}:
+    put:
+      tags: [Admin]
+      summary: 修改目的地
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDestinationUpsertRequest'
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseBoolean'
+    delete:
+      tags: [Admin]
+      summary: 删除目的地
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseBoolean'
+
+  /admin/places:
+    post:
+      tags: [Admin]
+      summary: 新增场所
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPlaceCreateRequest'
+      responses:
+        '200':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseIdResult'
+
+  /admin/facilities:
+    post:
+      tags: [Admin]
+      summary: 新增设施
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminFacilityCreateRequest'
+      responses:
+        '200':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseIdResult'
+
+  /admin/foods:
+    post:
+      tags: [Admin]
+      summary: 新增美食
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminFoodCreateRequest'
+      responses:
+        '200':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseIdResult'
+
+  /admin/map/nodes:
+    post:
+      tags: [Admin]
+      summary: 新增地图节点
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminMapNodeCreateRequest'
+      responses:
+        '200':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseIdResult'
+
+  /admin/map/edges:
+    post:
+      tags: [Admin]
+      summary: 新增地图边
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminMapEdgeCreateRequest'
+      responses:
+        '200':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseIdResult'
+
+  /admin/diaries:
+    get:
+      tags: [Admin]
+      summary: 管理端分页查询日记
+      parameters:
+        - name: destinationId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageDiaryVO'
+
+  /admin/import-batches:
+    post:
+      tags: [Admin]
+      summary: 批量导入数据
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportBatchCreateRequest'
+      responses:
+        '200':
+          description: 导入任务创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseImportBatchResult'
+
+  /ai/diary-draft:
+    post:
+      tags: [AI]
+      summary: 生成日记草稿
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiDiaryDraftRequest'
+      responses:
+        '200':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAiDiaryDraftResult'
+
+  /ai/image-summary:
+    post:
+      tags: [AI]
+      summary: 图片摘要
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiImageSummaryRequest'
+      responses:
+        '200':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseImageSummaryVO'
+
+  /ai/route-review:
+    post:
+      tags: [AI]
+      summary: 路线回顾
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiRouteReviewRequest'
+      responses:
+        '200':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRouteReviewVO'
+
+  /ai/group-plan-summary:
+    post:
+      tags: [AI]
+      summary: 多人规划协商摘要
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiGroupPlanSummaryRequest'
+      responses:
+        '200':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseGroupPlanSummaryVO'
+
+  /ai/recommend-reason:
+    post:
+      tags: [AI]
+      summary: 推荐理由解释
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiRecommendReasonRequest'
+      responses:
+        '200':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRecommendReasonVO'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ApiResponseBase:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        code:
+          type: string
+          example: SUCCESS
+        message:
+          type: string
+          example: success
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponseBoolean:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              type: boolean
+              example: true
+
+    ApiResponseIdResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  format: int64
+
+    ApiResponseRegisterResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                userId:
+                  type: integer
+                  format: int64
+
+    ApiResponseLoginResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                token:
+                  type: string
+                user:
+                  $ref: '#/components/schemas/UserVO'
+
+    ApiResponseUserVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UserVO'
+
+    ApiResponseUserPreferenceVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UserPreferenceVO'
+
+    ApiResponseDestinationVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DestinationVO'
+
+    ApiResponsePlaceVOList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/PlaceVO'
+
+    ApiResponseRoutePlanVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RoutePlanVO'
+
+    ApiResponseMultiRoutePlanVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MultiRoutePlanVO'
+
+    ApiResponseRouteHistoryVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RouteHistoryVO'
+
+    ApiResponseFacilityNearbyVOList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/FacilityNearbyVO'
+
+    ApiResponsePageFacilityVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PageFacilityVO'
+
+    ApiResponsePageFoodVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PageFoodVO'
+
+    ApiResponseDiaryVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DiaryVO'
+
+    ApiResponseCreateDiaryResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                diaryId:
+                  type: integer
+                  format: int64
+
+    ApiResponseFileUploadResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/FileUploadResultVO'
+
+    ApiResponseImportBatchResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ImportBatchResultVO'
+
+    ApiResponseAiDiaryDraftResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DiaryDraftVO'
+
+    ApiResponseImageSummaryVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ImageSummaryVO'
+
+    ApiResponseRouteReviewVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RouteReviewVO'
+
+    ApiResponseGroupPlanSummaryVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/GroupPlanSummaryVO'
+
+    ApiResponseRecommendReasonVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RecommendReasonVO'
+
+    ApiResponsePageDestinationVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PageDestinationVO'
+
+    ApiResponsePageDiaryVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PageDiaryVO'
+
+    ApiResponsePageUserVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PageUserVO'
+
+    ApiResponsePageRouteHistoryVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PageRouteHistoryVO'
+
+    RegisterRequest:
+      type: object
+      required: [username, password, nickname]
+      properties:
+        username:
+          type: string
+          maxLength: 50
+        password:
+          type: string
+          maxLength: 100
+        nickname:
+          type: string
+          maxLength: 50
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    UserPreferenceUpdateRequest:
+      type: object
+      properties:
+        preferHotLevel:
+          type: integer
+        preferThemeList:
+          type: array
+          items:
+            type: string
+        preferFoodType:
+          type: string
+        preferCrowdLevel:
+          type: integer
+        travelStyle:
+          type: string
+        customPreferenceText:
+          type: string
+
+    SingleRoutePlanRequest:
+      type: object
+      required: [destinationId, startNodeId, targetNodeId, strategyType]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        startNodeId:
+          type: integer
+          format: int64
+        targetNodeId:
+          type: integer
+          format: int64
+        strategyType:
+          type: string
+          enum: [shortest_distance, shortest_time]
+        transportType:
+          type: string
+          enum: [walk, bike, cart]
+
+    MultiRoutePlanRequest:
+      type: object
+      required: [destinationId, startNodeId, targetNodeIds, strategyType]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        startNodeId:
+          type: integer
+          format: int64
+        targetNodeIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        strategyType:
+          type: string
+          enum: [shortest_distance, shortest_time]
+        transportType:
+          type: string
+          enum: [walk, bike, cart]
+        returnToStart:
+          type: boolean
+          default: true
+
+    CreateDiaryRequest:
+      type: object
+      required: [destinationId, title, contentText]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        routeHistoryId:
+          type: integer
+          format: int64
+          nullable: true
+        title:
+          type: string
+          maxLength: 150
+        contentText:
+          type: string
+        visibility:
+          type: string
+          enum: [public, private]
+          default: public
+        mediaIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+
+    DiaryRatingRequest:
+      type: object
+      required: [score]
+      properties:
+        score:
+          type: integer
+          minimum: 1
+          maximum: 5
+
+    AdminDestinationUpsertRequest:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [scenic, campus]
+        category:
+          type: string
+        city:
+          type: string
+        description:
+          type: string
+        heatScore:
+          type: number
+          format: double
+        ratingScore:
+          type: number
+          format: double
+        coverUrl:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    AdminPlaceCreateRequest:
+      type: object
+      required: [destinationId, name, placeType]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        placeType:
+          type: string
+        description:
+          type: string
+        lng:
+          type: number
+          format: double
+        lat:
+          type: number
+          format: double
+        floorInfo:
+          type: string
+        openTimeRule:
+          type: string
+        suggestedDurationMin:
+          type: integer
+        costLevel:
+          type: integer
+
+    AdminFacilityCreateRequest:
+      type: object
+      required: [destinationId, name, facilityType]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        placeId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        facilityType:
+          type: string
+        description:
+          type: string
+        lng:
+          type: number
+          format: double
+        lat:
+          type: number
+          format: double
+
+    AdminFoodCreateRequest:
+      type: object
+      required: [destinationId, name]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        facilityId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        foodType:
+          type: string
+        shopName:
+          type: string
+        description:
+          type: string
+        heatScore:
+          type: number
+          format: double
+        ratingScore:
+          type: number
+          format: double
+        avgPrice:
+          type: number
+          format: double
+        coverUrl:
+          type: string
+
+    AdminMapNodeCreateRequest:
+      type: object
+      required: [destinationId, nodeName, nodeType]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        nodeName:
+          type: string
+        nodeType:
+          type: string
+        refId:
+          type: integer
+          format: int64
+          nullable: true
+        lng:
+          type: number
+          format: double
+        lat:
+          type: number
+          format: double
+        floorNo:
+          type: integer
+
+    AdminMapEdgeCreateRequest:
+      type: object
+      required: [destinationId, fromNodeId, toNodeId, distance]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        fromNodeId:
+          type: integer
+          format: int64
+        toNodeId:
+          type: integer
+          format: int64
+        distance:
+          type: number
+          format: double
+        idealSpeed:
+          type: number
+          format: double
+        crowdFactor:
+          type: number
+          format: double
+        transportType:
+          type: string
+        edgeType:
+          type: string
+        bidirectionalFlag:
+          type: integer
+          enum: [0, 1]
+
+    ImportBatchCreateRequest:
+      type: object
+      required: [batchName, sourceType, filePath]
+      properties:
+        batchName:
+          type: string
+        sourceType:
+          type: string
+          enum: [csv, json, api]
+        filePath:
+          type: string
+
+    AiDiaryDraftRequest:
+      type: object
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        imageUrls:
+          type: array
+          items:
+            type: string
+        contentHint:
+          type: string
+        routeHistoryId:
+          type: integer
+          format: int64
+
+    AiImageSummaryRequest:
+      type: object
+      required: [imageUrls]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        imageUrls:
+          type: array
+          items:
+            type: string
+
+    AiRouteReviewRequest:
+      type: object
+      required: [routeHistoryId]
+      properties:
+        routeHistoryId:
+          type: integer
+          format: int64
+
+    AiGroupPlanParticipant:
+      type: object
+      properties:
+        displayName:
+          type: string
+        preferThemeList:
+          type: array
+          items:
+            type: string
+        customPreferenceText:
+          type: string
+
+    AiGroupPlanSummaryRequest:
+      type: object
+      properties:
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiGroupPlanParticipant'
+        constraints:
+          type: object
+          additionalProperties: true
+        candidatePlans:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    AiRecommendReasonRequest:
+      type: object
+      properties:
+        userPreference:
+          type: object
+          additionalProperties: true
+        candidateDestinations:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UserVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        nickname:
+          type: string
+        avatarUrl:
+          type: string
+        role:
+          type: string
+
+    UserPreferenceVO:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        preferHotLevel:
+          type: integer
+        preferThemeList:
+          type: array
+          items:
+            type: string
+        preferFoodType:
+          type: string
+        preferCrowdLevel:
+          type: integer
+        travelStyle:
+          type: string
+        customPreferenceText:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    DestinationVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        type:
+          type: string
+        category:
+          type: string
+        city:
+          type: string
+        description:
+          type: string
+        heatScore:
+          type: number
+          format: double
+        ratingScore:
+          type: number
+          format: double
+        coverUrl:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    PlaceVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        destinationId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        placeType:
+          type: string
+        description:
+          type: string
+        lng:
+          type: number
+          format: double
+        lat:
+          type: number
+          format: double
+        floorInfo:
+          type: string
+        openTimeRule:
+          type: string
+        suggestedDurationMin:
+          type: integer
+        costLevel:
+          type: integer
+
+    FacilityVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        destinationId:
+          type: integer
+          format: int64
+        placeId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        facilityType:
+          type: string
+        description:
+          type: string
+        lng:
+          type: number
+          format: double
+        lat:
+          type: number
+          format: double
+
+    FacilityNearbyVO:
+      allOf:
+        - $ref: '#/components/schemas/FacilityVO'
+        - type: object
+          properties:
+            distance:
+              type: number
+              format: double
+            estimatedTime:
+              type: integer
+
+    FoodVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        destinationId:
+          type: integer
+          format: int64
+        facilityId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        foodType:
+          type: string
+        shopName:
+          type: string
+        description:
+          type: string
+        heatScore:
+          type: number
+          format: double
+        ratingScore:
+          type: number
+          format: double
+        avgPrice:
+          type: number
+          format: double
+        coverUrl:
+          type: string
+
+    DiaryMediaVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        mediaType:
+          type: string
+          enum: [image, video]
+        fileUrl:
+          type: string
+
+    DiaryVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+        destinationId:
+          type: integer
+          format: int64
+        destinationName:
+          type: string
+        routeHistoryId:
+          type: integer
+          format: int64
+          nullable: true
+        title:
+          type: string
+        contentText:
+          type: string
+        heatScore:
+          type: number
+          format: double
+        ratingScore:
+          type: number
+          format: double
+        visibility:
+          type: string
+          enum: [public, private]
+        mediaList:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiaryMediaVO'
+        createdAt:
+          type: string
+          format: date-time
+
+    RouteNodeVO:
+      type: object
+      properties:
+        nodeId:
+          type: integer
+          format: int64
+        nodeName:
+          type: string
+
+    RouteEdgeVO:
+      type: object
+      properties:
+        fromNodeId:
+          type: integer
+          format: int64
+        toNodeId:
+          type: integer
+          format: int64
+        distance:
+          type: number
+          format: double
+
+    RoutePlanVO:
+      type: object
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        strategyType:
+          type: string
+        transportType:
+          type: string
+        totalDistance:
+          type: number
+          format: double
+        estimatedTime:
+          type: integer
+        pathNodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteNodeVO'
+        pathEdges:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteEdgeVO'
+        routeSummary:
+          type: string
+        historyId:
+          type: integer
+          format: int64
+
+    MultiRoutePlanVO:
+      type: object
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        strategyType:
+          type: string
+        transportType:
+          type: string
+        orderedTargets:
+          type: array
+          items:
+            type: integer
+            format: int64
+        totalDistance:
+          type: number
+          format: double
+        estimatedTime:
+          type: integer
+        pathNodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteNodeVO'
+        pathEdges:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteEdgeVO'
+        routeSummary:
+          type: string
+        historyId:
+          type: integer
+          format: int64
+
+    RouteHistoryVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        destinationId:
+          type: integer
+          format: int64
+        destinationName:
+          type: string
+        startNodeId:
+          type: integer
+          format: int64
+        endNodeId:
+          type: integer
+          format: int64
+        strategyType:
+          type: string
+        transportType:
+          type: string
+        totalDistance:
+          type: number
+          format: double
+        estimatedTime:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    FileUploadResultVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        bizType:
+          type: string
+        fileName:
+          type: string
+        fileUrl:
+          type: string
+
+    ImportBatchResultVO:
+      type: object
+      properties:
+        batchId:
+          type: integer
+          format: int64
+        status:
+          type: string
+
+    DiaryDraftVO:
+      type: object
+      properties:
+        titleSuggestion:
+          type: string
+        contentDraft:
+          type: string
+        tagList:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+
+    ImageSummaryVO:
+      type: object
+      properties:
+        imageSummary:
+          type: string
+        tagList:
+          type: array
+          items:
+            type: string
+        sceneType:
+          type: string
+
+    RouteReviewVO:
+      type: object
+      properties:
+        routeSummary:
+          type: string
+        highlightList:
+          type: array
+          items:
+            type: string
+        tripReviewText:
+          type: string
+
+    GroupPlanSummaryVO:
+      type: object
+      properties:
+        finalPlanSummary:
+          type: string
+        reasonList:
+          type: array
+          items:
+            type: string
+        conflictPoints:
+          type: array
+          items:
+            type: string
+        suggestionList:
+          type: array
+          items:
+            type: string
+
+    RecommendReasonVO:
+      type: object
+      properties:
+        recommendReason:
+          type: string
+
+    PageDestinationVO:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: '#/components/schemas/DestinationVO'
+        pageNum:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+        pages:
+          type: integer
+
+    PageFacilityVO:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacilityVO'
+        pageNum:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+        pages:
+          type: integer
+
+    PageFoodVO:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: '#/components/schemas/FoodVO'
+        pageNum:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+        pages:
+          type: integer
+
+    PageDiaryVO:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiaryVO'
+        pageNum:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+        pages:
+          type: integer
+
+    PageUserVO:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserVO'
+        pageNum:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+        pages:
+          type: integer
+
+    PageRouteHistoryVO:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteHistoryVO'
+        pageNum:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+        pages:
+          type: integer
