@@ -14,7 +14,7 @@
 
 都是北京美食图片
 
-来源：北京旅游资源库（https://s.visitbeijing.com.cn/attractions）
+来源：北京旅游资源库（https://s.visitbeijing.com.cn/foods）
 
 相关文件：飞书，课设相关文档，06_图片与素材，优先看这个，北京美食1.csv
 
