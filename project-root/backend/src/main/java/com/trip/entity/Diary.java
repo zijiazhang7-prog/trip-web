@@ -1,0 +1,142 @@
+package com.trip.entity;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@TableName("diary")
+public class Diary {
+
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    private Long userId;
+
+    private Long destinationId;
+
+    private Long routeHistoryId;
+
+    private String title;
+
+    private String contentText;
+
+    private byte[] contentCompressed;
+
+    private BigDecimal heatScore;
+
+    private BigDecimal ratingScore;
+
+    private String visibility;
+
+    private Integer status;
+
+    private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    public Long getDestinationId() {
+        return destinationId;
+    }
+
+    public void setDestinationId(Long destinationId) {
+        this.destinationId = destinationId;
+    }
+
+    public Long getRouteHistoryId() {
+        return routeHistoryId;
+    }
+
+    public void setRouteHistoryId(Long routeHistoryId) {
+        this.routeHistoryId = routeHistoryId;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getContentText() {
+        return contentText;
+    }
+
+    public void setContentText(String contentText) {
+        this.contentText = contentText;
+    }
+
+    public byte[] getContentCompressed() {
+        return contentCompressed;
+    }
+
+    public void setContentCompressed(byte[] contentCompressed) {
+        this.contentCompressed = contentCompressed;
+    }
+
+    public BigDecimal getHeatScore() {
+        return heatScore;
+    }
+
+    public void setHeatScore(BigDecimal heatScore) {
+        this.heatScore = heatScore;
+    }
+
+    public BigDecimal getRatingScore() {
+        return ratingScore;
+    }
+
+    public void setRatingScore(BigDecimal ratingScore) {
+        this.ratingScore = ratingScore;
+    }
+
+    public String getVisibility() {
+        return visibility;
+    }
+
+    public void setVisibility(String visibility) {
+        this.visibility = visibility;
+    }
+
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+}

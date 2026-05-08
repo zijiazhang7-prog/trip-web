@@ -67,13 +67,14 @@
 |10|`diary_media`|日记媒体表|保存日记关联的图片、视频等资源|
 |11|`diary_rating`|日记评分表|保存用户对日记的评分|
 |12|`route_history`|路线记录表|保存用户历史规划路线|
-|13|`import_batch`|导入批次表（可选）|记录批量导入的数据来源与状态|
-|14|`travel_journal`|旅行手账表（可选）|保存一次旅行记录的主体信息|
-|15|`travel_journal_entry`|旅行手账条目表（可选）|保存一次旅行中的地点条目或内容片段|
-|16|`group_plan_session`|多人规划会话表（可选）|保存一次多人旅游规划协商会话|
-|17|`group_plan_member`|多人规划成员表（可选）|保存会话中的参与者偏好快照|
-|18|`ai_discussion_record`|AI 协商记录表（可选）|保存多人协商的摘要、理由与冲突点|
-|19|`travel_trace`|轨迹记录表（可选）|保存真实轨迹或轨迹摘要数据|
+|13|`import_batch`|导入批次表|记录批量导入的数据来源、目标表与执行状态|
+|14|`import_failure`|导入失败明细表|记录导入失败行、失败字段和错误原因|
+|15|`travel_journal`|旅行手账表（可选）|保存一次旅行记录的主体信息|
+|16|`travel_journal_entry`|旅行手账条目表（可选）|保存一次旅行中的地点条目或内容片段|
+|17|`group_plan_session`|多人规划会话表（可选）|保存一次多人旅游规划协商会话|
+|18|`group_plan_member`|多人规划成员表（可选）|保存会话中的参与者偏好快照|
+|19|`ai_discussion_record`|AI 协商记录表（可选）|保存多人协商的摘要、理由与冲突点|
+|20|`travel_trace`|轨迹记录表（可选）|保存真实轨迹或轨迹摘要数据|
 
 ---
 
@@ -384,23 +385,51 @@
 
 ---
 
-## 5.13 导入批次表 `import_batch`（可选）
+## 5.13 导入批次表 `import_batch`
 
 **表功能说明：**  
-用于记录批量导入的数据来源、文件路径和状态，便于排查导入问题。
+用于记录批量导入的数据来源、目标表、文件信息和执行结果，便于排查导入问题。
 
 |字段名|数据类型|主键|非空|默认值|字段说明|
 |---|---|--:|--:|---|---|
 |id|bigint|是|是||主键|
 |batch_name|varchar(100)|否|是||批次名称|
-|source_type|varchar(50)|否|否||来源类型，如 CSV/JSON/API|
-|file_path|varchar(255)|否|否||源文件路径|
-|status|varchar(20)|否|否||状态，如成功/失败/处理中|
+|target_table|varchar(50)|否|是||目标表名|
+|source_type|varchar(20)|否|是||来源类型，如 `csv/json`|
+|file_name|varchar(255)|否|是||导入文件名|
+|file_size|bigint|否|是||导入文件大小，单位字节|
+|status|varchar(30)|否|是||状态，如 `SUCCESS/PARTIAL_SUCCESS/FAILED`|
+|total_rows|bigint|否|是|0|总行数|
+|success_rows|bigint|否|是|0|成功行数|
+|failed_rows|bigint|否|是|0|失败行数|
+|error_message|varchar(500)|否|否||首条错误摘要|
 |created_at|datetime|否|是||创建时间|
+|updated_at|datetime|否|是||更新时间|
 
 ---
 
-## 5.14 旅行手账表 `travel_journal`（可选）
+## 5.14 导入失败明细表 `import_failure`
+
+**表功能说明：**  
+用于记录某次导入中的失败行、失败字段、错误原因和原始行数据，便于管理员定位数据质量问题。
+
+|字段名|数据类型|主键|非空|默认值|字段说明|
+|---|---|--:|--:|---|---|
+|id|bigint|是|是||主键|
+|batch_id|bigint|否|是||所属导入批次 ID|
+|row_no|int|否|是||源文件行号或 JSON 数组序号|
+|field_name|varchar(100)|否|否||失败字段名|
+|error_message|varchar(500)|否|是||错误信息|
+|raw_data_json|text|否|否||原始行数据 JSON|
+|created_at|datetime|否|是||创建时间|
+
+**建议索引：**
+- `batch_id`
+- `row_no`
+
+---
+
+## 5.15 旅行手账表 `travel_journal`（可选）
 
 **表功能说明：**  
 用于保存“一次旅行记录”的主体信息，是后续手账式旅行记录从单篇日记扩展为独立对象时的主表。
@@ -428,7 +457,7 @@
 
 ---
 
-## 5.15 旅行手账条目表 `travel_journal_entry`（可选）
+## 5.16 旅行手账条目表 `travel_journal_entry`（可选）
 
 **表功能说明：**  
 用于保存一次旅行中的单个地点条目、内容片段或时间顺序信息。
@@ -453,7 +482,7 @@
 
 ---
 
-## 5.16 多人规划会话表 `group_plan_session`（可选）
+## 5.17 多人规划会话表 `group_plan_session`（可选）
 
 **表功能说明：**  
 用于保存一次多人旅游规划协商会话的基础信息。
@@ -476,7 +505,7 @@
 
 ---
 
-## 5.17 多人规划成员表 `group_plan_member`（可选）
+## 5.18 多人规划成员表 `group_plan_member`（可选）
 
 **表功能说明：**  
 用于保存一次多人规划会话中的参与者偏好快照。
@@ -498,7 +527,7 @@
 
 ---
 
-## 5.18 AI 协商记录表 `ai_discussion_record`（可选）
+## 5.19 AI 协商记录表 `ai_discussion_record`（可选）
 
 **表功能说明：**  
 用于保存 AI 对多人规划的讨论摘要、推荐理由、冲突点说明等结果。
@@ -520,7 +549,7 @@
 
 ---
 
-## 5.19 轨迹记录表 `travel_trace`（可选）
+## 5.20 轨迹记录表 `travel_trace`（可选）
 
 **表功能说明：**  
 用于保存真实轨迹记录，为后续轨迹回顾、路线图展示和地图 API 增强提供支撑。
@@ -591,6 +620,7 @@
 - `food`
 - `diary_rating`
 - `import_batch`
+- `import_failure`
 
 ### 7.3 P1 / P2（按创新需求逐步补充）
 - `travel_journal`

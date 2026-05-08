@@ -97,8 +97,11 @@ vite.config.ts.timestamp-*
 # Backend (Java / Maven / Spring Boot)
 # =========================
 backend/target/
+project-root/backend/target/
 backend/build/
 backend/out/
+backend/.m2/
+project-root/backend/.m2/
 backend/.mvn/wrapper/maven-wrapper.jar
 
 # Java compiled files

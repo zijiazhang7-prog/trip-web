@@ -93,6 +93,149 @@
 
 ## 6. 当前版本初始记录
 
+## [v0.3.7] - 2026-05-07
+
+### Added
+- **接口**：`POST /api/v1/routes/plan/multi`
+- **变更内容**：新增 Route 多目标路径规划接口实现，支持 `destinationId`、`startNodeId`、`targetNodeIds`、`strategyType`、`transportType`、`returnToStart`，返回拼接后的 `RoutePlanVO` 并写入 `route_history`。
+- **变更原因**：按 `coding-plan.md` P1 顺序补齐 Route 多目标路径规划基础版。
+- **影响范围**：Route 模块、MapService 图算法、路线历史、测试用例 `TC-ROUTE-007 ~ TC-ROUTE-010`。
+- **是否需要前端修改**：后续前端工程可用时需要对接多目标路线规划页面；当前不修改前端。
+- **是否需要测试回归**：是，已补 `MapServiceTests`、`RouteServiceTests` 并执行后端全量 `mvn test`。
+- **备注**：当前采用最近邻启发式，不保证 TSP 全局最优；仅支持 `shortest_distance`，最短时间和交通工具约束后续再补。
+
+---
+
+## [v0.3.6] - 2026-05-06
+
+### Added
+- **接口**：`GET /api/v1/admin/places`、`POST /api/v1/admin/places`、`PUT /api/v1/admin/places/{id}`、`DELETE /api/v1/admin/places/{id}`
+- **变更内容**：新增 Admin 场所 / 建筑物管理接口，支持分页查询、新增、修改和删除场所。
+- **变更原因**：补齐 P1 Admin 后台数据维护闭环，支撑目的地内部场所数据维护。
+- **影响范围**：Admin 模块、Place 数据维护、测试用例 `TC-ADMIN-004`。
+- **是否需要前端修改**：后续前端工程可用时需要对接场所管理页面；当前不修改前端。
+- **是否需要测试回归**：是，已补 `AdminServiceTests` 并执行后端全量 `mvn test`。
+- **备注**：当前 `place` 表没有 `status` 字段，无下游引用时按物理删除处理；若被设施或地图节点引用，则拒绝删除。
+
+---
+
+## [v0.3.5] - 2026-05-06
+
+### Added
+- **接口**：`GET /api/v1/admin/import-batches`、`GET /api/v1/admin/import-batches/{batchId}/failures`
+- **变更内容**：新增导入批次分页查询和失败明细分页查询接口，支持管理员回看导入结果和定位失败行。
+- **变更原因**：继续完善 P1 Admin 后台支撑，补齐 ImportService 执行后的结果查看能力。
+- **影响范围**：Admin 模块、ImportService 查询能力、测试用例 `TC-IMPORT-005 ~ TC-IMPORT-006`。
+- **是否需要前端修改**：后续前端工程可用时需要对接导入历史和失败明细页面；当前不修改前端。
+- **是否需要测试回归**：是，已补 `AdminServiceTests`，后续可做实库接口验证。
+- **备注**：不新增表结构，不改变 multipart 导入接口；查询结果来自已有 `import_batch` 与 `import_failure` 表。
+
+---
+
+## [v0.3.4] - 2026-05-06
+
+### Changed
+- **接口**：`POST /api/v1/admin/import-batches/preview`、`POST /api/v1/admin/import-batches`
+- **变更内容**：导入接口由 JSON 元信息请求改为 `multipart/form-data`，参数为 `targetTable`、`sourceType`、`file`；当前支持 `csv/json`，并返回导入预览或执行摘要。
+- **变更原因**：按 `coding-plan.md` P1 顺序完成 ImportService 完整化基础版，支持标准化 CSV / JSON 文件真实解析入库。
+- **影响范围**：Admin 模块、ImportService、数据库 `import_batch/import_failure`、测试用例 `TC-IMPORT-001 ~ TC-IMPORT-003`。
+- **是否需要前端修改**：后续前端工程可用时需要以 multipart 方式对接；当前不修改前端。
+- **是否需要测试回归**：是，已执行 `ImportServiceTests`，后续需要补实库 multipart 接口验证。
+- **备注**：Controller 负责接收 `MultipartFile`，ImportService 核心基于 `Reader`，当前不支持 Excel / SQL 上传执行。
+
+---
+
+## [v0.3.3] - 2026-05-06
+
+### Added
+- **接口**：`GET /api/v1/diaries/search/title`、`GET /api/v1/diaries/search/fulltext`
+- **变更内容**：新增 SearchService 基础版，支持日记标题检索和正文关键词检索，当前基于 MySQL `LIKE` + 分页查询实现。
+- **变更原因**：按 `coding-plan.md` P1 顺序进入 SearchService，为 Diary 检索增强提供公共能力。
+- **影响范围**：SearchService、Diary 模块、测试用例 `TC-DIARY-011 ~ TC-DIARY-012`。
+- **是否需要前端修改**：后续前端工程可用时需要对接；当前不修改前端。
+- **是否需要测试回归**：是，已执行 `SearchServiceTests`、`DiaryServiceTests` 和后端全量 `mvn test`。
+- **备注**：当前不新增全文索引和第三方检索依赖，适合课程设计小规模样例数据；倒排索引或 MySQL FULLTEXT 留后续增强。
+
+---
+
+## [v0.3.2] - 2026-05-06
+
+### Added
+- **接口**：`/api/v1/admin/map/nodes`、`/api/v1/admin/map/edges`、`/api/v1/admin/users`、`/api/v1/admin/diaries`、`/api/v1/admin/import-batches`
+- **变更内容**：补充 Admin 后续底层维护接口，支持地图节点 / 边维护、用户状态修改、日记状态修改和导入预览 / 执行入口。
+- **变更原因**：按 `coding-plan.md` P1 Admin 后续范围补齐更底层的数据维护能力。
+- **影响范围**：Admin 模块、MapService 图数据来源、Diary 状态管理、ImportService 最小骨架、测试用例 `TC-ADMIN-007 ~ TC-ADMIN-011`。
+- **是否需要前端修改**：后续前端工程可用时需要对接；当前不修改前端。
+- **是否需要测试回归**：是，已执行 `AdminServiceTests` 和后端全量 `mvn test`。
+- **备注**：导入入口当前复用 `ImportService` 最小骨架，真实解析和入库留到 ImportService 完整化阶段。
+
+---
+
+## [v0.3.1] - 2026-05-05
+
+### Added
+- **接口**：`/api/v1/admin/destinations`、`/api/v1/admin/facilities`、`/api/v1/admin/foods`
+- **变更内容**：新增 Admin 最小后台维护接口，支持目的地、设施、美食的列表、新增、修改和删除 / 下架。
+- **变更原因**：Food 基础版完成后，按 `coding-plan.md` P1 顺序进入 Admin 最小后台能力。
+- **影响范围**：Admin 模块、Security 管理员权限、测试用例 `TC-ADMIN-001`、`TC-ADMIN-002`、`TC-ADMIN-003`、`TC-ADMIN-005`、`TC-ADMIN-006`。
+- **是否需要前端修改**：后续前端工程可用时需要对接；当前不修改前端。
+- **是否需要测试回归**：是，需覆盖普通用户拒绝访问、管理员访问、基础数据维护。
+- **备注**：当前不实现地图节点 / 边管理、用户状态、日记状态和导入入口。
+
+---
+
+## [v0.3.0] - 2026-05-05
+
+### Added
+- **接口**：`GET /api/v1/foods/recommend`、`GET /api/v1/foods/search`
+- **变更内容**：新增 Food P1 基础版接口，支持按目的地、设施、菜系、关键字召回美食，并按热度或评分排序，推荐接口支持 Top-K 输出。
+- **变更原因**：P0 后端基础闭环已完成，前端联调暂因工程代码不可用阻塞，按 `coding-plan.md` 进入 P1 Food 基础版。
+- **影响范围**：Food 模块、QueryService、RankService、测试用例 `TC-FOOD-001 ~ TC-FOOD-004`。
+- **是否需要前端修改**：后续前端工程可用时需要对接；当前不修改前端。
+- **是否需要测试回归**：是，需执行 Food Service 最小单元测试，后续补实库接口测试。
+- **备注**：当前基础版不实现价格区间、距离联动、个性化推荐和 Food 详情。
+
+---
+
+## [v0.2.1] - 2026-05-05
+
+### Fixed
+- **接口**：`GET /files/**`
+- **变更内容**：修复本地上传文件静态资源访问路径，确保 `POST /api/v1/files/upload` 返回的 `/files/diary/...` URL 可直接通过 HTTP 访问。
+- **变更原因**：P0 Diary 联调中发现文件已成功落盘，但访问返回 500，影响日记详情页媒体展示。
+- **影响范围**：FileService、Diary 发布与详情展示、前端媒体预览。
+- **是否需要前端修改**：否。
+- **是否需要测试回归**：是，需回归上传后访问、日记发布、日记详情媒体展示。
+- **备注**：实库联调验证中，上传后的 `/files/diary/...` 访问状态已为 200。
+
+---
+
+## [v0.2.0] - 2026-05-05
+
+### Added
+- **接口**：Auth / UserPreference / Destination / Route / Facility / Diary / File P0 接口组
+- **变更内容**：落地 P0 后端基础接口，包括注册、登录、当前用户、当前用户偏好、目的地推荐/搜索/详情/场所、单目标路线规划、附近设施、日记发布/列表/详情/目的地相关日记、文件上传。
+- **变更原因**：支撑 `coding-plan.md` 中 P0 “推荐-规划-查询-日记”最小主线闭环。
+- **影响范围**：后端 P0 核心业务模块、前端页面联调、测试用例。
+- **是否需要前端修改**：是，前端需按 `api-spec.md` 对接对应接口。
+- **是否需要测试回归**：是，需覆盖 Auth、File、Diary 以及后续 Recommend / Route / Facility 页面联调。
+- **备注**：P0 Diary 实库联调已验证 `Auth -> File -> Diary` 链路可跑通。
+
+---
+
+## [v0.1.1] - 2026-05-05
+
+### Added
+- **接口**：`GET /api/v1/health`
+- **变更内容**：新增后端健康检查接口，返回统一 `ApiResponse` 与 `{"status":"ok"}` 数据。
+- **变更原因**：支持工程骨架启动验证和前后端联调探活。
+- **影响范围**：后端工程骨架、接口联调、测试记录。
+- **是否需要前端修改**：否。
+- **是否需要测试回归**：是，后续可加入基础接口连通性测试。
+- **备注**：该接口不承载业务逻辑，不改变 P0 业务接口优先级。
+
+---
+
 ## [v0.1.0] - YYYY-MM-DD
 
 ### Added

@@ -44,11 +44,11 @@
 
 - 项目名称：个性化旅游系统的设计与实现
 - 文档名称：测试报告（Test Report）
-- 当前版本：V1.0
-- 当前状态：模板 / 待填写
-- 测试阶段：待填写（如：核心主线测试 / 联调测试 / 验收前回归测试）
-- 报告日期：YYYY-MM-DD
-- 报告编写人：待填写
+- 当前版本：V1.15
+- 当前状态：P0 主线后端接口演示预检 + P0 Diary + P1 Food / Admin / SearchService / ImportService / Route 多目标 / Route 最短时间策略后端测试记录，已追加 Diary 检索排序、Auth / Security、Admin 场所管理、Route 多目标和 Route 最短时间策略验证，前端联调阻塞说明已补充
+- 测试阶段：后端实库联调测试 / 前端联调待恢复
+- 报告日期：2026-05-07
+- 报告编写人：Codex
 
 ---
 
@@ -56,11 +56,31 @@
 
 本轮测试的背景说明如下：
 
-- 当前项目阶段：待填写  
-- 本轮测试目标：待填写  
-- 本轮测试范围：待填写  
-- 本轮测试对应版本：待填写  
-- 本轮测试是否属于回归测试：待填写（是 / 否）
+- 当前项目阶段：P0 后端核心业务基础版已完成，进入 P0 联调与测试阶段  
+- 本轮测试目标：验证 `Auth -> File -> Diary` 后端实库链路是否可复现跑通  
+- 本轮测试范围：Auth 登录与当前用户、FileService diary 图片上传与访问、Diary 发布 / 列表 / 详情 / 目的地相关日记  
+- 本轮测试对应版本：P0 后端基础版  
+- 本轮测试是否属于回归测试：是，包含 `/files/**` 静态资源访问修复后的回归验证
+- 前端联调状态：当前无法提供前端工程代码，因此本报告不记录任何页面联调通过结论，前端相关测试统一视为待恢复 / 阻塞。
+- 追加开发验证：P1 Food 基础版已执行后端单元测试、实库接口测试和全量后端测试。
+- 追加实库验证：P1 Admin 最小后台已完成管理员权限、目的地、设施、美食维护接口验证。
+- 追加回归验证：2026-05-06 执行后端 `mvn test`，132 个测试执行，0 失败，17 个跳过，构建成功。
+- 追加 ImportService 验证：2026-05-06 执行 `mvn -q -Dtest=ImportServiceTests test`，验证 CSV / JSON 元信息校验、预览解析、必填警告和目的地导入成功摘要。
+- 追加 ImportService 后全量回归：2026-05-06 执行后端 `mvn test`，133 个测试执行，0 失败，17 个跳过，构建成功。
+- 追加 ImportService 实库验证：2026-05-06 导入 `init-p1-import-schema.sql`，以管理员 token 调用 multipart 预览和执行接口，验证 `destination` 成功入库、`import_batch` 批次记录和 `import_failure` 失败明细记录。
+- 追加 ImportService BOM 回归：2026-05-06 执行 `mvn -q -Dtest=ImportServiceTests test`，验证带 UTF-8 BOM 的 CSV 表头不会再导致必填字段匹配失败。
+- 追加 BOM 修复后全量回归：2026-05-06 执行后端 `mvn test`，134 个测试执行，0 失败，构建成功。
+- 追加 ImportService 查询接口验证：2026-05-06 执行 `mvn -q -Dtest=AdminServiceTests test`，验证导入批次列表、失败明细列表和不存在批次错误处理。
+- 追加 ImportService 查询后全量回归：2026-05-06 执行后端 `mvn test`，137 个测试执行，0 失败，构建成功。
+- 追加 Auth / Security 实库验证：2026-05-06 启动后端连接 MySQL 8 实库，使用临时普通用户和临时管理员账号验证登录、`/auth/me`、管理员接口访问、无 token、伪造 token 和错误认证头格式。
+- 追加 Admin 场所管理验证：2026-05-06 补齐 `GET/POST/PUT/DELETE /api/v1/admin/places` 后端实现，执行后端 `mvn test`，144 个测试执行，0 失败，构建成功。
+- 追加 Admin 场所管理实库验证：2026-05-06 启动后端连接 MySQL 8 实库，使用临时管理员和普通用户验证场所列表、新增、查询、修改、无引用删除、设施引用删除保护、地图节点引用删除保护和 Admin 权限拦截；验证结束后已清理临时用户、场所、设施和地图节点数据。
+- 追加 Route 多目标后端验证：2026-05-07 新增 `POST /api/v1/routes/plan/multi` 基础版，采用最近邻启发式 + 分段 Dijkstra + 路径拼接，执行后端 `mvn test`，151 个测试执行，0 失败，构建成功。
+- 追加 Route 多目标实库验证：2026-05-07 启动后端连接 MySQL 8 实库，使用临时普通用户和临时目的地 / 地图节点 / 地图边验证 `/api/v1/routes/plan/multi` 成功路径、返回起点、历史记录落库、无 token、重复目标和不可达目标；验证结束后临时用户、目的地、地图节点、地图边和路线历史均已清理。
+- 追加 Route 最短时间策略后端验证：2026-05-07 在 `MapService` 中复用有向带权图邻接表和 Dijkstra，按 `strategyType` 在距离权重与时间权重间切换，执行后端 `mvn test`，155 个测试执行，0 失败，构建成功。
+- 追加 Route 最短时间策略实库验证：2026-05-07 启动后端连接 MySQL 8 实库，使用临时普通用户和临时目的地 / 地图节点 / 地图边分别请求 `shortest_distance` 与 `shortest_time`，确认两种策略返回不同路径且 `route_history` 正确落库；验证结束后临时数据均已清理。
+- 追加 Diary 检索排序后端验证：2026-05-07 为标题检索和正文检索补充 `sortBy=latest/heat/rating` 白名单排序，执行后端 `mvn test`，157 个测试执行，0 失败，构建成功。
+- 追加 P0 主线后端接口演示预检：2026-05-07 启动后端 jar 连接 MySQL 8 实库，用同一个临时普通用户 token 依次验证登录、推荐、搜索、单目标路线、文件上传、日记发布、日记列表、日记详情和目的地相关日记；验证 `route_history` 与 `diary_media` 落库正确；验证结束后临时用户、目的地、地图节点、地图边、路线历史和日记数据均已清理。
 
 示例写法：
 > 本轮测试针对系统的核心主线功能展开，重点覆盖登录、目的地推荐、单目标路径规划、周边设施查询、图文日记发布与浏览等功能，用于验证当前版本是否具备基本联调和演示条件。
@@ -100,20 +120,43 @@
 - AI（若有）
 
 ### 本轮重点测试模块
-- 待填写
+- Auth
+- Recommend
+- Route 单目标
+- FileService
+- Diary
+- Destination 最小前置数据
+- Food
+- Admin 最小后台
+- SearchService 基础版
+- ImportService 完整化基础版
+- ImportService 实库 multipart 导入验证
+- Route 多目标路径规划基础版
+- Route 最短时间策略基础版
 
 ### 本轮未覆盖模块
-- 待填写
+- Recommend 完整筛选矩阵
+- Route 单目标 / 多目标前端页面联调
+- Facility 附近设施查询
+- UserPreference
+- Import
+- AI
+- Frontend 页面联调
 
 ### 本轮未覆盖原因
-- 待填写
+- 本轮目标是把 Diary 图文发布依赖的最短后端链路写成可复现测试记录，不覆盖全部 P0 / P1 / P2 模块。
+- 前端工程代码暂不可用，无法执行 Auth、File、Diary 页面级联调。
 
 ---
 
 ## 6.2 本轮不在范围内的内容
 本轮未纳入测试范围的内容如下：
 
-- 待填写
+- 前端页面联调。
+- Diary 私有日记访问边界、路线记录关联、评分、我的日记列表。
+- Recommend、Route、Facility 的完整业务联调。
+- AI 等 P2 能力。
+- 前端路由、页面表单、上传组件、Pinia token 状态和 Axios 拦截器等页面联调内容。
 
 示例：
 - 多人旅游规划协商功能尚未实现，因此未纳入本轮测试
@@ -131,15 +174,15 @@
 - 版本管理：Git + GitHub
 
 ## 7.2 执行环境
-- 测试环境：待填写（本地 / 联调环境 / 演示环境）
-- 浏览器：待填写
-- JDK 版本：待填写
-- MySQL 版本：待填写
-- 操作系统：待填写
+- 测试环境：本地实库联调环境
+- 浏览器：未使用，接口通过 PowerShell / curl 验证
+- JDK 版本：Java 17
+- MySQL 版本：MySQL 8.0.46
+- 操作系统：Windows
 
 ## 7.3 测试工具
-- 接口测试工具：待填写（如 Apifox / Postman）
-- 数据库查看工具：待填写
+- 接口测试工具：PowerShell `Invoke-RestMethod`、`curl.exe`
+- 数据库查看工具：MySQL 8 客户端
 - 缺陷记录方式：`bug-log.md`
 
 ---
@@ -149,20 +192,22 @@
 本轮测试使用的数据包括：
 
 ### 8.1 基础测试数据
-- 测试用户数量：待填写
-- 样例目的地数量：待填写
+- 测试用户数量：1
+- 样例目的地数量：1
 - 场所 / 建筑物数量：待填写
 - 设施数量：待填写
 - 地图节点数量：待填写
 - 地图边数量：待填写
-- 样例日记数量：待填写
+- 样例日记数量：至少 1 条本轮运行时生成日记
 - 样例美食数量：待填写
 
 ### 8.2 数据来源说明
-- 待填写（如：初始化导入数据 / 人工构造样例数据 / 运行时生成数据）
+- `destinationId=1` 使用本地实库最小测试目的地。
+- 测试用户使用 `p0diarytest`。
+- 日记和上传图片由本轮联调运行时生成。
 
 ### 8.3 数据限制说明
-- 待填写（如：当前仅覆盖 2 个完整目的地，暂未扩展到课程要求上限）
+- 当前仅覆盖 Diary 主链路所需的最小数据，不代表完整演示数据规模。
 
 ---
 
@@ -172,13 +217,13 @@
 
 | 指标 | 数量 |
 |---|---:|
-| 测试用例总数 | 待填写 |
-| 已执行用例数 | 待填写 |
-| 通过数 | 待填写 |
-| 失败数 | 待填写 |
-| 阻塞数 | 待填写 |
-| 未执行数 | 待填写 |
-| 通过率 | 待填写 |
+| 测试用例总数 | 38 |
+| 已执行用例数 | 38 |
+| 通过数 | 38 |
+| 失败数 | 0 |
+| 阻塞数 | 0 |
+| 未执行数 | 0 |
+| 通过率 | 100% |
 
 ### 通过率计算公式
 `通过率 = 通过数 / 已执行用例数 × 100%`
@@ -189,9 +234,9 @@
 
 | 优先级 | 用例数 | 已执行 | 通过 | 失败 | 阻塞 |
 |---|---:|---:|---:|---:|---:|
-| P0 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
-| P1 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
-| P2 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
+| P0 | 13 | 13 | 13 | 0 | 0 |
+| P1 | 24 | 24 | 24 | 0 | 0 |
+| P2 | 0 | 0 | 0 | 0 | 0 |
 
 ---
 
@@ -199,22 +244,31 @@
 
 | 模块 | 用例数 | 已执行 | 通过 | 失败 | 备注 |
 |---|---:|---:|---:|---:|---|
-| Auth | 待填写 | 待填写 | 待填写 | 待填写 | |
-| Recommend | 待填写 | 待填写 | 待填写 | 待填写 | |
-| Route | 待填写 | 待填写 | 待填写 | 待填写 | |
+| Auth | 5 | 5 | 5 | 0 | 登录、当前用户、无 token、伪造 token、错误认证头 |
+| Recommend | 2 | 2 | 2 | 0 | 推荐列表、目的地关键字搜索 |
+| Route | 11 | 11 | 11 | 0 | 多目标最近邻、返回起点、最短距离 / 最短时间策略切换、路线历史落库、重复目标、目标超限、不可达、无 token |
 | Facility | 待填写 | 待填写 | 待填写 | 待填写 | |
-| Food | 待填写 | 待填写 | 待填写 | 待填写 | |
-| Diary | 待填写 | 待填写 | 待填写 | 待填写 | |
-| Admin | 待填写 | 待填写 | 待填写 | 待填写 | |
-| Import / FileService | 待填写 | 待填写 | 待填写 | 待填写 | |
-| Security | 待填写 | 待填写 | 待填写 | 待填写 | |
+| Food | 4 | 4 | 4 | 0 | 推荐、搜索、菜系过滤、评分排序 |
+| Diary | 7 | 7 | 7 | 0 | 发布、列表、详情、目的地相关日记、标题检索、正文检索、检索排序 |
+| Admin | 6 | 6 | 6 | 0 | 权限校验、目的地/场所/设施/美食维护 |
+| Import / FileService | 5 | 5 | 5 | 0 | 上传与文件 URL 访问、导入解析和摘要 |
+| SearchService | 9 | 9 | 9 | 0 | 标题检索、正文检索、检索排序、分页上限、非法参数 |
+| Security | 4 | 4 | 4 | 0 | 管理员权限、普通用户越权、401/403 统一错误结构 |
+| P0 主线后端接口预检 | 1 | 1 | 1 | 0 | 同一 token 串联登录、推荐、搜索、单目标路线、文件上传、日记发布 / 查看 |
 
 ---
 
 ## 10. 主要测试结果说明
 
 ## 10.1 Auth 模块测试结果
-- 待填写
+- 使用测试用户 `p0diarytest` 登录成功，返回 `SUCCESS` 和 JWT token。
+- 携带 Bearer token 请求当前用户接口成功，返回当前用户 `username=p0diarytest`。
+- 2026-05-06 追加实库接口认证专项验证：
+  - 使用临时普通用户 `auth_user_20260506220129` 登录成功，`GET /api/v1/auth/me` 返回 `SUCCESS`、`role=user`。
+  - 使用临时管理员 `auth_admin_20260506220129` 登录成功，访问 `GET /api/v1/admin/users?pageNum=1&pageSize=10` 返回 `SUCCESS`。
+  - 不携带 token 请求 `GET /api/v1/auth/me` 返回 HTTP 401，错误码 `AUTH_003`。
+  - 携带伪造 Bearer token 请求 `GET /api/v1/auth/me` 返回 HTTP 401，错误码 `AUTH_004`。
+  - 携带非 Bearer 认证头请求 `GET /api/v1/auth/me` 返回 HTTP 401，错误码 `AUTH_003`。
 
 建议从以下角度描述：
 - 注册是否正常
@@ -226,7 +280,10 @@
 ---
 
 ## 10.2 Recommend 模块测试结果
-- 待填写
+- 2026-05-07 P0 主线后端接口演示预检中，临时插入 1 条目的地，热度 `99.00`、评分 `4.90`。
+- 携带同一个登录 token 调用 `GET /api/v1/destinations/recommend?sortBy=heat&pageNum=1&pageSize=10&topK=5` 返回 `SUCCESS`，结果包含本次临时目的地。
+- 调用 `GET /api/v1/destinations/search?keyword=<临时目的地名>&sortBy=rating&pageNum=1&pageSize=10` 返回 `SUCCESS`，搜索结果命中本次临时目的地。
+- 本轮只验证推荐列表和关键字搜索的 P0 演示链路，未覆盖所有筛选组合。
 
 建议描述：
 - 推荐列表是否可返回
@@ -237,7 +294,31 @@
 ---
 
 ## 10.3 Route 模块测试结果
-- 待填写
+- P0 单目标路线后端接口演示预检已完成：
+  - 临时图数据为 3 个节点 A / B / C，边为 `A->B=120`、`B->C=80`、`A->C=260`。
+  - 携带同一个临时普通用户 token 调用 `POST /api/v1/routes/plan/single`，`strategyType=shortest_distance`，返回路径总距离 `200.00`、`estimatedTime=3`。
+  - 已根据接口返回 `historyId=7` 查询 `route_history`，确认用户、目的地、策略、交通方式和总距离落库正确。
+  - 验证结束后临时 `route_history`、`map_edge`、`map_node`、`destination` 和 `user` 均已清理。
+- Route 多目标基础版已完成后端单元测试：
+  - `POST /api/v1/routes/plan/multi` 已接入 `RouteController` 和 `RouteService`，会写入 `route_history`。
+  - `MapService` 使用有向带权图邻接表和 Dijkstra 分段求最短路，再用最近邻启发式决定多目标访问顺序。
+  - 已覆盖多目标最近邻拼接、返回起点、重复目标拦截、目标数量超过 8 个拦截、不可达目标返回 `ROUTE_003`。
+  - 当前已支持 `shortest_distance` 与 `shortest_time`；交通工具约束尚未实现。
+  - 当前未执行前端页面联调。
+- Route 多目标实库接口验证已完成：
+  - 临时图数据：4 个节点 A / B / C / D，边为 `A->B=100`、`B->C=120`、`C->A=140`、`A->C=500`，D 为不可达目标。
+  - 携带临时普通用户 token 调用 `POST /api/v1/routes/plan/multi`，`returnToStart=true` 时返回路径 `A -> B -> C -> A`，总距离 `360.00`。
+  - 根据接口返回 `historyId` 查询 `route_history`，`user_id`、`destination_id`、`start_node_id`、`end_node_id`、`strategy_type=shortest_distance`、`transport_type=walk`、`total_distance=360.00` 和路径 JSON 均校验通过。
+  - `returnToStart=false` 时接口返回成功，最终路径终点为 C。
+  - 不带 token 调用返回 HTTP 401；重复目标返回 HTTP 400、`COMMON_001`；不可达目标返回 HTTP 422、`ROUTE_003`。
+  - 验证结束后临时 `route_history`、`map_edge`、`map_node`、`destination` 和 `user` 清理剩余 0。
+- Route 最短时间策略实库接口验证已完成：
+  - 临时图数据：3 个节点 A / B / C，边为 `A->B=100`、`B->C=100`、`A->C=300`；前两段理想速度较低，直达边理想速度较高。
+  - 携带临时普通用户 token 调用 `POST /api/v1/routes/plan/single`，`strategyType=shortest_distance` 时返回路径 `A -> B -> C`，总距离 `200.00`，`estimatedTime=3`。
+  - 同一组起终点使用 `strategyType=shortest_time` 时返回路径 `A -> C`，总距离 `300.00`，`estimatedTime=3`，说明时间权重生效且路径可与最短距离不同。
+  - 已根据接口返回的 `historyId` 查询 `route_history`，确认两条历史记录分别保存 `strategy_type=shortest_distance` 与 `strategy_type=shortest_time`，对应总距离和预计时间与接口返回一致。
+  - 不带 token 调用单目标规划返回 HTTP 401，错误码 `AUTH_003`。
+  - 验证结束后临时 `route_history`、`map_edge`、`map_node`、`destination` 和 `user` 清理剩余 0。
 
 建议描述：
 - 单目标路径规划是否正确
@@ -259,7 +340,13 @@
 ---
 
 ## 10.5 Food 模块测试结果
-- 待填写
+- 已执行 `init-p1-food-schema.sql`，`food` 表创建成功。
+- 已插入 3 条最小测试数据：牛肉面、番茄面、鸡腿饭。
+- `GET /api/v1/foods/recommend?destinationId=1&sortBy=heat&topK=2` 返回 `SUCCESS`，结果按热度排序。
+- `GET /api/v1/foods/recommend?destinationId=1&foodType=面食&sortBy=rating&topK=5` 返回 `SUCCESS`，结果只包含面食并按评分排序。
+- `GET /api/v1/foods/search?destinationId=1&keyword=面&sortBy=rating&pageNum=1&pageSize=10` 返回 `SUCCESS`。
+- 非法排序 `sortBy=distance` 当前返回 HTTP 400，符合“距离联动后续再补”的设计。
+- 当前未执行前端美食页联调。
 
 建议描述：
 - 是否能按目的地查询美食
@@ -270,7 +357,26 @@
 ---
 
 ## 10.6 Diary 模块测试结果
-- 待填写
+- 先通过 FileService 上传 diary 图片，获得 `/files/diary/...` URL。
+- 使用该 URL 发布公开日记成功，返回 `diaryId=2`。
+- 日记列表可查到该日记。
+- 日记详情可返回标题、正文和媒体列表，媒体数量为 1。
+- 按 `destinationId=1` 查看相关日记时可查到该日记。
+- 2026-05-07 P0 主线后端接口演示预检中，使用同一个登录 token 上传最小 png，返回 `/files/diary/20260507/...`；随后发布临时公开图文日记成功，返回 `diaryId=3`；日记列表、日记详情和目的地相关日记接口均可查到该日记，`diary_media` 落库 1 条；验证结束后临时日记和媒体记录已清理。
+- P1 SearchService 基础版已完成单元测试，标题检索和正文关键词检索均只返回公开且启用的日记，并已支持 `latest/heat/rating` 排序。
+- 本轮未测试评分、我的日记列表、私有日记访问边界。
+
+## 10.6A P0 主线后端接口演示预检结果
+- 本轮使用同一个临时普通用户 token 串联验证：登录、推荐、搜索、单目标路线、文件上传、日记发布、日记列表、日记详情和目的地相关日记。
+- 后端启动方式：`java -jar target/trip-backend-0.0.1-SNAPSHOT.jar`，健康检查 `GET /api/v1/health` 返回 `SUCCESS`。
+- 数据库前置：`user`、`destination`、`map_node`、`map_edge`、`route_history`、`diary`、`diary_media` 表存在。
+- 结果：全链路通过，临时数据清理剩余为 0；文档中未记录完整 token、数据库密码或测试口令。
+- 说明：本结果只代表后端接口层可演示，不代表前端页面、路由、状态管理或上传组件联调通过。
+
+## 10.6B SearchService 测试结果
+- `SearchServiceTests` 覆盖标题检索、正文关键词检索、目的地过滤、`heat/rating` 排序、分页上限和非法参数。
+- `DiaryServiceTests` 覆盖 Diary 对 SearchService 的复用，并确认检索结果仍组装为 `DiaryVO`，不会直接返回 Entity。
+- 当前检索实现基于 MySQL `LIKE`，未引入额外检索依赖或数据库表结构变化。
 
 建议描述：
 - 日记发布是否成功
@@ -282,7 +388,35 @@
 ---
 
 ## 10.7 Admin / Import 模块测试结果
-- 待填写
+- Admin 最小后台已完成后端实库接口验证：
+  - 普通用户访问 `/api/v1/admin/destinations` 返回 HTTP 403。
+  - 管理员登录返回 `SUCCESS`，可访问 `/api/v1/admin/**`。
+  - 管理员可新增、修改、下架目的地。
+  - 管理员可新增、下架设施。
+  - 管理员可新增、查询、删除美食。
+- Admin 后续底层维护能力已完成后端单元测试：
+  - 场所 / 建筑物可分页查询、新增、修改和删除；删除时会检查设施与地图节点引用，无引用时才执行物理删除。
+  - 场所管理已完成实库接口验证：无 token 请求 `GET /api/v1/admin/places` 返回 HTTP 401，普通用户 token 返回 HTTP 403，管理员 token 可执行列表、新增、关键字查询、修改和无引用删除。
+  - 场所删除引用保护已完成实库接口验证：被 `facility.place_id` 引用或被 `map_node(node_type=place, ref_id=id)` 引用时，删除接口返回 HTTP 400、错误码 `COMMON_002`。
+  - 本次场所实库验证临时创建的用户、场所、设施和地图节点均已清理；中文关键字请求在 PowerShell 验证脚本中出现编码影响，已用 ASCII 测试名复测通过，不作为后端接口缺陷。
+  - 地图节点可新增，节点被边引用时拒绝删除。
+  - 地图边可新增，跨目的地节点会返回 `ROUTE_009`。
+  - 用户状态可按 `0/1` 修改。
+  - 日记状态可按 `0/1` 修改，前台 DiaryService 已按 `status=1` 过滤。
+- 批量导入预览和执行入口已接入 `ImportService`，当前基础版已支持 CSV / JSON 解析和真实入库。
+- ImportService 完整化基础版已完成后端单元测试：
+  - Admin 导入接口改为 `multipart/form-data`。
+  - Controller 接收 `MultipartFile`，Service 核心基于 `Reader`，便于后续复用其他导入来源。
+  - 当前支持 `destination`、`place`、`facility`、`food`、`map_node`、`map_edge` 的 CSV / JSON 最小导入。
+  - 当前会写入 `import_batch`，失败行写入 `import_failure`。
+  - `ImportServiceTests` 覆盖导入文件校验、预览解析、缺必填字段警告、UTF-8 BOM 表头兼容和 destination 成功入库摘要。
+- ImportService 已完成实库 multipart 验证：
+  - 已执行 `init-p1-import-schema.sql`，确认 `import_batch` 与 `import_failure` 表存在。
+  - 使用管理员 token 调用 `/api/v1/admin/import-batches/preview` 上传 `destinations-nobom.csv`，返回 `PREVIEW_ONLY`、`totalRows=1`，且未写入 `destination` 或 `import_batch`。
+  - 使用管理员 token 调用 `/api/v1/admin/import-batches` 上传 `destinations-nobom.csv`，返回 `SUCCESS`、成功 1 行、失败 0 行，`destination` 新增 `P1导入验证目的地无BOM20260506200514`，`import_batch.id=3` 记录成功批次。
+  - 上传缺字段 CSV 返回 `FAILED`，`import_failure` 记录第 2 行失败，错误摘要为“导入字段缺失或字段名不匹配”。
+  - 已修复 CSV UTF-8 BOM 表头兼容问题，带 BOM 的首列表头会在解析时归一化处理，单元回归测试已通过。
+  - 已新增管理端导入批次和失败明细查询接口，单元测试覆盖分页查询、VO 映射和不存在批次返回 `COMMON_003`。
 
 建议描述：
 - 管理员访问后台是否正常
@@ -293,7 +427,11 @@
 ---
 
 ## 10.8 Security 与异常处理测试结果
-- 待填写
+- 2026-05-06 已完成实库接口认证专项验证。
+- 普通用户 token 访问 `GET /api/v1/admin/users?pageNum=1&pageSize=10` 返回 HTTP 403，错误码 `AUTH_005`。
+- 管理员 token 访问同一管理端接口返回 `SUCCESS`，说明 `ROLE_admin` 权限链路可用。
+- 无 token、伪造 token、错误认证头均返回统一 `ApiResponse` 错误结构，没有暴露堆栈信息。
+- 验证记录未保存完整 JWT token，测试文档中也不记录真实密码。
 
 建议描述：
 - 未登录访问是否被正确拦截
@@ -310,9 +448,9 @@
 
 | 指标 | 数量 |
 |---|---:|
-| 本轮新增缺陷数 | 待填写 |
-| 本轮已关闭缺陷数 | 待填写 |
-| 当前未关闭缺陷数 | 待填写 |
+| 本轮新增缺陷数 | 1 |
+| 本轮已关闭缺陷数 | 1 |
+| 当前未关闭缺陷数 | 0 |
 
 ---
 
@@ -320,10 +458,10 @@
 
 | 严重程度 | 数量 |
 |---|---:|
-| S1 | 待填写 |
-| S2 | 待填写 |
-| S3 | 待填写 |
-| S4 | 待填写 |
+| S1 | 0 |
+| S2 | 1 |
+| S3 | 0 |
+| S4 | 0 |
 
 ---
 
@@ -331,10 +469,10 @@
 
 | 优先级 | 数量 |
 |---|---:|
-| P0 | 待填写 |
-| P1 | 待填写 |
-| P2 | 待填写 |
-| P3 | 待填写 |
+| P0 | 0 |
+| P1 | 1 |
+| P2 | 0 |
+| P3 | 0 |
 
 ---
 
@@ -343,14 +481,13 @@
 
 | 缺陷编号 | 所属模块 | 标题 | 严重程度 | 当前状态 |
 |---|---|---|---|---|
-| BUG-001 | 待填写 | 待填写 | 待填写 | 待填写 |
-| BUG-002 | 待填写 | 待填写 | 待填写 | 待填写 |
-| BUG-003 | 待填写 | 待填写 | 待填写 | 待填写 |
+| BUG-001 | FileService / Diary | 上传文件已落盘但 `/files/diary/...` 访问返回 500 | S2 | 已关闭 |
 
 ---
 
 ## 11.5 缺陷特点分析
-- 待填写
+- 本轮缺陷集中在本地文件静态资源映射，不涉及数据库持久化或 Diary 业务入参。
+- 修复后通过文件访问和日记详情媒体返回两条回归路径验证。
 
 建议从这些角度分析：
 1. 是否主要集中在某一模块  
@@ -364,13 +501,15 @@
 ## 12. 回归测试情况
 
 ### 12.1 本轮是否执行回归测试
-- 待填写（是 / 否）
+- 是
 
 ### 12.2 回归范围
-- 待填写
+- `TC-FILE-004`
+- `TC-DIARY-006`
 
 ### 12.3 回归结果摘要
-- 待填写
+- 修复静态资源映射后，上传返回的 `/files/diary/...` URL 可访问，HTTP 状态为 200。
+- 日记详情接口可返回媒体列表，Diary 图文展示的数据链路已恢复。
 
 可参考写法：
 > 本轮对登录、单目标路径规划、日记发布和文件上传相关问题进行了回归测试。主要缺陷已修复，原有问题未再次出现，但 Recommend 模块的部分排序边界场景仍需后续继续验证。
@@ -380,20 +519,28 @@
 ## 13. 风险与遗留问题
 
 ### 13.1 当前主要风险
-- 待填写
+- 当前测试数据规模较小，仅覆盖 Diary 主链路最小数据。
+- 前端工程代码暂不可用，页面联调当前阻塞，无法验证用户界面层请求与展示。
+- Route 多目标和最短时间策略已完成后端单元测试和实库接口验证；Facility、Recommend 仍缺少完整实库接口测试报告。
+- Diary 评分、我的日记、手账、AI 仍为 P1 / P2 后续范围；基础检索已完成，增强检索算法仍待后续扩展。
+- Admin 当前已补场所管理、地图节点 / 边、用户状态、日记状态、导入入口、导入批次列表和失败明细查询；ImportService 已完成基础解析入库、CSV BOM 兼容修复和实库 multipart 接口验证。
 
 建议从这些角度填写：
 1. 某些主线功能虽可运行，但数据量偏小  
-2. 多目标路径规划尚未完成  
+2. 多目标路径规划和最短时间策略已完成后端基础版和实库接口验证，但尚未完成前端联调  
 3. AI 功能尚未进入稳定测试  
 4. 管理端只实现了最小可用版本  
 5. 测试覆盖仍偏重主线，增强功能覆盖不足  
 
 ### 13.2 当前遗留问题
-- 待填写
+- 需要补充完整 P0 主线端到端测试，覆盖 Recommend、Route、Facility 和前端页面。
+- 需要准备更完整的演示数据，包括目的地、地图节点、地图边、设施和多篇日记。
+- 前端工程恢复后，需要补执行 Auth + File + Diary 页面联调，并将页面测试结果单独追加到本报告或形成下一版报告。
+- Admin 场所管理已完成后端基础版；导入批次查询 / 失败明细查询已完成后端基础版。
 
 ### 13.3 对验收的影响判断
-- 待填写
+- 不影响当前 Diary 后端基础链路演示。
+- 若要进入完整课程验收，还需要继续补前端联调、Route / Facility 实库数据和 P1 增强测试。
 
 建议说明：
 - 是否影响当前主线演示
@@ -425,10 +572,10 @@
 - 需要先完成集中修复
 
 ### 当前建议结论
-- 待填写
+- 后端可进入下一阶段；前端联调待恢复
 
 ### 结论说明
-- 待填写
+- 当前版本已跑通 Diary 图文基础链路，并完成 P1 Food 基础版、Admin 场所管理与后续底层维护能力、SearchService 基础版、ImportService 完整化基础版、Route 多目标路径规划和 Route 最短时间策略；ImportService 已补充实库 multipart 导入验证、CSV BOM 兼容回归测试、导入批次查询和失败明细查询。由于前端工程代码暂不可用，页面联调暂不推进；后端可继续按 `coding-plan.md` 进入后续 P1 增强。
 
 示例写法：
 > 当前版本已基本跑通登录、推荐、单目标路径规划、周边设施查询和图文日记发布这条主线，能够用于阶段演示。仍存在部分边界输入处理和后台导入能力不足的问题，建议继续修复后再进入最终验收准备阶段。
@@ -438,7 +585,10 @@
 ## 15. 后续建议
 
 ### 15.1 短期建议
-- 待填写
+- 前端工程代码可用后，再推进 Auth + File + Diary 页面联调。
+- 补充 Recommend、Route、Facility 的实库测试记录。
+- 固化一组可复用的 P0 演示数据。
+- 按顺序继续补 Diary 检索与排序、Diary 评分，或补 Facility / Recommend 的实库接口测试记录。
 
 例如：
 1. 优先修复所有 P0 缺陷  
@@ -446,15 +596,17 @@
 3. 完善日记评分与检索的测试覆盖  
 
 ### 15.2 中期建议
-- 待填写
+- 补充 Food、Admin、SearchService 等 P1 模块实库接口测试。
+- 扩展 Diary 评分、检索、我的日记列表等增强能力测试。
 
 例如：
 1. 完善 Food 和 Admin 的测试覆盖  
 2. 扩展测试数据规模  
-3. 补充多目标路径规划测试  
+3. 补充 Diary 评分与检索实库接口测试  
 
 ### 15.3 验收前建议
-- 待填写
+- 执行完整主线回归测试。
+- 整理接口返回、页面截图和关键数据作为答辩材料。
 
 例如：
 1. 做一次完整主线回归测试  

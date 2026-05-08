@@ -414,9 +414,19 @@ P0 阶段优先采用：
 - `crowdFactor <= 1`
 - `idealSpeed` 和 `crowdFactor` 可由数据表提供
 
-### 当前建议
-- P1 阶段在 Dijkstra 基础上切换边权定义即可；
-- 不需要重写整套最短路径框架。
+### 当前落地版本（2026-05-07）
+- 已在 `MapService` 中落地最短时间策略。
+- 当前仍复用有向带权图邻接表和 Dijkstra，不重写路径框架，只根据 `strategyType` 切换边权。
+- `shortest_distance` 使用 `map_edge.distance` 作为边权。
+- `shortest_time` 使用 `distance / (ideal_speed * crowd_factor)` 作为边权；若边缺少有效速度或拥挤度，则该边不参与最短时间路径计算。
+- `RouteService` 保存 `route_history.strategy_type`，并将 `shortest_time` 的累计时间换算为分钟级 `estimatedTime`。
+- 已完成单元测试和单目标实库接口验证：同一组图数据下，最短距离返回 `A -> B -> C`，最短时间返回 `A -> C`，说明策略切换已生效。
+
+### 当前复杂度
+- 数据结构：有向带权图邻接表、优先队列、距离表、前驱表。
+- 时间复杂度：单次 Dijkstra 约为 `O((V + E) log V)`。
+- 空间复杂度：约为 `O(V + E)`。
+- 适用范围：适合景区 / 校园内部小到中等规模图数据的距离优先或时间优先路线规划；当前不处理交通工具边过滤。
 
 ---
 
@@ -460,6 +470,20 @@ P1 阶段采用“**启发式分解**”实现：
 ### 当前项目建议
 - 第一版优先做“目标点数量较少”的可演示实现；
 - 不追求大规模 TSP 最优求解。
+
+### 当前落地版本（2026-05-07）
+- 已实现 `POST /api/v1/routes/plan/multi` 多目标基础版。
+- 当前采用“最近邻启发式”：从当前节点出发，在未访问目标点中选择当前策略权重最小的一点作为下一站，重复直到访问完所有目标点；如 `returnToStart=true`，最后再拼接回起点的最短路径。
+- 每一段路径仍由 `MapService` 在目的地有向带权图上运行 Dijkstra 得到，边权可按 `shortest_distance` 或 `shortest_time` 切换。
+- 当前目标点数量限制为最多 8 个，不允许重复目标点。
+- 当前返回复用 `RoutePlanVO`，其中 `pathNodes` 和 `pathEdges` 是完整拼接路线，`route_history` 记录完整路径 JSON。
+- 当前版本不实现交通工具边过滤、开放时间 / 游玩时长 / 性价比等增强约束。
+
+### 当前落地复杂度
+- 数据结构：有向带权图邻接表、优先队列、距离表、前驱表、未访问目标集合、路径拼接列表。
+- 时间复杂度：目标点数量为 `k` 时，最多运行 `k+1` 次 Dijkstra，约为 `O(k * (V + E) log V)`。
+- 空间复杂度：图结构、Dijkstra 中间表和输出路径约为 `O(V + E + P)`。
+- 适用范围：小规模景区 / 校园多点游览路径演示；不保证旅行商问题全局最优。
 
 ---
 
@@ -579,7 +603,13 @@ P2
 - `returnToStart`
 
 返回：
-- `MultiRoutePlanVO`
+- `RoutePlanVO`
+
+当前实现说明：
+- 当前接口已实现，返回拼接后的完整路径。
+- 当前最多支持 8 个目标点。
+- 当前支持 `shortest_distance` 与 `shortest_time`。
+- 当前交通工具边过滤后续再补。
 
 ---
 

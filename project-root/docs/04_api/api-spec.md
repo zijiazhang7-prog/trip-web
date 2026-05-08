@@ -142,16 +142,41 @@ Authorization: Bearer <token>
 
 当前 API 按以下分组组织：
 
-1. Auth：用户认证
-2. UserPreference：用户偏好
-3. Destination：目的地推荐与查询
-4. Route：路线规划与路线历史
-5. Facility：周边设施
-6. Food：美食查询与推荐
-7. Diary：旅游日记
-8. File：文件上传
-9. Admin：管理端数据维护
-10. AI：AI 增强能力
+1. Health：工程健康检查
+2. Auth：用户认证
+3. UserPreference：用户偏好
+4. Destination：目的地推荐与查询
+5. Route：路线规划与路线历史
+6. Facility：周边设施
+7. Food：美食查询与推荐
+8. Diary：旅游日记
+9. File：文件上传
+10. Admin：管理端数据维护
+11. AI：AI 增强能力
+
+### 5.1 Health 接口
+
+#### 5.1.1 后端健康检查
+
+* 方法：`GET`
+* 路径：`/api/v1/health`
+* 权限：无需登录
+
+### Response
+
+```json
+{
+  "success": true,
+  "code": "SUCCESS",
+  "message": "success",
+  "data": {
+    "status": "ok"
+  },
+  "timestamp": "2026-05-05T12:00:00"
+}
+```
+
+说明：该接口用于工程骨架启动验证和前后端联调探活，不承载业务逻辑。
 
 ---
 
@@ -322,12 +347,13 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "id": 5001,
   "bizType": "diary",
   "fileName": "photo-1.jpg",
   "fileUrl": "/files/diary/d5001.jpg"
 }
 ```
+
+说明：当前 P0 表结构没有独立的文件资源表，上传接口只返回文件访问地址，不返回持久化文件 ID。后续 Diary 发布基础版应直接携带文件 URL 或媒体对象列表。
 
 ## 6.11 DiaryDraftVO（AI）
 
@@ -574,6 +600,8 @@ Authorization: Bearer <token>
 
 * 方法：`POST`
 * 路径：`/api/v1/routes/plan/single`
+* 当前实现状态：已实现，支持 `shortest_distance` 与 `shortest_time`
+* 权限：需要登录
 
 ### Request Body
 
@@ -591,10 +619,18 @@ Authorization: Bearer <token>
 
 返回 `RoutePlanVO`
 
+说明：
+- `strategyType` 当前支持 `shortest_distance` 和 `shortest_time`。
+- `shortest_distance` 以 `map_edge.distance` 作为 Dijkstra 边权。
+- `shortest_time` 以 `distance / (ideal_speed * crowd_factor)` 作为 Dijkstra 边权；`estimatedTime` 按分钟返回。
+- 当前交通工具边过滤尚未实现，`transportType` 先作为路线历史记录字段保留。
+
 ## 10.2 多目标路线规划
 
 * 方法：`POST`
 * 路径：`/api/v1/routes/plan/multi`
+* 当前实现状态：已实现，P1 Route 多目标基础版，支持 `shortest_distance` 与 `shortest_time`
+* 权限：需要登录
 
 ### Request Body
 
@@ -612,6 +648,14 @@ Authorization: Bearer <token>
 ### Response
 
 返回 `RoutePlanVO`
+
+说明：
+- 当前多目标基础版使用内部 `MapService` 的有向带权图和 Dijkstra 能力，不依赖外部地图 API。
+- 当前支持 `strategyType=shortest_distance` 与 `strategyType=shortest_time`；交通工具边过滤留到后续 P1 步骤。
+- `targetNodeIds` 不能为空，当前最多支持 8 个目标节点，且不允许重复。
+- 多目标访问顺序采用最近邻启发式：每次选择从当前节点到未访问目标中当前策略权重最小的一点；结果不保证 TSP 全局最优。
+- 如果 `returnToStart=true`，系统会在访问完目标点后追加返回起点的最短路径。
+- 返回结构复用 `RoutePlanVO`，`pathNodes` / `pathEdges` 为拼接后的完整路线，`historyId` 为写入的路线历史记录 ID。
 
 ## 10.3 获取当前用户路线历史
 
@@ -697,7 +741,7 @@ Authorization: Bearer <token>
 | destinationId | long   |  是 | 目的地 ID                 |
 | sourceNodeId  | long   |  否 | 当前节点 ID                |
 | foodType      | string |  否 | 菜系                     |
-| sortBy        | string |  否 | `heat/rating/distance` |
+| sortBy        | string |  否 | 当前基础版支持 `heat/rating`，`distance` 后续联动 MapService 再补 |
 | topK          | int    |  否 | Top-K 数量               |
 
 ### Response
@@ -715,13 +759,16 @@ Authorization: Bearer <token>
 | ------------- | ------ | -: | ---------------------- |
 | destinationId | long   |  是 | 目的地 ID                 |
 | keyword       | string |  是 | 名称 / 菜系 / 店铺关键字        |
-| sortBy        | string |  否 | `heat/rating/distance` |
+| foodType      | string |  否 | 菜系过滤                   |
+| sortBy        | string |  否 | 当前基础版支持 `heat/rating`，`distance` 后续联动 MapService 再补 |
 | pageNum       | int    |  否 | 页码                     |
 | pageSize      | int    |  否 | 每页数量                   |
 
 ### Response
 
 返回 `Page<FoodVO>`
+
+说明：Food 当前为 P1 基础版，先实现按目的地 / 设施 / 菜系 / 关键字召回，并复用 `RankService` 做热度、评分排序和 Top-K 输出；价格区间、距离联动、个性化口味推荐和详情接口后续再补。
 
 ---
 
@@ -741,7 +788,14 @@ Authorization: Bearer <token>
   "title": "今天在校园里散步",
   "contentText": "今天天气很好，我先去了图书馆，再去了食堂。",
   "visibility": "public",
-  "mediaIds": [5001, 5002]
+  "mediaList": [
+    {
+      "mediaType": "image",
+      "fileUrl": "/files/diary/20260505/photo-1.jpg",
+      "fileName": "photo-1.jpg",
+      "sortNo": 0
+    }
+  ]
 }
 ```
 
@@ -790,21 +844,28 @@ Authorization: Bearer <token>
 
 * 方法：`GET`
 * 路径：`/api/v1/diaries/search/title`
+* 当前实现状态：已实现，P1 SearchService 基础版，支持基础排序
 
 ### Query 参数
 
 | 参数名   | 类型     | 必填 | 说明   |
 | ----- | ------ | -: | ---- |
 | title | string |  是 | 日记标题 |
+| sortBy | string | 否 | `latest/heat/rating`，默认 `latest` |
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页数量，最大 100 |
 
 ### Response
 
 返回 `Page<DiaryVO>`
 
+说明：当前基础版内部使用 MySQL `LIKE` 做标题匹配，只返回 `status=1` 且 `visibility=public` 的日记；排序字段使用白名单校验，非法值返回参数错误。
+
 ## 13.5 日记全文检索
 
 * 方法：`GET`
 * 路径：`/api/v1/diaries/search/fulltext`
+* 当前实现状态：已实现，P1 SearchService 基础版，支持基础排序
 
 ### Query 参数
 
@@ -812,12 +873,15 @@ Authorization: Bearer <token>
 | ------------- | ------ | -: | ------- |
 | keyword       | string |  是 | 日记正文关键字 |
 | destinationId | long   |  否 | 目的地 ID  |
+| sortBy        | string |  否 | `latest/heat/rating`，默认 `latest` |
 | pageNum       | int    |  否 | 页码      |
-| pageSize      | int    |  否 | 每页数量    |
+| pageSize      | int    |  否 | 每页数量，最大 100 |
 
 ### Response
 
 返回 `Page<DiaryVO>`
+
+说明：当前基础版内部使用 MySQL `LIKE` 匹配 `content_text`，只返回公开且启用的日记；排序字段使用白名单校验，非法值返回参数错误；倒排索引或 MySQL FULLTEXT 后续再增强。
 
 ## 13.6 对日记评分
 
@@ -870,6 +934,7 @@ Authorization: Bearer <token>
 * 方法：`POST`
 * 路径：`/api/v1/files/upload`
 * Content-Type：`multipart/form-data`
+* 权限：需要登录，使用 `Authorization: Bearer <token>`
 
 ### Form Data
 
@@ -883,6 +948,8 @@ Authorization: Bearer <token>
 
 返回 `FileUploadResultVO`
 
+说明：当前 P0 文件上传不写入独立文件资源表，因此返回结果中不包含 `id`。上传成功后返回的 `fileUrl` 可直接通过 `GET /files/...` 访问，例如 Diary 图片上传后返回 `/files/diary/20260505/example.png`，前端可将该 URL 写入日记发布请求的 `mediaList`。如果后续新增文件资源表，再统一补充文件 ID 与 Diary `mediaIds` 方案。
+
 ---
 
 ## 15. Admin 接口
@@ -891,56 +958,397 @@ Authorization: Bearer <token>
 
 * 方法：`GET`
 * 路径：`/api/v1/admin/users`
+* 权限：管理员
 
-## 15.2 新增目的地
+### Query 参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| keyword | string | 否 | 用户名 / 昵称关键字 |
+| type | string | 否 | 用户角色，如 `user/admin` |
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页数量 |
+
+### Response
+
+返回 `Page<AdminUserVO>`，不返回 `password_hash`。
+
+## 15.2 分页查询目的地
+
+* 方法：`GET`
+* 路径：`/api/v1/admin/destinations`
+* 权限：管理员
+
+### Query 参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| keyword | string | 否 | 名称 / 城市 / 分类关键字 |
+| type | string | 否 | 目的地类型 |
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页数量 |
+
+### Response
+
+返回 `Page<AdminDestinationVO>`
+
+## 15.3 新增目的地
 
 * 方法：`POST`
 * 路径：`/api/v1/admin/destinations`
+* 权限：管理员
 
-## 15.3 修改目的地
+## 15.4 修改目的地
 
 * 方法：`PUT`
 * 路径：`/api/v1/admin/destinations/{id}`
+* 权限：管理员
 
-## 15.4 删除目的地
+## 15.5 删除 / 下架目的地
 
 * 方法：`DELETE`
 * 路径：`/api/v1/admin/destinations/{id}`
+* 权限：管理员
+* 说明：当前按 `destination.status=0` 做逻辑下架。
 
-## 15.5 新增场所
+## 15.6 分页查询设施
+
+* 方法：`GET`
+* 路径：`/api/v1/admin/facilities`
+* 权限：管理员
+
+### Query 参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| destinationId | long | 否 | 所属目的地 |
+| keyword | string | 否 | 名称 / 描述关键字 |
+| type | string | 否 | 设施类型 |
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页数量 |
+
+## 15.7 分页查询场所
+
+* 方法：`GET`
+* 路径：`/api/v1/admin/places`
+* 权限：管理员
+
+### Query 参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| destinationId | long | 否 | 所属目的地 |
+| keyword | string | 否 | 名称 / 描述关键字 |
+| type | string | 否 | 场所类型，对应 `place.place_type` |
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页数量，最大 100 |
+
+### Response
+
+返回 `Page<AdminPlaceVO>`，字段包括 `id`、`destinationId`、`name`、`placeType`、`description`、`lng`、`lat`、`floorInfo`、`heatScore`、`ratingScore`、`openTimeRule`、`suggestedDurationMin`、`costLevel`。
+
+## 15.7A 新增场所
 
 * 方法：`POST`
 * 路径：`/api/v1/admin/places`
+* 权限：管理员
 
-## 15.6 新增设施
+### Request Body
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| destinationId | long | 是 | 所属目的地 |
+| name | string | 是 | 场所名称 |
+| placeType | string | 是 | 场所类型，如 `building/scenic_spot/dormitory` |
+| description | string | 否 | 场所描述 |
+| lng | decimal | 否 | 经度 |
+| lat | decimal | 否 | 纬度 |
+| floorInfo | string | 否 | 楼层信息 |
+| heatScore | decimal | 否 | 热度分，默认 0 |
+| ratingScore | decimal | 否 | 评分，默认 0 |
+| openTimeRule | string | 否 | 开放时间规则 |
+| suggestedDurationMin | int | 否 | 建议停留分钟数 |
+| costLevel | int | 否 | 成本等级 |
+
+### Response
+
+返回 `AdminPlaceVO`。
+
+## 15.7B 修改场所
+
+* 方法：`PUT`
+* 路径：`/api/v1/admin/places/{id}`
+* 权限：管理员
+
+### Response
+
+返回 `AdminPlaceVO`。
+
+## 15.7C 删除场所
+
+* 方法：`DELETE`
+* 路径：`/api/v1/admin/places/{id}`
+* 权限：管理员
+* 说明：当前 `place` 表没有 `status` 字段，因此无下游引用时按物理删除处理；如果场所仍被 `facility.place_id` 或 `map_node(node_type=place, ref_id=id)` 引用，则拒绝删除并返回参数不合法类业务错误。
+
+## 15.8 新增设施
 
 * 方法：`POST`
 * 路径：`/api/v1/admin/facilities`
+* 权限：管理员
 
-## 15.7 新增美食
+## 15.9 修改设施
+
+* 方法：`PUT`
+* 路径：`/api/v1/admin/facilities/{id}`
+* 权限：管理员
+
+## 15.10 删除 / 下架设施
+
+* 方法：`DELETE`
+* 路径：`/api/v1/admin/facilities/{id}`
+* 权限：管理员
+* 说明：当前按 `facility.status=0` 做逻辑下架。
+
+## 15.11 分页查询美食
+
+* 方法：`GET`
+* 路径：`/api/v1/admin/foods`
+* 权限：管理员
+
+### Query 参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| destinationId | long | 否 | 所属目的地 |
+| keyword | string | 否 | 名称 / 店铺 / 描述关键字 |
+| type | string | 否 | 菜系 |
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页数量 |
+
+## 15.12 新增美食
 
 * 方法：`POST`
 * 路径：`/api/v1/admin/foods`
+* 权限：管理员
 
-## 15.8 新增地图节点
+## 15.13 修改美食
+
+* 方法：`PUT`
+* 路径：`/api/v1/admin/foods/{id}`
+* 权限：管理员
+
+## 15.14 删除美食
+
+* 方法：`DELETE`
+* 路径：`/api/v1/admin/foods/{id}`
+* 权限：管理员
+* 说明：当前 `food` 表没有 `status` 字段，因此按物理删除处理。
+
+## 15.15 新增地图节点
+
+* 方法：`GET`
+* 路径：`/api/v1/admin/map/nodes`
+* 权限：管理员
+* 说明：按 `destinationId`、`type`、`keyword` 查询地图节点。
+
+---
 
 * 方法：`POST`
 * 路径：`/api/v1/admin/map/nodes`
+* 权限：管理员
 
-## 15.9 新增地图边
+### Request Body
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| destinationId | long | 是 | 所属目的地 |
+| nodeName | string | 是 | 节点名称 |
+| nodeType | string | 是 | 节点类型 |
+| refId | long | 否 | 关联 place / facility 等业务对象 ID |
+| lng | decimal | 否 | 经度 |
+| lat | decimal | 否 | 纬度 |
+| floorNo | int | 否 | 楼层 |
+
+### Response
+
+返回 `AdminMapNodeVO`。
+
+## 15.15A 修改地图节点
+
+* 方法：`PUT`
+* 路径：`/api/v1/admin/map/nodes/{id}`
+* 权限：管理员
+
+## 15.15B 删除地图节点
+
+* 方法：`DELETE`
+* 路径：`/api/v1/admin/map/nodes/{id}`
+* 权限：管理员
+* 说明：当前为物理删除；如果节点已被 `map_edge` 引用，则拒绝删除。
+
+## 15.16 新增地图边
+
+* 方法：`GET`
+* 路径：`/api/v1/admin/map/edges`
+* 权限：管理员
+* 说明：按 `destinationId`、`type` 查询地图边，其中 `type` 当前对应 `transportType`。
+
+---
 
 * 方法：`POST`
 * 路径：`/api/v1/admin/map/edges`
+* 权限：管理员
 
-## 15.10 管理端分页查询日记
+### Request Body
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| destinationId | long | 是 | 所属目的地 |
+| fromNodeId | long | 是 | 起点节点 |
+| toNodeId | long | 是 | 终点节点 |
+| distance | decimal | 是 | 距离权重 |
+| idealSpeed | decimal | 否 | 理想速度 |
+| crowdFactor | decimal | 否 | 拥挤系数 |
+| transportType | string | 否 | 交通方式 |
+| edgeType | string | 否 | 边类型 |
+| bidirectionalFlag | int | 否 | 是否双向标记 |
+
+### Response
+
+返回 `AdminMapEdgeVO`。
+
+说明：新增 / 修改地图边时会校验起点和终点都存在，且与 `destinationId` 属于同一目的地；`bidirectionalFlag` 仅保存字段，不自动创建反向边。
+
+## 15.16A 修改地图边
+
+* 方法：`PUT`
+* 路径：`/api/v1/admin/map/edges/{id}`
+* 权限：管理员
+
+## 15.16B 删除地图边
+
+* 方法：`DELETE`
+* 路径：`/api/v1/admin/map/edges/{id}`
+* 权限：管理员
+
+## 15.17 管理端分页查询日记
 
 * 方法：`GET`
 * 路径：`/api/v1/admin/diaries`
+* 权限：管理员
 
-## 15.11 批量导入数据
+### Query 参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| destinationId | long | 否 | 目的地 ID |
+| keyword | string | 否 | 日记标题关键字 |
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页数量 |
+
+### Response
+
+返回 `Page<AdminDiaryVO>`。
+
+## 15.17A 修改用户状态
+
+* 方法：`PUT`
+* 路径：`/api/v1/admin/users/{id}/status`
+* 权限：管理员
+* 说明：`status` 只允许 `0/1`，用于禁用 / 启用用户。
+
+## 15.17B 修改日记状态
+
+* 方法：`PUT`
+* 路径：`/api/v1/admin/diaries/{id}/status`
+* 权限：管理员
+* 说明：`status` 只允许 `0/1`，用于下架 / 恢复日记；前台日记列表和详情只展示 `status=1` 的日记。
+
+## 15.18 批量导入数据
+
+* 方法：`POST`
+* 路径：`/api/v1/admin/import-batches/preview`
+* 权限：管理员
+* Content-Type：`multipart/form-data`
+* 说明：调用 `ImportService.previewImport`，解析 CSV / JSON 并返回预览行数与校验警告，不写入业务表。
+
+### Form Data
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| targetTable | string | 是 | 目标表名，当前支持 `destination/place/facility/food/map_node/map_edge` |
+| sourceType | string | 是 | `csv/json` |
+| file | file | 是 | 标准化导入文件，最大 20MB，当前最多 1000 行 |
+
+### Response
+
+返回 `ImportPreviewResult`，包含 `batchName`、`targetTable`、`sourceType`、`fileName`、`status`、`totalRows`、`warnings`。
+
+---
 
 * 方法：`POST`
 * 路径：`/api/v1/admin/import-batches`
+* 权限：管理员
+* Content-Type：`multipart/form-data`
+* 说明：调用 `ImportService.runImport`。Controller 负责接收 `MultipartFile`，Service 核心基于 `Reader` 解析并执行真实入库。
+
+### Form Data
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| targetTable | string | 是 | 目标表名，当前支持 `destination/place/facility/food/map_node/map_edge` |
+| sourceType | string | 是 | `csv/json` |
+| file | file | 是 | 标准化导入文件，最大 20MB，当前最多 1000 行 |
+
+### Response
+
+返回 `ImportResult`，包含 `batchName`、`targetTable`、`status`、`totalRows`、`successRows`、`failedRows`、`errors`。
+
+说明：
+- 当前导入成功行会写入对应业务表，失败行不会写入；
+- 每次执行会写入 `import_batch`，失败行会写入 `import_failure`；
+- 当前不支持 `user`、`diary`、`diary_media`、`route_history` 导入，不支持 Excel / SQL 上传执行；
+- CSV 使用首行表头映射字段；JSON 使用对象数组格式，例如 `[{"name":"测试目的地","type":"campus"}]`。
+
+## 15.19 查询导入批次
+
+* 方法：`GET`
+* 路径：`/api/v1/admin/import-batches`
+* 权限：管理员
+
+### Query 参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| keyword | string | 否 | 批次名 / 文件名关键字 |
+| type | string | 否 | 目标表名，如 `destination` |
+| status | string | 否 | 导入状态，如 `SUCCESS/FAILED/PARTIAL_SUCCESS/RUNNING` |
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页数量，最大 100 |
+
+### Response
+
+返回 `Page<AdminImportBatchVO>`，字段包括 `id`、`batchName`、`targetTable`、`sourceType`、`fileName`、`fileSize`、`status`、`totalRows`、`successRows`、`failedRows`、`errorMessage`、`createdAt`、`updatedAt`。
+
+## 15.20 查询导入失败明细
+
+* 方法：`GET`
+* 路径：`/api/v1/admin/import-batches/{batchId}/failures`
+* 权限：管理员
+
+### Query 参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页数量，最大 100 |
+
+### Response
+
+返回 `Page<AdminImportFailureVO>`，字段包括 `id`、`batchId`、`rowNo`、`fieldName`、`errorMessage`、`rawDataJson`、`createdAt`。
+
+说明：如果 `batchId` 不存在，返回资源不存在错误；当前 `rawDataJson` 用于辅助管理员定位标准化导入文件中的错误行。
 
 > 说明：当前阶段管理端以基础数据维护为主；如果后续正式纳入偏好标签管理、手账管理、多人协同会话管理、轨迹管理，再扩展新的 Admin 接口分组。
 
@@ -1139,5 +1547,5 @@ Authorization: Bearer <token>
 2. `Diary` 发布接口已补充 `visibility` 和可选 `routeHistoryId`，前后端字段名要保持一致。
 3. `Route` 返回里的 `estimatedTime` 建议统一按“分钟”理解，不要一会儿秒、一会儿分钟。
 4. `AI` 接口当前是预留能力，后端可以先 mock / stub，不要在业务模块里直接绑具体模型厂商。
-5. `swagger-draft.yaml` 需要与本文件同步更新，否则后面 Swagger Editor 校验结果会和文档口径不一致。
-
+5. `Diary` 图文发布的推荐联调流程为：先调用 `POST /api/v1/files/upload` 上传图片并取得 `fileUrl`，再调用 `POST /api/v1/diaries`，将该 `fileUrl` 写入 `mediaList.fileUrl`。
+6. `swagger-draft.yaml` 需要与本文件同步更新，否则后面 Swagger Editor 校验结果会和文档口径不一致。
