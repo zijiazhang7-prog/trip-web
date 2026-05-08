@@ -34,6 +34,9 @@
 3. 发现缺陷后，应在 `bug-log.md` 中登记，并同步更新本文件中的“实际结果 / 状态 / 备注”。
 4. 修复缺陷后，应执行对应回归用例。
 
+### 2.3 当前前端联调状态
+截至 2026-05-07，前端工程代码暂不可用，因此本文件中已通过的 P0 Diary 相关记录和 P0 主线后端接口演示预检仅代表后端实库接口联调结果，不代表页面联调通过。涉及页面表单、上传组件、路由跳转、前端状态管理的测试需要在前端工程恢复后单独执行。
+
 ---
 
 ## 3. 用例编号规则
@@ -88,10 +91,12 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TC-AUTH-001 | Auth | P0 | 正常注册用户 | 系统可访问注册接口 | 1. 打开注册页 2. 输入用户名/密码/昵称 3. 提交注册 | username=test_user_01, password=123456, nickname=测试用户1 | 注册成功，返回成功提示或 userId | 待填写 | 未执行 | |
 | TC-AUTH-002 | Auth | P0 | 重复用户名拦截 | 已存在用户 `test_user_01` | 1. 再次使用相同用户名注册 2. 提交 | username=test_user_01 | 返回“用户名已存在”类错误提示 | 待填写 | 未执行 | |
-| TC-AUTH-003 | Auth | P0 | 正常登录 | 测试用户已注册 | 1. 打开登录页 2. 输入用户名密码 3. 提交 | username=test_user_01, password=123456 | 登录成功，返回 token 和当前用户信息 | 待填写 | 未执行 | |
+| TC-AUTH-003 | Auth | P0 | 正常登录 | 测试用户已注册 | 1. 打开登录页 2. 输入用户名密码 3. 提交 | username=p0diarytest / auth_user_20260506220129, password=测试口令 | 登录成功，返回 token 和当前用户信息 | 登录成功，返回 `SUCCESS` 和 JWT token；2026-05-06 追加临时普通用户实库认证验证通过 | 通过 | 2026-05-05 后端实库联调；2026-05-06 后端实库认证专项验证 |
 | TC-AUTH-004 | Auth | P0 | 错误密码登录失败 | 用户存在 | 1. 输入错误密码 2. 提交登录 | username=test_user_01, password=wrong123 | 返回密码错误提示，不签发 token | 待填写 | 未执行 | |
-| TC-AUTH-005 | Auth | P0 | 获取当前用户信息 | 已登录并持有有效 token | 1. 携带 token 请求 `/auth/me` | 合法 Bearer token | 正确返回当前用户 id、username、nickname、role | 待填写 | 未执行 | |
-| TC-AUTH-006 | Auth | P0 | 无 token 获取当前用户失败 | 无登录状态 | 1. 不带 token 请求 `/auth/me` | 无 | 返回未登录或 token 缺失提示 | 待填写 | 未执行 | |
+| TC-AUTH-005 | Auth | P0 | 获取当前用户信息 | 已登录并持有有效 token | 1. 携带 token 请求 `/auth/me` | 合法 Bearer token | 正确返回当前用户 id、username、nickname、role | 返回当前用户信息；2026-05-06 临时普通用户返回 `username=auth_user_20260506220129`、`role=user` | 通过 | 2026-05-05 后端实库联调；2026-05-06 后端实库认证专项验证 |
+| TC-AUTH-006 | Auth | P0 | 无 token 获取当前用户失败 | 无登录状态 | 1. 不带 token 请求 `/auth/me` | 无 | 返回未登录或 token 缺失提示 | HTTP 401，返回统一结构，错误码 `AUTH_003` | 通过 | 2026-05-06 后端实库认证专项验证 |
+| TC-AUTH-007 | Auth | P0 | 伪造 token 获取当前用户失败 | 无有效登录状态 | 1. 携带伪造 Bearer token 请求 `/auth/me` | `Authorization: Bearer invalid.token.value` | 返回 token 无效提示，不返回用户信息 | HTTP 401，返回统一结构，错误码 `AUTH_004` | 通过 | 2026-05-06 后端实库认证专项验证 |
+| TC-AUTH-008 | Auth | P0 | 错误认证头格式被拒绝 | 无有效登录状态 | 1. 携带非 Bearer 认证头请求 `/auth/me` | `Authorization: Token invalid` | 返回未登录或登录失效提示 | HTTP 401，返回统一结构，错误码 `AUTH_003` | 通过 | 2026-05-06 后端实库认证专项验证 |
 
 ---
 
@@ -111,10 +116,10 @@
 
 | 用例编号 | 模块 | 优先级 | 测试目标 | 前置条件 | 测试步骤 | 测试数据 | 预期结果 | 实际结果 | 状态 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TC-REC-001 | Recommend | P0 | 默认推荐列表返回成功 | `destination` 表已有样例数据 | 1. 打开推荐页 2. 调用推荐接口 | 无特殊参数 | 返回推荐结果列表，列表不为空 | 待填写 | 未执行 | |
+| TC-REC-001 | Recommend | P0 | 默认推荐列表返回成功 | `destination` 表已有样例数据 | 1. 打开推荐页 2. 调用推荐接口 | 无特殊参数 | 返回推荐结果列表，列表不为空 | 后端实库接口预检通过：`GET /api/v1/destinations/recommend?sortBy=heat&pageNum=1&pageSize=10&topK=5` 返回 `SUCCESS`，包含本次临时目的地 | 通过 | 2026-05-07 P0 主线后端接口演示预检，未含前端页面 |
 | TC-REC-002 | Recommend | P0 | 按热度排序正确 | 样例目的地热度值已知 | 1. 调用推荐接口 2. sortBy=heat | sortBy=heat | 结果按热度降序排列 | 待填写 | 未执行 | |
 | TC-REC-003 | Recommend | P0 | 按评分排序正确 | 样例目的地评分值已知 | 1. 调用推荐接口 2. sortBy=rating | sortBy=rating | 结果按评分降序排列 | 待填写 | 未执行 | |
-| TC-REC-004 | Recommend | P0 | 关键字搜索成功 | 存在名称中包含“北邮”的目的地 | 1. 调用搜索接口 2. 输入关键字 | keyword=北邮 | 返回匹配目的地，结果包含“北邮”相关项 | 待填写 | 未执行 | |
+| TC-REC-004 | Recommend | P0 | 关键字搜索成功 | 存在名称中包含“北邮”的目的地 | 1. 调用搜索接口 2. 输入关键字 | keyword=北邮 | 返回匹配目的地，结果包含“北邮”相关项 | 后端实库接口预检通过：`GET /api/v1/destinations/search?keyword=<临时目的地名>&sortBy=rating&pageNum=1&pageSize=10` 返回 `SUCCESS`，结果命中本次临时目的地 | 通过 | 2026-05-07 使用 ASCII 临时目的地名验证，未含前端页面 |
 | TC-REC-005 | Recommend | P0 | 类型筛选成功 | 数据中同时存在 scenic 和 campus | 1. 调用搜索/推荐接口 2. type=campus | type=campus | 返回结果均为校园类型 | 待填写 | 未执行 | |
 | TC-REC-006 | Recommend | P0 | 无结果时正确返回空列表 | 当前数据中不存在相关关键字 | 1. 调用搜索接口 | keyword=不存在的地方abcxyz | 返回空列表，不报系统异常 | 待填写 | 未执行 | |
 | TC-REC-007 | Recommend | P0 | 已设置偏好时推荐接口可正常返回 | 用户已登录，且已设置偏好 | 1. 设置偏好 2. 调用推荐接口 | preferThemeList=["人文建筑型"] | 推荐接口正常返回，不因偏好存在而报错 | 待填写 | 未执行 | |
@@ -125,12 +130,19 @@
 
 | 用例编号 | 模块 | 优先级 | 测试目标 | 前置条件 | 测试步骤 | 测试数据 | 预期结果 | 实际结果 | 状态 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TC-ROUTE-001 | Route | P0 | 单目标路径规划成功 | 目的地下已导入可用节点和边 | 1. 调用单目标路径接口 2. 输入起点和终点 | destinationId=1, startNodeId=101, targetNodeId=110 | 返回路径节点序列、总距离、预计时间 | 待填写 | 未执行 | |
+| TC-ROUTE-001 | Route | P0 | 单目标路径规划成功 | 目的地下已导入可用节点和边 | 1. 调用单目标路径接口 2. 输入起点和终点 | destinationId=1, startNodeId=101, targetNodeId=110 | 返回路径节点序列、总距离、预计时间 | 后端实库接口预检通过：临时有向图 `A -> B -> C`，`strategyType=shortest_distance` 返回总距离 `200.00`、预计时间 `3`，并返回 `historyId=7` | 通过 | 2026-05-07 P0 主线后端接口演示预检；临时路线历史已清理 |
 | TC-ROUTE-002 | Route | P0 | 起点等于终点时处理正确 | 起点节点存在 | 1. 调用单目标路径接口 | startNodeId=101, targetNodeId=101 | 返回零距离或单点路径，不报错 | 待填写 | 未执行 | |
 | TC-ROUTE-003 | Route | P0 | 不可达目标点返回合理提示 | 图中存在不可达节点 | 1. 调用单目标路径接口 | startNodeId=101, targetNodeId=999 | 返回“不可达”类提示，不返回错误堆栈 | 待填写 | 未执行 | |
 | TC-ROUTE-004 | Route | P0 | 路径结果与图数据一致 | 已手工验证一组最短路径 | 1. 调用单目标路径接口 2. 对比人工期望结果 | 固定测试图数据 | 返回的路径长度与人工验证一致 | 待填写 | 未执行 | |
 | TC-ROUTE-005 | Route | P0 | 非法节点输入处理正确 | 接口可调用 | 1. 输入不存在的 startNodeId | startNodeId=-1, targetNodeId=110 | 返回参数错误或节点不存在提示 | 待填写 | 未执行 | |
-| TC-ROUTE-006 | Route | P0 | 路线历史查询成功 | 已成功产生至少一条路线历史 | 1. 请求 `/routes/history` | pageNum=1,pageSize=10 | 返回当前用户路线历史列表 | 待填写 | 未执行 | |
+| TC-ROUTE-006 | Route | P0 | 路线历史查询成功 | 已成功产生至少一条路线历史 | 1. 请求 `/routes/history` | pageNum=1,pageSize=10 | 返回当前用户路线历史列表 | 后端实库预检中已根据 `historyId=7` 查询 `route_history`，确认用户、目的地、策略、交通方式和总距离落库正确 | 通过 | 2026-05-07 本次验证为数据库落库核验，未单独调用历史列表接口；临时数据已清理 |
+| TC-ROUTE-007 | Route | P1 | 多目标路径规划成功 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/multi` 2. 输入多个目标点 | startNodeId=A, targetNodeIds=[B,C], returnToStart=false | 返回拼接后的路径节点、路径边和总距离 | 单元测试通过；实库接口验证通过，临时图数据下 `returnToStart=false` 返回成功，最终路径终点为 C | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
+| TC-ROUTE-008 | Route | P1 | 多目标返回起点处理正确 | 固定测试图数据存在返回边 | 1. 调用多目标接口 2. 设置 returnToStart=true | startNodeId=A, targetNodeIds=[B,C], returnToStart=true | 完成多目标访问后追加返回起点路径 | 单元测试通过；实库接口验证路径为 `A -> B -> C -> A`，总距离 `360.00`，`route_history` 写入并校验通过 | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
+| TC-ROUTE-009 | Route | P1 | 多目标重复目标被拦截 | 接口可调用 | 1. targetNodeIds 传重复节点 | targetNodeIds=[B,B] | 返回参数错误，不进入路径计算 | 单元测试通过；实库接口返回 HTTP 400，错误码 `COMMON_001` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
+| TC-ROUTE-010 | Route | P1 | 多目标目标数量超限被拦截 | 接口可调用 | 1. targetNodeIds 超过 8 个 | targetNodeIds=[2,3,4,5,6,7,8,9,10] | 返回参数错误，不进入路径计算 | `RouteServiceTests.planMultiRouteShouldRejectTooManyTargets` 通过 | 通过 | 2026-05-07 后端单元测试 |
+| TC-ROUTE-011 | Route | P1 | 多目标不可达目标返回合理提示 | 图中存在不可达目标 | 1. 调用多目标路径规划 | startNodeId=A, targetNodeIds=[D]，D 无可达边 | 返回不可达类业务错误，不暴露堆栈 | 单元测试通过；实库接口返回 HTTP 422，错误码 `ROUTE_003` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
+| TC-ROUTE-012 | Route | P1 | 单目标最短距离策略返回距离最优路径 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/single` 2. strategyType=shortest_distance | A->B=100、B->C=100、A->C=300 | 返回距离最短路径 `A -> B -> C`，总距离为 `200.00`，并写入路线历史 | 实库接口返回路径 `A -> B -> C`、总距离 `200.00`、`estimatedTime=3`；`route_history.id=5` 落库，`strategy_type=shortest_distance` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
+| TC-ROUTE-013 | Route | P1 | 单目标最短时间策略返回时间最优路径 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/single` 2. strategyType=shortest_time | A->B->C 总时间 20，A->C 总时间 3 | 返回时间最短路径 `A -> C`，总距离可大于最短距离路径，并写入路线历史 | 实库接口返回路径 `A -> C`、总距离 `300.00`、`estimatedTime=3`；`route_history.id=6` 落库，`strategy_type=shortest_time` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
 
 ---
 
@@ -150,18 +162,19 @@
 
 | 用例编号 | 模块 | 优先级 | 测试目标 | 前置条件 | 测试步骤 | 测试数据 | 预期结果 | 实际结果 | 状态 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TC-DIARY-001 | Diary | P0 | 正常发布图文日记 | 用户已登录，上传接口可用 | 1. 上传图片 2. 调用发布日记接口 | title=春日游记, contentText=今天去了…, destinationId=1, visibility=public | 发布成功，返回日记 ID | 待填写 | 未执行 | |
+| TC-DIARY-001 | Diary | P0 | 正常发布图文日记 | 用户已登录，上传接口可用 | 1. 上传图片 2. 调用发布日记接口 | title=P0联调日记二次验证, destinationId=1, visibility=public, mediaList.fileUrl=/files/diary/... | 发布成功，返回日记 ID | 发布成功，返回 `diaryId=2`；2026-05-07 P0 主线后端接口预检再次发布临时公开图文日记成功，返回 `diaryId=3`，媒体 1 条 | 通过 | 2026-05-05 后端实库联调；2026-05-07 临时日记已清理 |
 | TC-DIARY-002 | Diary | P0 | 发布私有日记成功 | 用户已登录 | 1. 调用发布接口 2. visibility=private | title=仅自己可见, visibility=private | 发布成功，返回日记 ID | 待填写 | 未执行 | |
 | TC-DIARY-003 | Diary | P0 | 日记关联路线记录成功 | 用户已存在 routeHistoryId | 1. 调用发布日记接口 | routeHistoryId=9001 | 发布成功，日记与路线记录正确关联 | 待填写 | 未执行 | |
 | TC-DIARY-004 | Diary | P0 | 无标题发布失败 | 用户已登录 | 1. 调用发布接口，不填写 title | title="", contentText=测试内容 | 返回标题必填或参数错误提示 | 待填写 | 未执行 | |
-| TC-DIARY-005 | Diary | P0 | 浏览日记列表成功 | 系统中已有样例日记 | 1. 调用日记列表接口 | pageNum=1,pageSize=10 | 返回分页日记列表 | 待填写 | 未执行 | |
-| TC-DIARY-006 | Diary | P0 | 查看日记详情成功 | 已有有效日记 ID | 1. 调用详情接口 | diaryId=1 | 返回完整日记内容和媒体列表 | 待填写 | 未执行 | |
-| TC-DIARY-007 | Diary | P0 | 按目的地查看日记成功 | 某目的地下已有样例日记 | 1. 调用按目的地查看接口 | destinationId=1 | 返回该目的地下的日记列表 | 待填写 | 未执行 | |
+| TC-DIARY-005 | Diary | P0 | 浏览日记列表成功 | 系统中已有样例日记 | 1. 调用日记列表接口 | pageNum=1,pageSize=10, sortBy=latest | 返回分页日记列表 | 列表返回成功，包含 `diaryId=2`；2026-05-07 临时目的地筛选列表包含本次临时 `diaryId=3` | 通过 | 2026-05-05 后端实库联调；2026-05-07 P0 主线后端接口预检 |
+| TC-DIARY-006 | Diary | P0 | 查看日记详情成功 | 已有有效日记 ID | 1. 调用详情接口 | diaryId=2 | 返回完整日记内容和媒体列表 | 详情返回成功，标题与媒体列表正确，媒体数量为 1；2026-05-07 临时日记详情返回成功且媒体数量为 1 | 通过 | 2026-05-05 后端实库联调；2026-05-07 P0 主线后端接口预检 |
+| TC-DIARY-007 | Diary | P0 | 按目的地查看日记成功 | 某目的地下已有样例日记 | 1. 调用按目的地查看接口 | destinationId=1, pageNum=1,pageSize=10, sortBy=latest | 返回该目的地下的日记列表 | 目的地日记列表返回成功，包含 `diaryId=2`；2026-05-07 临时目的地相关日记接口包含本次临时 `diaryId=3` | 通过 | 2026-05-05 后端实库联调；2026-05-07 P0 主线后端接口预检 |
 | TC-DIARY-008 | Diary | P0 | 获取我的日记列表成功 | 用户已登录并发布过日记 | 1. 调用 `/diaries/me` | pageNum=1,pageSize=10 | 返回当前用户的日记分页列表 | 待填写 | 未执行 | |
 | TC-DIARY-009 | Diary | P1 | 日记评分成功 | 用户已登录，存在日记 | 1. 调用评分接口 | diaryId=1, score=5 | 返回评分成功，平均分更新 | 待填写 | 未执行 | |
 | TC-DIARY-010 | Diary | P1 | 同一用户重复评分处理正确 | 已对 diaryId=1 评分 | 1. 再次调用评分接口 | diaryId=1, score=4 | 更新原评分或按规则拦截，结果符合设计 | 待填写 | 未执行 | |
-| TC-DIARY-011 | Diary | P1 | 标题精确查询成功 | 已实现标题查询接口 | 1. 调用标题查询接口 | title=春日游记 | 返回匹配标题的日记 | 待填写 | 未执行 | |
-| TC-DIARY-012 | Diary | P1 | 关键词检索成功 | 已实现全文检索接口 | 1. 调用检索接口 | keyword=图书馆 | 返回标题或正文匹配日记 | 待填写 | 未执行 | |
+| TC-DIARY-011 | Diary | P1 | 标题查询成功 | 已实现标题查询接口 | 1. 调用标题查询接口 | title=校园 | 返回匹配标题的公开日记分页 | `SearchServiceTests` 覆盖标题查询、空标题、超长标题和分页上限；`DiaryServiceTests` 覆盖 VO 组装 | 通过 | 2026-05-06 后端单元测试 |
+| TC-DIARY-012 | Diary | P1 | 关键词检索成功 | 已实现全文检索接口 | 1. 调用检索接口 | keyword=图书馆, destinationId=101 | 返回正文匹配的公开日记分页 | `SearchServiceTests` 覆盖正文关键词、目的地过滤、空关键词、超长关键词和非法目的地 | 通过 | 2026-05-06 后端单元测试 |
+| TC-DIARY-013 | Diary | P1 | 检索结果排序字段校验 | 已实现标题 / 正文检索接口 | 1. 调用标题检索 sortBy=heat 2. 调用正文检索 sortBy=rating 3. 调用非法 sortBy | title=校园, keyword=图书馆, sortBy=heat/rating/unknown | 合法排序返回分页，非法排序返回参数错误 | `SearchServiceTests` 覆盖标题热度排序、正文评分排序和非法排序字段；`mvn test` 157 个测试通过 | 通过 | 2026-05-07 后端单元测试 |
 
 ---
 
@@ -169,10 +182,10 @@
 
 | 用例编号 | 模块 | 优先级 | 测试目标 | 前置条件 | 测试步骤 | 测试数据 | 预期结果 | 实际结果 | 状态 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TC-FILE-001 | FileService | P0 | 正常上传图片成功 | 上传接口可访问 | 1. 选择合法图片文件 2. 上传 | jpg/png, 小于限制大小 | 返回文件 URL 或文件 ID | 待填写 | 未执行 | |
+| TC-FILE-001 | FileService | P0 | 正常上传图片成功 | 上传接口可访问 | 1. 选择合法图片文件 2. 上传 | png, 小于限制大小, bizType=diary | 返回文件 URL 或文件 ID | 上传成功，返回 `/files/diary/20260505/5a4e5b3d515a4ddaa22e2377e66bca77.png`；2026-05-07 P0 主线预检再次上传最小 png，返回 `/files/diary/20260507/...` | 通过 | 2026-05-05 后端实库联调；2026-05-07 P0 主线后端接口预检 |
 | TC-FILE-002 | FileService | P0 | 非法文件类型上传失败 | 上传接口可访问 | 1. 上传非法类型文件 | test.exe / test.js | 返回文件类型不允许提示 | 待填写 | 未执行 | 安全关键 |
 | TC-FILE-003 | FileService | P0 | 超大文件上传失败 | 上传接口可访问 | 1. 上传超出大小限制图片 | 过大文件 | 返回文件过大提示 | 待填写 | 未执行 | 安全关键 |
-| TC-FILE-004 | FileService | P0 | 上传后资源可访问 | 已成功上传图片 | 1. 打开返回的文件 URL | 合法上传后的 file_url | 文件可正常访问或预览 | 待填写 | 未执行 | |
+| TC-FILE-004 | FileService | P0 | 上传后资源可访问 | 已成功上传图片 | 1. 打开返回的文件 URL | `/files/diary/20260505/5a4e5b3d515a4ddaa22e2377e66bca77.png` | 文件可正常访问或预览 | HTTP 状态为 200 | 通过 | 关联回归：BUG-001 |
 
 ---
 
@@ -180,10 +193,12 @@
 
 | 用例编号 | 模块 | 优先级 | 测试目标 | 前置条件 | 测试步骤 | 测试数据 | 预期结果 | 实际结果 | 状态 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TC-FOOD-001 | Food | P1 | 按目的地查询美食成功 | `food` 表已有样例数据 | 1. 调用美食列表接口 2. 传 destinationId | destinationId=1 | 返回美食列表 | 待填写 | 未执行 | 若本阶段已实现则执行 |
-| TC-FOOD-002 | Food | P1 | 按菜系过滤正确 | 存在多种 foodType | 1. 调用美食接口 2. foodType=川菜 | destinationId=1, foodType=川菜 | 返回结果均为川菜类 | 待填写 | 未执行 | |
-| TC-FOOD-003 | Food | P1 | 按评分排序正确 | 样例美食评分值已知 | 1. 调用美食接口 2. sortBy=rating | sortBy=rating | 结果按评分降序排列 | 待填写 | 未执行 | |
-| TC-FOOD-004 | Food | P1 | 美食名称模糊查询成功 | 存在名称中含“面”的数据 | 1. 调用接口 2. keyword=面 | keyword=面 | 返回名称或描述匹配结果 | 待填写 | 未执行 | |
+| TC-FOOD-001 | Food | P1 | 按目的地查询美食成功 | `food` 表已有样例数据 | 1. 调用美食列表接口 2. 传 destinationId | destinationId=1 | 返回美食列表 | `GET /foods/recommend?destinationId=1&sortBy=heat&topK=2` 返回 `SUCCESS`，按热度返回牛肉面、鸡腿饭 | 通过 | 2026-05-05 后端实库接口验证 |
+| TC-FOOD-002 | Food | P1 | 按菜系过滤正确 | 存在多种 foodType | 1. 调用美食接口 2. foodType=川菜 | destinationId=1, foodType=面食 | 返回结果均为指定菜系 | `GET /foods/recommend?destinationId=1&foodType=面食&sortBy=rating&topK=5` 返回 `SUCCESS`，仅返回面食测试数据 | 通过 | 2026-05-05 后端实库接口验证 |
+| TC-FOOD-003 | Food | P1 | 按评分排序正确 | 样例美食评分值已知 | 1. 调用美食接口 2. sortBy=rating | sortBy=rating | 结果按评分降序排列 | 面食评分排序返回番茄面、牛肉面，顺序符合评分值 | 通过 | 2026-05-05 后端实库接口验证 |
+| TC-FOOD-004 | Food | P1 | 美食名称模糊查询成功 | 存在名称中含“面”的数据 | 1. 调用接口 2. keyword=面 | keyword=面 | 返回名称或描述匹配结果 | `GET /foods/search?destinationId=1&keyword=面&sortBy=rating` 返回 `SUCCESS`，包含两条面食测试数据 | 通过 | 2026-05-05 后端实库接口验证 |
+
+说明：Food 基础版进入开发后，优先以后端接口和 Service 测试执行 `TC-FOOD-001 ~ TC-FOOD-004`；前端美食页联调不在当前可执行范围内。
 
 ---
 
@@ -191,17 +206,24 @@
 
 | 用例编号 | 模块 | 优先级 | 测试目标 | 前置条件 | 测试步骤 | 测试数据 | 预期结果 | 实际结果 | 状态 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TC-ADMIN-001 | Admin | P1 | 管理员访问后台成功 | 管理员账号已存在 | 1. 管理员登录 2. 进入后台页面 | admin 账号 | 成功进入后台 | 待填写 | 未执行 | |
-| TC-ADMIN-002 | Admin | P1 | 普通用户访问后台失败 | 普通用户已登录 | 1. 普通用户访问后台接口或页面 | 普通用户 token | 返回权限不足或跳转拦截 | 待填写 | 未执行 | |
-| TC-ADMIN-003 | Admin | P1 | 目的地新增成功 | 管理员已登录 | 1. 调用新增目的地接口 | 合法 destination 表单 | 新增成功，列表可查到新记录 | 待填写 | 未执行 | |
-| TC-ADMIN-004 | Admin | P1 | 场所新增成功 | 管理员已登录，目的地已存在 | 1. 调用新增场所接口 | 合法 place 表单 | 新增成功，列表可查到新记录 | 待填写 | 未执行 | |
-| TC-ADMIN-005 | Admin | P1 | 设施新增成功 | 管理员已登录，目的地已存在 | 1. 调用新增设施接口 | 合法 facility 表单 | 新增成功，列表可查到新记录 | 待填写 | 未执行 | |
-| TC-ADMIN-006 | Admin | P1 | 美食新增成功 | 管理员已登录，目的地已存在 | 1. 调用新增美食接口 | 合法 food 表单 | 新增成功，列表可查到新记录 | 待填写 | 未执行 | |
-| TC-ADMIN-007 | Admin | P1 | 地图节点新增成功 | 管理员已登录，目的地已存在 | 1. 调用新增地图节点接口 | 合法 map_node 表单 | 新增成功，节点列表可查到新记录 | 待填写 | 未执行 | |
-| TC-ADMIN-008 | Admin | P1 | 地图边新增成功 | 管理员已登录，相关节点已存在 | 1. 调用新增地图边接口 | 合法 map_edge 表单 | 新增成功，边列表可查到新记录 | 待填写 | 未执行 | |
-| TC-ADMIN-009 | Admin | P1 | 管理端分页查询日记成功 | 管理员已登录，系统中已有样例日记 | 1. 调用管理端日记列表接口 | pageNum=1,pageSize=10 | 返回分页日记列表 | 待填写 | 未执行 | |
-| TC-IMPORT-001 | Import | P1 | 批量导入基础数据成功 | 已准备标准化导入文件 | 1. 调用导入接口或执行导入流程 | destinations.csv / facilities.csv | 返回成功条数，数据库写入成功 | 待填写 | 未执行 | |
-| TC-IMPORT-002 | Import | P1 | 非法导入文件被拦截 | 导入入口可访问 | 1. 上传非法格式文件 | 错误列结构 CSV | 返回导入失败和原因说明 | 待填写 | 未执行 | |
+| TC-ADMIN-001 | Admin | P1 | 管理员访问后台成功 | 管理员账号已存在 | 1. 管理员登录 2. 进入后台页面 | admin 账号 | 成功进入后台 | 管理员登录返回 `SUCCESS`，可调用 `/api/v1/admin/**` 后端接口 | 通过 | 2026-05-05 后端实库接口验证，未含前端页面 |
+| TC-ADMIN-002 | Admin | P1 | 普通用户访问后台失败 | 普通用户已登录 | 1. 普通用户访问后台接口或页面 | 普通用户 token | 返回权限不足或跳转拦截 | 普通用户请求 `/api/v1/admin/destinations` 返回 HTTP 403 | 通过 | 2026-05-05 后端实库接口验证 |
+| TC-ADMIN-003 | Admin | P1 | 目的地新增成功 | 管理员已登录 | 1. 调用新增目的地接口 | 合法 destination 表单 | 新增成功，列表可查到新记录 | 管理员调用 `POST /api/v1/admin/destinations` 返回 `SUCCESS` 和目的地 ID | 通过 | 2026-05-05 后端实库接口验证 |
+| TC-ADMIN-004 | Admin | P1 | 场所新增成功 | 管理员已登录，目的地已存在 | 1. 调用新增场所接口 2. 按关键字查询 3. 修改场所 4. 删除无引用场所 | 合法 place 表单 | 新增成功，列表可查到新记录，修改后字段生效，无引用场所可删除 | 实库接口验证通过：管理员 token 可调用 `GET/POST/PUT/DELETE /api/v1/admin/places`；无 token 返回 401，普通用户返回 403；ASCII 测试名查询返回 total=1，修改后名称匹配，删除后数据库剩余 0 行 | 通过 | 2026-05-06 后端实库接口验证；中文关键字由 PowerShell 验证脚本编码导致查询失败，已用 ASCII 名称复测通过，不判定为接口缺陷 |
+| TC-ADMIN-005 | Admin | P1 | 设施新增成功 | 管理员已登录，目的地已存在 | 1. 调用新增设施接口 | 合法 facility 表单 | 新增成功，列表可查到新记录 | 管理员调用 `POST /api/v1/admin/facilities` 返回 `SUCCESS` 和设施 ID | 通过 | 2026-05-05 后端实库接口验证 |
+| TC-ADMIN-006 | Admin | P1 | 美食新增成功 | 管理员已登录，目的地已存在 | 1. 调用新增美食接口 | 合法 food 表单 | 新增成功，列表可查到新记录 | 管理员调用 `POST /api/v1/admin/foods` 返回 `SUCCESS`，列表可按关键字查到新记录 | 通过 | 2026-05-05 后端实库接口验证 |
+| TC-ADMIN-007 | Admin | P1 | 地图节点新增成功 | 管理员已登录，目的地已存在 | 1. 调用新增地图节点接口 | 合法 map_node 表单 | 新增成功，节点列表可查到新记录 | `AdminServiceTests` 覆盖地图节点新增并返回节点 ID | 通过 | 2026-05-06 后端单元测试 |
+| TC-ADMIN-008 | Admin | P1 | 地图边新增成功 | 管理员已登录，相关节点已存在 | 1. 调用新增地图边接口 | 合法 map_edge 表单 | 新增成功，边列表可查到新记录 | `AdminServiceTests` 覆盖合法地图边新增；跨目的地节点返回 `ROUTE_009` | 通过 | 2026-05-06 后端单元测试 |
+| TC-ADMIN-009 | Admin | P1 | 管理端分页查询日记成功 | 管理员已登录，系统中已有样例日记 | 1. 调用管理端日记列表接口 | pageNum=1,pageSize=10 | 返回分页日记列表 | 已实现 `GET /api/v1/admin/diaries`，当前以全量后端测试保证编译与路由装配 | 部分通过 | 待实库接口验证 |
+| TC-ADMIN-010 | Admin | P1 | 用户状态修改成功 | 管理员已登录，用户存在 | 1. 调用用户状态接口 | status=0/1 | 用户状态更新成功 | `AdminServiceTests` 覆盖用户状态修改 | 通过 | 2026-05-06 后端单元测试 |
+| TC-ADMIN-011 | Admin | P1 | 日记状态修改成功 | 管理员已登录，日记存在 | 1. 调用日记状态接口 | status=0/1 | 日记状态更新成功，前台隐藏下架日记 | `AdminServiceTests` 覆盖日记状态修改；DiaryService 已按 status 过滤 | 通过 | 2026-05-06 后端单元测试 |
+| TC-ADMIN-012 | Admin | P1 | 场所删除引用保护正确 | 管理员已登录，场所存在 | 1. 删除无引用场所 2. 删除被设施或地图节点引用的场所 | placeId=存在 / 被引用 | 无引用时删除成功；存在引用时返回业务错误，不破坏设施或地图节点 | 实库接口验证通过：删除被 `facility.place_id` 引用的场所返回 HTTP 400、`COMMON_002`；删除被 `map_node(node_type=place, ref_id=id)` 引用的场所返回 HTTP 400、`COMMON_002`；临时设施、节点、场所和用户均已清理 | 通过 | 2026-05-06 后端实库接口验证 |
+| TC-IMPORT-001 | Import | P1 | 批量导入基础数据成功 | 已准备标准化导入文件 | 1. 以 multipart/form-data 调用导入接口 2. 上传标准 CSV / JSON | `destinations-nobom.csv` | 返回成功条数，数据库写入成功，并记录导入批次 | 实库调用 `/api/v1/admin/import-batches/preview` 返回 `PREVIEW_ONLY` 且不写业务表 / 批次表；调用 `/api/v1/admin/import-batches` 返回 `SUCCESS`、成功 1 行、失败 0 行，`destination` 新增 `P1导入验证目的地无BOM20260506200514`，`import_batch.id=3` 记录成功批次 | 通过 | 2026-05-06 后端实库 multipart 验证 |
+| TC-IMPORT-002 | Import | P1 | 非法导入文件被拦截 | 导入入口可访问 | 1. 上传非法格式文件或错误字段 CSV | 错误列结构 CSV / 不支持的 sourceType | 返回导入失败和原因说明 | `ImportServiceTests` 覆盖 unsupported sourceType、扩展名不匹配、unsupported targetTable、文件过大、缺必填字段预览警告 | 通过 | 2026-05-06 后端单元测试 |
+| TC-IMPORT-003 | Import | P1 | 导入失败明细可记录 | 已准备含错误行的标准文件 | 1. 调用执行导入接口 2. 部分行字段缺失或外键不存在 | `destinations-bad.csv` | 返回 `PARTIAL_SUCCESS` 或 `FAILED`，写入 `import_failure` | 实库调用执行导入返回 `FAILED`、成功 0 行、失败 1 行；`import_batch.id=1/2` 记录失败批次，`import_failure.id=1/2` 记录第 2 行错误，错误摘要为“导入字段缺失或字段名不匹配” | 通过 | 2026-05-06 后端实库 multipart 验证 |
+| TC-IMPORT-004 | Import | P1 | 带 UTF-8 BOM 的 CSV 表头可正常解析 | 导入入口可访问，ImportService 已支持 CSV 表头映射 | 1. 使用带 BOM 的 CSV 执行预览解析 | `\uFEFFname,type,city` | 不因首列表头 BOM 导致必填字段缺失 | `ImportServiceTests.previewImportShouldParseCsvHeaderWithUtf8Bom` 通过，预览总行数为 1，warnings 为空 | 通过 | 2026-05-06 后端单元回归测试 |
+| TC-IMPORT-005 | Import | P1 | 管理端查询导入批次成功 | 已存在导入批次数据，管理员已登录 | 1. 调用 `/api/v1/admin/import-batches` 2. 按关键字、目标表或状态过滤 | keyword=destinations, type=destination, status=SUCCESS | 返回分页批次列表，包含批次状态、总行数、成功 / 失败行数 | `AdminServiceTests` 覆盖批次分页查询和 VO 映射 | 通过 | 2026-05-06 后端单元测试 |
+| TC-IMPORT-006 | Import | P1 | 管理端查询导入失败明细成功 | 已存在失败批次，管理员已登录 | 1. 调用 `/api/v1/admin/import-batches/{batchId}/failures` 2. 查看失败行 | batchId=存在失败明细的批次 | 返回分页失败明细，包含行号、字段名、错误信息和原始行 JSON；batchId 不存在时返回资源不存在 | `AdminServiceTests` 覆盖失败明细分页查询和不存在批次返回 `COMMON_003` | 通过 | 2026-05-06 后端单元测试 |
 
 ---
 
@@ -209,7 +231,7 @@
 
 | 用例编号 | 模块 | 优先级 | 测试目标 | 前置条件 | 测试步骤 | 测试数据 | 预期结果 | 实际结果 | 状态 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TC-SEC-001 | Security | P0 | 未登录访问需登录接口被拦截 | 无 token | 1. 请求需要登录的接口，如保存偏好、发布日记 | 无 token | 返回未登录提示 | 待填写 | 未执行 | |
+| TC-SEC-001 | Security | P0 | 未登录访问需登录接口被拦截 | 无 token | 1. 请求需要登录的接口，如保存偏好、发布日记、路线规划 | 无 token | 返回未登录提示 | 多目标路线规划实库验证中，不带 token 调用 `/api/v1/routes/plan/multi` 返回 HTTP 401；最短时间实库验证中，不带 token 调用 `/api/v1/routes/plan/single` 返回 HTTP 401、`AUTH_003` | 通过 | 2026-05-07 Route 多目标与最短时间实库接口验证 |
 | TC-SEC-002 | Security | P0 | 无效 token 被拦截 | 无效 token | 1. 携带伪造 token 请求接口 | fake token | 返回 token 无效或未登录提示 | 待填写 | 未执行 | |
 | TC-SEC-003 | Exception | P0 | 非法参数返回统一错误结构 | 接口可访问 | 1. 传非法参数请求推荐/设施/路线接口 | 非法 facilityType / 非法 nodeId | 返回统一错误码与消息，不暴露堆栈 | 待填写 | 未执行 | |
 | TC-SEC-004 | Security | P0 | 管理端接口角色校验正确 | 普通用户 token 可用 | 1. 请求后台接口 | 普通用户 token | 返回权限不足 | 待填写 | 未执行 | |
@@ -229,13 +251,21 @@
 
 ---
 
+## 7.12 P0 主线后端接口演示预检
+
+| 用例编号 | 模块 | 优先级 | 测试目标 | 前置条件 | 测试步骤 | 测试数据 | 预期结果 | 实际结果 | 状态 | 备注 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| TC-E2E-001 | P0 主线后端接口 | P0 | 用同一个登录 token 串联验证登录、推荐、搜索、单目标路线、文件上传和日记发布 / 查看 | MySQL 8 `tour_system` 可连接，后端 jar 可启动，P0 表存在 | 1. 启动后端并健康检查 2. 注册并登录临时普通用户 3. 插入临时目的地、3 个地图节点、3 条有向边 4. 请求推荐与搜索 5. 请求单目标路线并核验 `route_history` 6. 上传 diary 图片 7. 发布公开日记 8. 验证日记列表、详情和目的地日记 9. 清理临时数据 | 临时用户、临时目的地、临时图 `A -> B -> C`，边权 `120 + 80 < 260`，最小 png 图片 | 全链路返回 `SUCCESS`；路线总距离为 `200.00`；日记媒体 1 条；临时数据清理为 0 | 通过：登录成功；推荐返回 `SUCCESS` 且命中临时目的地；搜索命中临时目的地；单目标路线返回 `historyId=7`、总距离 `200.00`、预计时间 `3`；上传返回 `/files/diary/20260507/...`；日记发布返回 `diaryId=3`，列表 / 详情 / 目的地日记均可查到；清理后剩余临时数据为 0 | 通过 | 2026-05-07 后端实库接口预检；未记录 JWT、数据库密码或真实敏感信息；不代表前端页面联调通过 |
+
+---
+
 ## 8. P1 / P2 扩展测试用例占位
 
 以下内容建议在功能实现后继续补充详细测试用例：
 
 ### 8.1 Route 增强
-- 多目标路径规划
-- 最短时间策略
+- 多目标路径规划（已完成后端基础版、单元测试和实库接口验证，待前端联调）
+- 最短时间策略（已完成后端基础版、单元测试和单目标实库接口验证，待前端联调）
 - 交通工具约束
 - 室内导航示例
 
@@ -289,10 +319,12 @@
 - TC-FILE-001 ~ 004
 - TC-SEC-001 ~ 006
 
+当前执行限制：前端工程代码暂不可用，第一批用例中涉及“打开页面”“选择文件组件”“页面跳转”的步骤暂按后端接口方式替代验证，页面级结果后续补测。
+
 ### 第二批（基础版后补）
 - TC-FOOD-001 ~ 004
 - TC-DIARY-009 ~ 012
-- TC-ADMIN-001 ~ 009
+- TC-ADMIN-001 ~ 012
 - TC-IMPORT-001 ~ 002
 
 ### 第三批（增强与创新）

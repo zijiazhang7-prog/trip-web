@@ -56,17 +56,18 @@
 10. `diary_media`
 11. `diary_rating`
 12. `route_history`
-13. `import_batch`（可选）
+13. `import_batch`
+14. `import_failure`
 
 ### 3.2 创新需求预留扩展表（后续落地）
 为手账式旅行记录、多人协同决策和轨迹回顾预留以下扩展表：
 
-14. `travel_journal`（可选）
-15. `travel_journal_entry`（可选）
-16. `group_plan_session`（可选）
-17. `group_plan_member`（可选）
-18. `ai_discussion_record`（可选）
-19. `travel_trace`（可选）
+15. `travel_journal`（可选）
+16. `travel_journal_entry`（可选）
+17. `group_plan_session`（可选）
+18. `group_plan_member`（可选）
+19. `ai_discussion_record`（可选）
+20. `travel_trace`（可选）
 
 说明：
 
@@ -484,7 +485,7 @@
 
 ---
 
-## 5.13 导入批次表 `import_batch`（可选）
+## 5.13 导入批次表 `import_batch`
 
 ### 表定位
 用于记录批量导入的数据来源、批次状态和导入时间，便于跟踪导入问题。
@@ -492,19 +493,47 @@
 ### 主要字段
 - `id`
 - `batch_name`
+- `target_table`
 - `source_type`
-- `file_path`
+- `file_name`
+- `file_size`
 - `status`
+- `total_rows`
+- `success_rows`
+- `failed_rows`
+- `error_message`
 - `created_at`
+- `updated_at`
 
 ### 设计要点
-1. 该表不是首发业务主线必需表；
-2. 但对后续真实数据导入和追踪很有帮助；
-3. 可在数据导入阶段补充落地。
+1. 该表在 P1 ImportService 完整化阶段正式落地；
+2. 当前用于记录 CSV / JSON 导入批次摘要；
+3. 与 `import_failure` 形成一对多关系，便于追踪失败行。
 
 ---
 
-## 5.14 手账主表 `travel_journal`（可选）
+## 5.14 导入失败明细表 `import_failure`
+
+### 表定位
+用于保存导入批次中的失败行、失败字段和错误原因，支撑管理员排查导入数据质量问题。
+
+### 主要字段
+- `id`
+- `batch_id`
+- `row_no`
+- `field_name`
+- `error_message`
+- `raw_data_json`
+- `created_at`
+
+### 设计要点
+1. 一条 `import_batch` 可对应多条 `import_failure`；
+2. 当前只记录失败摘要和原始行 JSON，不保存上传文件本体；
+3. 失败明细用于问题追踪，不参与前台业务查询。
+
+---
+
+## 5.15 手账主表 `travel_journal`（可选）
 
 ### 表定位
 用于承接“一次旅行记录”的基础结构，是 Diary 模块后续从单篇日记扩展到手账式旅行记录时的核心表。
@@ -536,7 +565,7 @@
 
 ---
 
-## 5.15 手账条目表 `travel_journal_entry`（可选）
+## 5.16 手账条目表 `travel_journal_entry`（可选）
 
 ### 表定位
 用于记录手账中的单个地点条目、内容片段或顺序信息。
@@ -565,7 +594,7 @@
 
 ---
 
-## 5.16 多人规划会话表 `group_plan_session`（可选）
+## 5.17 多人规划会话表 `group_plan_session`（可选）
 
 ### 表定位
 用于保存一次多人旅游规划协商会话的基础信息。
@@ -592,7 +621,7 @@
 
 ---
 
-## 5.17 多人规划成员表 `group_plan_member`（可选）
+## 5.18 多人规划成员表 `group_plan_member`（可选）
 
 ### 表定位
 用于保存一次多人规划中各参与者的偏好信息。
@@ -617,7 +646,7 @@
 
 ---
 
-## 5.18 AI 协商记录表 `ai_discussion_record`（可选）
+## 5.19 AI 协商记录表 `ai_discussion_record`（可选）
 
 ### 表定位
 用于保存 AI 对多人规划的讨论摘要、推荐理由、冲突点说明等结果。
@@ -642,7 +671,7 @@
 
 ---
 
-## 5.19 轨迹记录表 `travel_trace`（可选）
+## 5.20 轨迹记录表 `travel_trace`（可选）
 
 ### 表定位
 用于保存用户真实轨迹记录，为后续轨迹回顾、路线图展示和地图 API 增强提供支撑。
@@ -686,7 +715,7 @@
 | 手账基础形态（后续） | `travel_journal`、`travel_journal_entry` |
 | 多人协同决策（后续） | `group_plan_session`、`group_plan_member`、`ai_discussion_record` |
 | 轨迹记录与路线回顾（后续） | `route_history`、`travel_trace` |
-| 数据导入 | `import_batch`（可选） |
+| 数据导入 | `import_batch`、`import_failure` |
 
 ---
 
@@ -710,6 +739,7 @@
 - `food`
 - `diary_rating`
 - `import_batch`
+- `import_failure`
 
 ## 7.3 P1 / P2（按创新需求逐步补充）
 - `travel_journal`

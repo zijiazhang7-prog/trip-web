@@ -198,6 +198,32 @@ erDiagram
         datetime created_at
     }
 
+    IMPORT_BATCH {
+        bigint id PK
+        varchar batch_name
+        varchar target_table
+        varchar source_type
+        varchar file_name
+        bigint file_size
+        varchar status
+        bigint total_rows
+        bigint success_rows
+        bigint failed_rows
+        varchar error_message
+        datetime created_at
+        datetime updated_at
+    }
+
+    IMPORT_FAILURE {
+        bigint id PK
+        bigint batch_id FK
+        int row_no
+        varchar field_name
+        varchar error_message
+        text raw_data_json
+        datetime created_at
+    }
+
     TRAVEL_JOURNAL {
         bigint id PK
         bigint user_id FK
@@ -309,6 +335,8 @@ erDiagram
     ROUTE_HISTORY ||--o{ TRAVEL_JOURNAL : supports
     ROUTE_HISTORY ||--o{ TRAVEL_TRACE : links_to
 
+    IMPORT_BATCH ||--o{ IMPORT_FAILURE : records
+
     TRAVEL_JOURNAL ||--o{ TRAVEL_JOURNAL_ENTRY : contains
 
     GROUP_PLAN_SESSION ||--o{ GROUP_PLAN_MEMBER : includes
@@ -323,7 +351,7 @@ erDiagram
 
 ## 4. ER 模型总体结构说明
 
-从整体上看，当前 ER 模型可以分为 7 个关系域：
+从整体上看，当前 ER 模型可以分为 8 个关系域：
 
 ### 4.1 用户域
 
@@ -372,7 +400,16 @@ erDiagram
 
 该部分负责保存用户的历史路径结果，为后续“我的路线”“路线回顾”“日记联动”提供支撑。
 
-### 4.6 手账记录域（预留扩展）
+### 4.6 数据导入域
+
+包括：
+
+- `IMPORT_BATCH`
+- `IMPORT_FAILURE`
+
+该部分负责保存批量导入批次和失败明细，支撑 P1 管理端导入流程的问题追踪。
+
+### 4.7 手账记录域（预留扩展）
 
 包括：
 
@@ -381,7 +418,7 @@ erDiagram
 
 该部分负责承接一次旅行的完整记录结构，是 Diary 模块从“单篇日记”向“手账式旅行记录”扩展时的主要实体域。
 
-### 4.7 协同决策与轨迹扩展域（预留扩展）
+### 4.8 协同决策与轨迹扩展域（预留扩展）
 
 包括：
 
@@ -615,7 +652,24 @@ erDiagram
 
 ---
 
-## 5.12 TRAVEL_JOURNAL
+## 5.12 IMPORT_BATCH 与 IMPORT_FAILURE
+
+`IMPORT_BATCH` 用于记录一次标准化 CSV / JSON 文件导入的批次摘要，`IMPORT_FAILURE` 用于记录该批次中失败的具体行。
+
+### 作用
+
+- 记录导入目标表、来源类型、文件名、成功条数和失败条数
+- 保存失败行号、失败原因和原始行数据
+- 为管理端导入结果回显和数据质量排查提供依据
+
+### 关系特点
+
+- 一个 `IMPORT_BATCH` 可以产生多条 `IMPORT_FAILURE`
+- 导入记录不直接参与推荐、路线、设施和日记等前台业务关系
+
+---
+
+## 5.13 TRAVEL_JOURNAL
 
 `TRAVEL_JOURNAL` 用于表达“一次完整旅行记录”，是后续手账式旅行记录从单篇日记扩展为独立对象时的主实体。
 
@@ -635,7 +689,7 @@ erDiagram
 
 ---
 
-## 5.13 TRAVEL_JOURNAL_ENTRY
+## 5.14 TRAVEL_JOURNAL_ENTRY
 
 `TRAVEL_JOURNAL_ENTRY` 用于表达一次旅行中的单个地点条目、内容片段或时间顺序信息。
 
@@ -653,7 +707,7 @@ erDiagram
 
 ---
 
-## 5.14 GROUP_PLAN_SESSION
+## 5.15 GROUP_PLAN_SESSION
 
 `GROUP_PLAN_SESSION` 用于表达一次多人旅游规划协商会话。
 
@@ -672,7 +726,7 @@ erDiagram
 
 ---
 
-## 5.15 GROUP_PLAN_MEMBER
+## 5.16 GROUP_PLAN_MEMBER
 
 `GROUP_PLAN_MEMBER` 用于保存一次多人规划中参与者的偏好快照。
 
@@ -689,7 +743,7 @@ erDiagram
 
 ---
 
-## 5.16 AI_DISCUSSION_RECORD
+## 5.17 AI_DISCUSSION_RECORD
 
 `AI_DISCUSSION_RECORD` 用于保存 AI 对多人规划的讨论摘要、冲突点说明、推荐理由等结果。
 
@@ -705,7 +759,7 @@ erDiagram
 
 ---
 
-## 5.17 TRAVEL_TRACE
+## 5.18 TRAVEL_TRACE
 
 `TRAVEL_TRACE` 用于保存真实轨迹记录，为后续轨迹回顾、路线图展示和地图 API 增强提供支撑。
 
@@ -900,7 +954,21 @@ erDiagram
 
 ---
 
-## 6.12 手账与条目：1:N
+## 6.12 导入批次与失败明细：1:N
+
+`IMPORT_BATCH ||--o{ IMPORT_FAILURE : records`
+
+### 含义
+
+一次导入批次可以记录多条失败明细。
+
+### 设计意义
+
+导入批次保存总体结果，失败明细保存行级问题，两者共同支撑管理员复盘和修复导入数据。
+
+---
+
+## 6.13 手账与条目：1:N
 
 `TRAVEL_JOURNAL ||--o{ TRAVEL_JOURNAL_ENTRY : contains`
 
@@ -914,7 +982,7 @@ erDiagram
 
 ---
 
-## 6.13 协同会话与成员 / AI 记录：1:N
+## 6.14 协同会话与成员 / AI 记录：1:N
 
 `GROUP_PLAN_SESSION ||--o{ GROUP_PLAN_MEMBER : includes`  
 `GROUP_PLAN_SESSION ||--o{ AI_DISCUSSION_RECORD : generates`
@@ -929,7 +997,7 @@ erDiagram
 
 ---
 
-## 6.14 路线记录与轨迹：可选关联
+## 6.15 路线记录与轨迹：可选关联
 
 `ROUTE_HISTORY ||--o{ TRAVEL_TRACE : links_to`
 
@@ -1082,6 +1150,8 @@ erDiagram
 ## 8.2 P1（基础闭环后补充）
 
 - `FOOD`
+- `IMPORT_BATCH`
+- `IMPORT_FAILURE`
 - `DIARY_RATING`
 
 ### 原因

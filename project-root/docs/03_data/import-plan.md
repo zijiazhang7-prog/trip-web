@@ -86,7 +86,7 @@ MySQL 8 + 文件存储
 ### 4.2 技术分工
 
 - `Python + pandas`：负责读取、清洗、转换、去重、生成标准导入文件
-- `ImportService`：负责接收标准化导入文件并写入数据库/文件存储
+- `ImportService`：负责接收标准化 CSV / JSON 导入文件并写入数据库，同时记录导入批次和失败明细
 - `MySQL 8`：保存结构化核心数据
 - 文件存储：保存图片、视频、地图源文件、媒体资源等
 
@@ -164,6 +164,8 @@ scripts/
 1. `CSV`
 2. `JSON`
 3. `SQL`
+
+当前后端管理端导入接口仅支持标准化 `CSV / JSON` 的最小导入能力；SQL 仍作为初始化脚本使用，不通过管理端上传执行。
 
 ### 6.2 媒体与地图资源
 
@@ -526,7 +528,7 @@ scripts/
 
 ---
 
-## 7.13 导入批次表 `import_batch`（可选）
+## 7.13 导入批次表 `import_batch`
 
 ### 数据来源
 
@@ -540,12 +542,41 @@ scripts/
 ### 建议字段
 
 - `batch_name`
+- `target_table`
 - `source_type`
-- `file_path`
+- `file_name`
+- `file_size`
 - `status`
+- `total_rows`
+- `success_rows`
+- `failed_rows`
+- `error_message`
+- `created_at`
+- `updated_at`
+
+当前 P1 ImportService 完整化已将 `import_batch` 正式落地，用于记录批量导入来源、目标表、状态和结果摘要。
+
+## 7.14 导入失败明细表 `import_failure`
+
+### 数据来源
+
+由 `ImportService` 在行级校验或入库失败时自动生成。
+
+### 导入方式
+
+- 由 `ImportService` 写入
+- 不需要外部原始数据文件
+
+### 字段
+
+- `batch_id`
+- `row_no`
+- `field_name`
+- `error_message`
+- `raw_data_json`
 - `created_at`
 
-当前数据库设计中已将 `import_batch` 作为可选支撑表，用于记录批量导入来源和状态。
+当前用于记录失败行、错误原因和原始行数据，便于后续修复标准化导入文件。
 
 ---
 
@@ -579,7 +610,8 @@ scripts/
 
 ### 第五批：导入记录
 
-13. `import_batch`（可选）
+13. `import_batch`
+14. `import_failure`
 
 ---
 
@@ -713,7 +745,7 @@ python scripts/import/run_import.py --batch init_demo
 
 ### 12.3 当前阶段建议
 
-- 首版先保证“单表事务回滚 + 整批失败日志记录”即可；
+- 首版先保证“单表导入批次记录 + 行级失败明细记录”即可；
 - 不必一开始就做复杂的全链路补偿机制。
 
 ---

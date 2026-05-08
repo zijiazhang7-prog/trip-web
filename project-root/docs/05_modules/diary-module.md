@@ -56,6 +56,27 @@
 
 当前阶段 Diary 模块优先保证“发布—浏览—详情—按目的地查看”主链路可用，不让 AI 创新点反向阻塞基础闭环。
 
+### 2.6 当前实现状态（2026-05-05）
+当前已完成 P0 图文日记基础版：
+
+- 已实现 `POST /api/v1/diaries` 发布日记。
+- 已实现 `GET /api/v1/diaries` 公开日记列表。
+- 已实现 `GET /api/v1/diaries/{id}` 日记详情。
+- 已实现 `GET /api/v1/destinations/{id}/diaries` 按目的地查看日记。
+- 已接入 FileService，发布时通过 `mediaList.fileUrl` 关联 `/files/diary/...` 文件 URL。
+- 已支持 `public/private` 基础可见性，公开日记可浏览，私有日记仅作者可访问。
+- 已完成实库联调验证：登录获取 token、上传 diary 文件、发布日记、列表/详情/目的地相关日记查询均可跑通。
+
+### 2.7 当前实现状态（2026-05-06）
+当前已完成 P1 SearchService 基础版并接入 Diary 检索增强：
+
+- 已实现 `GET /api/v1/diaries/search/title`，支持按标题关键词查询公开日记，并支持 `latest/heat/rating` 基础排序。
+- 已实现 `GET /api/v1/diaries/search/fulltext`，支持按正文关键词查询公开日记，可按 `destinationId` 过滤，并支持 `latest/heat/rating` 基础排序。
+- 检索能力统一封装在 `SearchService`，Diary 模块只负责接口编排和 `DiaryVO` 组装。
+- 当前检索基于 MySQL `LIKE`，适合课程设计小规模样例数据和 P1 基础演示。
+
+以下仍属于 P1 / P2 后续范围：日记评分、我的日记列表、手账基础形态、AI 日记草稿、图片摘要、路线回顾，以及倒排索引 / FULLTEXT 等增强检索实现。
+
 ---
 
 ## 3. 模块职责边界
@@ -405,15 +426,24 @@
 ### 目标
 支持用户根据标题或正文关键词查找日记。
 
-### 当前建议
-P1 阶段优先做：
+### 当前实现
+P1 基础版已实现：
 - 标题关键字匹配
 - 正文基础关键字匹配
+- 公开且启用日记过滤
+- `latest/heat/rating` 排序字段白名单
+- 分页大小上限控制
+
+### 排序说明
+- `latest`：按 `created_at` 倒序，适合默认浏览最新游记。
+- `heat`：按 `heat_score` 倒序，再按创建时间倒序，适合热门游记展示。
+- `rating`：按 `rating_score` 倒序，再按创建时间倒序，适合评分排序展示。
 
 ### 可用实现方向
 1. 简化版：
    - 数据库 `LIKE`
    - 适合小规模样例和 MVP 联调
+   - 当前已采用该方案
 
 2. 增强版：
    - 倒排索引

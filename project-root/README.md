@@ -77,7 +77,6 @@
 - pandas
 
 ### AI / Agent 工具
-- Claude Code
 - OpenClaw
 - ChatGPT
 - Codex
@@ -89,7 +88,6 @@ trip-web/
 ├─ project-root/
 │  ├─ README.md
 │  ├─ AGENTS.md
-│  ├─ CLAUDE.md
 │  ├─ coding-rules.md
 │  ├─ security-rules.md
 │  ├─ frontend/
@@ -109,13 +107,16 @@ trip-web/
 ### 前端
 
 ```
-cd frontendnpm installnpm run dev
+cd frontend
+npm install
+npm run dev
 ```
 
 ### 后端
 
 ```
-cd backendmvn clean spring-boot:run
+cd backend
+mvn clean spring-boot:run
 ```
 
 ### 数据库
@@ -128,7 +129,6 @@ cd backendmvn clean spring-boot:run
 ## 9. project-root/根目录关键文件说明
 
 - `AGENTS.md`：AI 工具协作总规则
-- `CLAUDE.md`：Claude Code 补充约定
 - `coding-rules.md`：项目级编码规范
 - `security-rules.md`：项目级安全规范
 
