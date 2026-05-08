@@ -1,0 +1,379 @@
+package com.trip;
+
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.trip.common.ErrorCode;
+import com.trip.dto.request.DiaryCreateRequest;
+import com.trip.dto.request.DiaryFulltextSearchQuery;
+import com.trip.dto.request.DiaryListQuery;
+import com.trip.dto.request.DiaryMediaRequest;
+import com.trip.dto.request.DiaryTitleSearchQuery;
+import com.trip.entity.Destination;
+import com.trip.entity.Diary;
+import com.trip.entity.DiaryMedia;
+import com.trip.entity.RouteHistory;
+import com.trip.entity.User;
+import com.trip.exception.BusinessException;
+import com.trip.mapper.DestinationMapper;
+import com.trip.mapper.DiaryMapper;
+import com.trip.mapper.DiaryMediaMapper;
+import com.trip.mapper.RouteHistoryMapper;
+import com.trip.mapper.UserMapper;
+import com.trip.security.JwtClaims;
+import com.trip.service.SearchService;
+import com.trip.service.impl.DiaryServiceImpl;
+import com.trip.vo.response.DiaryCreateResponse;
+import com.trip.vo.response.DiaryVO;
+import com.trip.vo.response.PageResultVO;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+@SuppressWarnings("unchecked")
+class DiaryServiceTests {
+
+    private final DiaryMapper diaryMapper = mock(DiaryMapper.class);
+    private final DiaryMediaMapper diaryMediaMapper = mock(DiaryMediaMapper.class);
+    private final DestinationMapper destinationMapper = mock(DestinationMapper.class);
+    private final UserMapper userMapper = mock(UserMapper.class);
+    private final RouteHistoryMapper routeHistoryMapper = mock(RouteHistoryMapper.class);
+    private final SearchService searchService = mock(SearchService.class);
+    private final DiaryServiceImpl diaryService = new DiaryServiceImpl(
+            diaryMapper,
+            diaryMediaMapper,
+            destinationMapper,
+            userMapper,
+            routeHistoryMapper,
+            searchService);
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void createDiaryShouldSaveDiaryAndMedia() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
+        when(routeHistoryMapper.selectById(9001L)).thenReturn(routeHistory(9001L, 7L, 101L));
+        when(diaryMapper.insert(any(Diary.class))).thenAnswer(invocation -> {
+            Diary diary = invocation.getArgument(0);
+            diary.setId(4001L);
+            return 1;
+        });
+        when(diaryMediaMapper.insert(any(DiaryMedia.class))).thenReturn(1);
+
+        DiaryCreateResponse response = diaryService.createDiary(createRequest());
+
+        assertEquals(4001L, response.getDiaryId());
+
+        ArgumentCaptor<Diary> diaryCaptor = ArgumentCaptor.forClass(Diary.class);
+        verify(diaryMapper).insert(diaryCaptor.capture());
+        Diary savedDiary = diaryCaptor.getValue();
+        assertEquals(7L, savedDiary.getUserId());
+        assertEquals(101L, savedDiary.getDestinationId());
+        assertEquals(9001L, savedDiary.getRouteHistoryId());
+        assertEquals("校园散步", savedDiary.getTitle());
+        assertEquals("今天去了图书馆。", savedDiary.getContentText());
+        assertEquals("private", savedDiary.getVisibility());
+        assertEquals(BigDecimal.ZERO, savedDiary.getHeatScore());
+
+        ArgumentCaptor<DiaryMedia> mediaCaptor = ArgumentCaptor.forClass(DiaryMedia.class);
+        verify(diaryMediaMapper).insert(mediaCaptor.capture());
+        DiaryMedia savedMedia = mediaCaptor.getValue();
+        assertEquals(4001L, savedMedia.getDiaryId());
+        assertEquals("image", savedMedia.getMediaType());
+        assertEquals("/files/diary/20260505/photo.jpg", savedMedia.getFileUrl());
+        assertEquals("photo.jpg", savedMedia.getFileName());
+        assertEquals(0, savedMedia.getSortNo());
+    }
+
+    @Test
+    void createDiaryShouldRejectMissingLogin() {
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> diaryService.createDiary(createRequest()));
+
+        assertEquals(ErrorCode.AUTH_003, exception.getErrorCode());
+        verifyNoInteractions(diaryMapper);
+    }
+
+    @Test
+    void createDiaryShouldRejectMissingDestination() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        when(destinationMapper.selectById(101L)).thenReturn(null);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> diaryService.createDiary(createRequest()));
+
+        assertEquals(ErrorCode.COMMON_003, exception.getErrorCode());
+        verifyNoInteractions(routeHistoryMapper);
+    }
+
+    @Test
+    void createDiaryShouldRejectRouteHistoryOwnedByAnotherUser() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
+        when(routeHistoryMapper.selectById(9001L)).thenReturn(routeHistory(9001L, 8L, 101L));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> diaryService.createDiary(createRequest()));
+
+        assertEquals(ErrorCode.COMMON_003, exception.getErrorCode());
+        verifyNoInteractions(diaryMapper);
+    }
+
+    @Test
+    void createDiaryShouldRejectInvalidMediaType() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
+        when(routeHistoryMapper.selectById(9001L)).thenReturn(routeHistory(9001L, 7L, 101L));
+
+        DiaryCreateRequest request = createRequest();
+        request.getMediaList().get(0).setMediaType("pdf");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> diaryService.createDiary(request));
+
+        assertEquals(ErrorCode.COMMON_002, exception.getErrorCode());
+        verifyNoInteractions(diaryMapper);
+    }
+
+    @Test
+    void listDiariesShouldReturnPublicDiariesWithMedia() {
+        Diary first = publicDiary(4001L, 7L, 101L, "第一篇", new BigDecimal("20.00"));
+        Diary second = publicDiary(4002L, 8L, 101L, "第二篇", new BigDecimal("10.00"));
+        Page<Diary> page = new Page<>(1, 10);
+        page.setRecords(List.of(first, second));
+        page.setTotal(2);
+        when(diaryMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(page);
+        when(diaryMediaMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                media(5002L, 4002L, 1),
+                media(5001L, 4001L, 0)));
+        when(userMapper.selectBatchIds(anyCollection())).thenReturn(List.of(activeUser(7L), activeUser(8L)));
+        when(destinationMapper.selectBatchIds(anyCollection())).thenReturn(List.of(destination(101L)));
+
+        DiaryListQuery query = new DiaryListQuery();
+        query.setSortBy("heat");
+        PageResultVO<DiaryVO> result = diaryService.listDiaries(query);
+
+        assertEquals(2, result.getTotal());
+        assertEquals(List.of(4001L, 4002L), result.getList().stream().map(DiaryVO::getId).toList());
+        assertEquals("diary_user_7", result.getList().get(0).getUsername());
+        assertEquals("测试目的地", result.getList().get(0).getDestinationName());
+        assertEquals(1, result.getList().get(0).getMediaList().size());
+    }
+
+    @Test
+    void listDestinationDiariesShouldValidateDestinationAndPageSizeCap() {
+        when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
+        Page<Diary> page = new Page<>(1, 100);
+        page.setRecords(List.of());
+        page.setTotal(0);
+        when(diaryMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(page);
+
+        DiaryListQuery query = new DiaryListQuery();
+        query.setPageSize(200);
+
+        PageResultVO<DiaryVO> result = diaryService.listDestinationDiaries(101L, query);
+
+        assertEquals(100, result.getPageSize());
+    }
+
+    @Test
+    void listDiariesShouldRejectUnsupportedSortBy() {
+        DiaryListQuery query = new DiaryListQuery();
+        query.setSortBy("unknown");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> diaryService.listDiaries(query));
+
+        assertEquals(ErrorCode.COMMON_008, exception.getErrorCode());
+        verifyNoInteractions(diaryMapper);
+    }
+
+    @Test
+    void getDetailShouldReturnPublicDiary() {
+        Diary diary = publicDiary(4001L, 7L, 101L, "公开日记", BigDecimal.ZERO);
+        when(diaryMapper.selectById(4001L)).thenReturn(diary);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
+        when(diaryMediaMapper.selectList(any(Wrapper.class))).thenReturn(List.of(media(5001L, 4001L, 0)));
+
+        DiaryVO result = diaryService.getDiaryDetail(4001L);
+
+        assertEquals(4001L, result.getId());
+        assertEquals("公开日记", result.getTitle());
+        assertEquals(1, result.getMediaList().size());
+    }
+
+    @Test
+    void getDetailShouldAllowPrivateDiaryOwner() {
+        setCurrentUser(7L);
+        Diary diary = publicDiary(4001L, 7L, 101L, "私有日记", BigDecimal.ZERO);
+        diary.setVisibility("private");
+        when(diaryMapper.selectById(4001L)).thenReturn(diary);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
+        when(diaryMediaMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+
+        DiaryVO result = diaryService.getDiaryDetail(4001L);
+
+        assertEquals("private", result.getVisibility());
+    }
+
+    @Test
+    void getDetailShouldRejectPrivateDiaryOtherUser() {
+        setCurrentUser(8L);
+        Diary diary = publicDiary(4001L, 7L, 101L, "私有日记", BigDecimal.ZERO);
+        diary.setVisibility("private");
+        when(diaryMapper.selectById(4001L)).thenReturn(diary);
+        when(userMapper.selectById(8L)).thenReturn(activeUser(8L));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> diaryService.getDiaryDetail(4001L));
+
+        assertEquals(ErrorCode.AUTH_005, exception.getErrorCode());
+    }
+
+    @Test
+    void searchByTitleShouldReuseSearchServiceAndAssembleVOs() {
+        Diary diary = publicDiary(4001L, 7L, 101L, "校园散步", BigDecimal.ZERO);
+        Page<Diary> page = new Page<>(1, 10);
+        page.setRecords(List.of(diary));
+        page.setTotal(1);
+        DiaryTitleSearchQuery query = new DiaryTitleSearchQuery();
+        query.setTitle("校园");
+        when(searchService.searchDiaryByTitle(query)).thenReturn(page);
+        when(diaryMediaMapper.selectList(any(Wrapper.class))).thenReturn(List.of(media(5001L, 4001L, 0)));
+        when(userMapper.selectBatchIds(anyCollection())).thenReturn(List.of(activeUser(7L)));
+        when(destinationMapper.selectBatchIds(anyCollection())).thenReturn(List.of(destination(101L)));
+
+        PageResultVO<DiaryVO> result = diaryService.searchByTitle(query);
+
+        assertEquals(1, result.getTotal());
+        assertEquals("校园散步", result.getList().get(0).getTitle());
+        verify(searchService).searchDiaryByTitle(query);
+    }
+
+    @Test
+    void searchFulltextShouldReuseSearchServiceAndAssembleVOs() {
+        Diary diary = publicDiary(4002L, 8L, 101L, "图书馆", BigDecimal.ZERO);
+        Page<Diary> page = new Page<>(1, 10);
+        page.setRecords(List.of(diary));
+        page.setTotal(1);
+        DiaryFulltextSearchQuery query = new DiaryFulltextSearchQuery();
+        query.setKeyword("图书馆");
+        when(searchService.searchDiaryFulltext(query)).thenReturn(page);
+        when(diaryMediaMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+        when(userMapper.selectBatchIds(anyCollection())).thenReturn(List.of(activeUser(8L)));
+        when(destinationMapper.selectBatchIds(anyCollection())).thenReturn(List.of(destination(101L)));
+
+        PageResultVO<DiaryVO> result = diaryService.searchFulltext(query);
+
+        assertEquals(1, result.getTotal());
+        assertEquals("图书馆", result.getList().get(0).getTitle());
+        verify(searchService).searchDiaryFulltext(query);
+    }
+
+    private DiaryCreateRequest createRequest() {
+        DiaryCreateRequest request = new DiaryCreateRequest();
+        request.setDestinationId(101L);
+        request.setRouteHistoryId(9001L);
+        request.setTitle(" 校园散步 ");
+        request.setContentText(" 今天去了图书馆。 ");
+        request.setVisibility("PRIVATE");
+        request.setMediaList(List.of(mediaRequest()));
+        return request;
+    }
+
+    private DiaryMediaRequest mediaRequest() {
+        DiaryMediaRequest request = new DiaryMediaRequest();
+        request.setMediaType("IMAGE");
+        request.setFileUrl("/files/diary/20260505/photo.jpg");
+        request.setFileName("photo.jpg");
+        request.setSortNo(null);
+        return request;
+    }
+
+    private Diary publicDiary(Long id, Long userId, Long destinationId, String title, BigDecimal heatScore) {
+        Diary diary = new Diary();
+        diary.setId(id);
+        diary.setUserId(userId);
+        diary.setDestinationId(destinationId);
+        diary.setTitle(title);
+        diary.setContentText("正文");
+        diary.setHeatScore(heatScore);
+        diary.setRatingScore(new BigDecimal("4.50"));
+        diary.setVisibility("public");
+        diary.setStatus(1);
+        diary.setCreatedAt(LocalDateTime.of(2026, 5, 5, 10, 0));
+        return diary;
+    }
+
+    private DiaryMedia media(Long id, Long diaryId, Integer sortNo) {
+        DiaryMedia media = new DiaryMedia();
+        media.setId(id);
+        media.setDiaryId(diaryId);
+        media.setMediaType("image");
+        media.setFileUrl("/files/diary/photo-" + id + ".jpg");
+        media.setFileName("photo-" + id + ".jpg");
+        media.setSortNo(sortNo);
+        return media;
+    }
+
+    private Destination destination(Long id) {
+        Destination destination = new Destination();
+        destination.setId(id);
+        destination.setName("测试目的地");
+        destination.setStatus(1);
+        return destination;
+    }
+
+    private RouteHistory routeHistory(Long id, Long userId, Long destinationId) {
+        RouteHistory history = new RouteHistory();
+        history.setId(id);
+        history.setUserId(userId);
+        history.setDestinationId(destinationId);
+        return history;
+    }
+
+    private User activeUser(Long userId) {
+        User user = new User();
+        user.setId(userId);
+        user.setUsername("diary_user_" + userId);
+        user.setStatus(1);
+        user.setRole("user");
+        return user;
+    }
+
+    private void setCurrentUser(Long userId) {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new JwtClaims(userId, "diary_user_" + userId, "user", 1L, 2L),
+                null,
+                List.of()));
+    }
+}
