@@ -5,54 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>智游行 — 个性化旅游规划与日记</title>
-    <!-- 关键内联样式：让页面骨架在 JS 加载前立即可见 -->
+    <!-- 仅设置背景色，防止白屏闪烁，不干涉任何布局 -->
     <style>
-      *,::before,::after{box-sizing:border-box;margin:0;padding:0}
-      html{font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif}
-      body{background:#f5f0e8;min-height:100vh}
-      #root{min-height:100vh}
-      /* 顶部导航占位：防止内容跳动 */
-      #nav-shell{
-        position:sticky;top:16px;z-index:200;display:flex;justify-content:center;padding:0 16px;
-        pointer-events:none;
-      }
-      #nav-inner{
-        width:100%;max-width:72rem;height:56px;
-        background:rgba(44,63,52,0.92);
-        border-radius:9999px;
-        backdrop-filter:blur(16px);
-      }
-      /* 首屏英雄区占位 */
-      #hero-shell{height:100svh;background:linear-gradient(160deg,#2c3f34 0%,#4a5e50 60%,#d4b896 100%)}
+      html, body { background: #f5f0e8; }
     </style>
-    <!-- DNS 预解析：高德、API -->
+    <!-- DNS 预解析 -->
     <link rel="dns-prefetch" href="//webapi.amap.com" />
     <link rel="dns-prefetch" href="//restapi.amap.com" />
-    <link rel="dns-prefetch" href="//10.122.248.221" />
-    <!-- 预连接 CDN -->
     <link rel="preconnect" href="//images.unsplash.com" crossorigin />
   </head>
   <body>
-    <!-- 纯 HTML 骨架：JS 未到达前用户就能看到导航条和背景 -->
-    <div id="nav-shell" aria-hidden="true"><div id="nav-inner"></div></div>
-    <div id="hero-shell" aria-hidden="true"></div>
     <div id="root"></div>
-    <script>
-      // React 挂载后移除纯 HTML 骨架，防止与真实 DOM 重叠
-      document.addEventListener('DOMContentLoaded', function() {
-        var observer = new MutationObserver(function() {
-          var root = document.getElementById('root')
-          if (root && root.firstChild) {
-            var nav = document.getElementById('nav-shell')
-            var hero = document.getElementById('hero-shell')
-            if (nav) nav.remove()
-            if (hero) hero.remove()
-            observer.disconnect()
-          }
-        })
-        observer.observe(document.getElementById('root'), { childList: true })
-      })
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
