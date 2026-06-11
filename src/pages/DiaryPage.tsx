@@ -161,6 +161,8 @@ export function DiaryPage() {
   const [paperAssetError, setPaperAssetError] = useState<string | null>(null)
   const [stickerAssetError, setStickerAssetError] = useState<string | null>(null)
   const [selectedPaper, setSelectedPaper] = useState<string | null>(null)
+  const paperAssetsRef = useRef<string[]>([])
+  paperAssetsRef.current = paperAssets
 
   useLayoutEffect(() => {
     autoResizeTextarea(leftPageTextareaRef.current)
@@ -222,7 +224,7 @@ export function DiaryPage() {
       setLoadingCoverAssets(true)
       setCoverAssetError(null)
       try {
-        const { items, hasMore, failed } = await loadAssetsPage(coverLoaders as AssetLoaders, 18, 0)
+        const { items, hasMore, failed } = await loadAssetsPage(coverLoaders as AssetLoaders, 9, 0)
         if (!cancelled) {
           setCoverAssets(items)
           setCoverOffset(items.length)
@@ -248,7 +250,7 @@ export function DiaryPage() {
       setLoadingPaperAssets(true)
       setPaperAssetError(null)
       try {
-        const { items, hasMore, failed } = await loadAssetsPage(paperLoaders as AssetLoaders, 18, 0)
+        const { items, hasMore, failed } = await loadAssetsPage(paperLoaders as AssetLoaders, 9, 0)
         if (!cancelled) {
           setPaperAssets(items)
           setPaperOffset(items.length)
@@ -333,7 +335,7 @@ export function DiaryPage() {
         const paperBlock = first?.blocks.find(
           (block): block is Extract<DiaryContentBlock, { type: 'paperStyle' }> => block.type === 'paperStyle',
         )
-        setSelectedPaper(paperBlock?.paperUrl ?? paperAssets[0] ?? null)
+        setSelectedPaper(paperBlock?.paperUrl ?? paperAssetsRef.current[0] ?? null)
         setTextLayers([])
         setActiveTextLayerId(null)
         setStickerLayers([])
@@ -347,7 +349,7 @@ export function DiaryPage() {
     return () => {
       cancelled = true
     }
-  }, [diaryApi, selectedBookId, isShelfCollapsed, paperAssets])
+  }, [diaryApi, selectedBookId, isShelfCollapsed])
 
   const routeBlocks = useMemo(
     () => selectedEntry?.blocks.filter((block) => block.type === 'routeSketch') ?? [],
@@ -929,7 +931,7 @@ export function DiaryPage() {
     if (loadingCoverAssets || !coverHasMore) return
     setLoadingCoverAssets(true)
     try {
-      const { items, hasMore, failed } = await loadAssetsPage(coverLoaders as AssetLoaders, 18, coverOffset)
+      const { items, hasMore, failed } = await loadAssetsPage(coverLoaders as AssetLoaders, 9, coverOffset)
       setCoverAssets((prev) => [...prev, ...items])
       setCoverOffset((n) => n + items.length)
       setCoverHasMore(hasMore)
@@ -943,7 +945,7 @@ export function DiaryPage() {
     if (loadingPaperAssets || !paperHasMore) return
     setLoadingPaperAssets(true)
     try {
-      const { items, hasMore, failed } = await loadAssetsPage(paperLoaders as AssetLoaders, 18, paperOffset)
+      const { items, hasMore, failed } = await loadAssetsPage(paperLoaders as AssetLoaders, 9, paperOffset)
       setPaperAssets((prev) => [...prev, ...items])
       setPaperOffset((n) => n + items.length)
       setPaperHasMore(hasMore)

@@ -27,7 +27,7 @@ const waterfallCard =
 const sidebarTitle =
   "mb-5 flex items-center gap-2.5 text-[13px] font-bold uppercase tracking-[0.12em] text-[var(--ds-accent-foreground)] before:block before:h-[18px] before:w-1 before:rounded-full before:bg-gradient-to-b before:from-[var(--ds-primary)] before:to-[color-mix(in_srgb,var(--ds-secondary)_55%,var(--ds-primary))] font-body"
 
-const PAGE_SIZE = 48
+const PAGE_SIZE = 16
 
 function mergeDestinationLists(prev: Destination[], chunk: Destination[]): Destination[] {
   const seen = new Set<number>()
@@ -44,6 +44,20 @@ function mergeDestinationLists(prev: Destination[], chunk: Destination[]): Desti
     out.push(d)
   }
   return out
+}
+
+function DestCardSkeleton() {
+  return (
+    <article className={`animate-pulse overflow-hidden ${waterfallCard}`}>
+      <div className="h-60 bg-[var(--ds-muted)]" />
+      <div className="space-y-3 p-6">
+        <div className="h-6 w-2/3 rounded-lg bg-[var(--ds-muted)]" />
+        <div className="h-4 w-full rounded-lg bg-[var(--ds-muted)]" />
+        <div className="h-4 w-5/6 rounded-lg bg-[var(--ds-muted)]" />
+        <div className="h-5 w-1/3 rounded-lg bg-[var(--ds-muted)]" />
+      </div>
+    </article>
+  )
 }
 
 function DestCard({ dest, onOpen }: { dest: Destination; onOpen: () => void }) {
@@ -147,10 +161,22 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   const loadNextPageRef = useRef<() => Promise<void>>(async () => {})
   const itemsRef = useRef(items)
   const loadMoreInFlightRef = useRef(false)
+  const canAutoLoadMoreRef = useRef(false)
 
   useEffect(() => {
     itemsRef.current = items
   }, [items])
+
+  useEffect(() => {
+    if (loadingInitial) {
+      canAutoLoadMoreRef.current = false
+      return undefined
+    }
+    const timer = window.setTimeout(() => {
+      canAutoLoadMoreRef.current = true
+    }, 800)
+    return () => window.clearTimeout(timer)
+  }, [loadingInitial])
 
   const filteredDestinations = useMemo(() => {
     const filtered = items.filter((d) => {
@@ -253,6 +279,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
 
   const loadNextPage = useCallback(async () => {
     if (usingFallback || loadingInitial) return
+    if (!canAutoLoadMoreRef.current) return
     if (loadMoreInFlightRef.current) return
     if (pageNum >= totalPages) return
 
@@ -334,7 +361,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
           void loadNextPageRef.current()
         })
       },
-      { root: null, rootMargin: '280px 0px 360px 0px', threshold: 0 },
+      { root: null, rootMargin: '60px 0px 100px 0px', threshold: 0 },
     )
     observer.observe(node)
 
@@ -525,9 +552,6 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
               后端暂时不可用，已展示本地示例目的地。{error ? `（${error}）` : ''}
             </p>
           ) : null}
-          {loadingInitial ? (
-            <p className="mb-6 font-body text-sm text-[var(--ds-muted-foreground)]">正在加载目的地...</p>
-          ) : null}
           {rankingDestinations ? (
             <p className="mb-4 font-body text-sm text-[var(--ds-primary)]">DeepSeek 正在根据你的描述智能排序推荐…</p>
           ) : null}
@@ -556,6 +580,9 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
           </div>
 
           <div className="columns-1 gap-x-6 md:columns-2 xl:columns-3">
+            {loadingInitial
+              ? Array.from({ length: 6 }).map((_, i) => <DestCardSkeleton key={`sk-${i}`} />)
+              : null}
             {!loadingInitial && items.length === 0 ? (
               <p className="break-inside-avoid py-12 text-center font-body text-sm text-[var(--ds-muted-foreground)]">
                 暂无目的地数据。

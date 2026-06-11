@@ -34,7 +34,8 @@ export function CommunityPage() {
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null)
   const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(null)
   const [loadingBooks, setLoadingBooks] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [feedLoading, setFeedLoading] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [publishMsg, setPublishMsg] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -90,7 +91,7 @@ export function CommunityPage() {
   useEffect(() => {
     let cancelled = false
     const run = async () => {
-      setLoading(true)
+      setFeedLoading(true)
       setError(null)
       try {
         const feed = await fetchCommunityFeed(sortBy)
@@ -106,7 +107,7 @@ export function CommunityPage() {
           setUsingCommunityFallback(true)
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setFeedLoading(false)
       }
     }
     void run()
@@ -167,7 +168,7 @@ export function CommunityPage() {
   const runSearch = async () => {
     const keyword = searchText.trim()
     if (!keyword) return
-    setLoading(true)
+    setFeedLoading(true)
     setError(null)
     try {
       const result = await searchCommunityByKeyword(keyword)
@@ -178,13 +179,13 @@ export function CommunityPage() {
       applyFeedPosts(communityPosts)
       setUsingCommunityFallback(true)
     } finally {
-      setLoading(false)
+      setFeedLoading(false)
     }
   }
 
   const resetFeed = async () => {
     setSearchText('')
-    setLoading(true)
+    setFeedLoading(true)
     setError(null)
     try {
       const feed = await fetchCommunityFeed(sortBy)
@@ -195,7 +196,7 @@ export function CommunityPage() {
       applyFeedPosts(communityPosts)
       setUsingCommunityFallback(true)
     } finally {
-      setLoading(false)
+      setFeedLoading(false)
     }
   }
 
@@ -220,7 +221,7 @@ export function CommunityPage() {
       setPublishMsg('手账不存在，请重新选择')
       return
     }
-    setLoading(true)
+    setPublishing(true)
     try {
       const diaryId = await publishHandAccountWithCustomText({
         book,
@@ -256,23 +257,27 @@ export function CommunityPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : '发布失败')
     } finally {
-      setLoading(false)
+      setPublishing(false)
     }
   }
 
-  const openDetail = async (id: number) => {
+  const openDetail = (id: number) => {
+    const cached = posts.find((p) => p.id === id) ?? null
     setDetailOpen(true)
-    setDetailLoading(true)
     setSelectedPostId(id)
-    try {
-      const detail = await fetchCommunityDiaryDetail(id)
-      setSelectedPost(detail)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '加载详情失败')
-      setSelectedPost(posts.find((p) => p.id === id) ?? null)
-    } finally {
+    setSelectedPost(cached)
+    if (cached?.fullText?.trim()) {
       setDetailLoading(false)
+      return
     }
+    setDetailLoading(true)
+    void fetchCommunityDiaryDetail(id)
+      .then((detail) => setSelectedPost(detail))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : '加载详情失败')
+        if (!cached) setSelectedPost(null)
+      })
+      .finally(() => setDetailLoading(false))
   }
 
   const stepDetail = (dir: -1 | 1) => {
@@ -381,9 +386,10 @@ export function CommunityPage() {
             </div>
             <button
               type="submit"
-              className="w-full rounded-xl bg-[var(--ds-primary)] px-4 py-2 text-sm font-semibold text-[var(--ds-primary-foreground)] transition hover:brightness-110 active:scale-[0.99]"
+              disabled={publishing}
+              className="w-full rounded-xl bg-[var(--ds-primary)] px-4 py-2 text-sm font-semibold text-[var(--ds-primary-foreground)] transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              分享我的手账
+              {publishing ? '发布中…' : '分享我的手账'}
             </button>
             {publishMsg ? <p className="text-sm text-[#2c7a5d]">{publishMsg}</p> : null}
           </form>
@@ -421,7 +427,7 @@ export function CommunityPage() {
             </button>
           </div>
 
-          {loading ? <p className="mb-4 text-sm text-[#6B8076]">正在同步社群日记...</p> : null}
+          {feedLoading ? <p className="mb-4 text-sm text-[#6B8076]">正在同步社群日记...</p> : null}
           {usingCommunityFallback ? (
             <p className="mb-4 rounded-xl border border-amber-200/90 bg-amber-50/95 px-4 py-3 text-sm text-amber-950">
               后端不可用或请求失败，当前展示本地示例数据。{error ? `详情：${error}` : ''}
@@ -429,7 +435,7 @@ export function CommunityPage() {
           ) : error ? (
             <p className="mb-4 text-sm text-[#a24a4a]">{error}</p>
           ) : null}
-          {!loading && !usingCommunityFallback && posts.length === 0 ? (
+          {!feedLoading && !usingCommunityFallback && posts.length === 0 ? (
             <p className="mb-4 text-sm text-[#6B8076]">暂无社群日记，发布一条或稍后再试。</p>
           ) : null}
 

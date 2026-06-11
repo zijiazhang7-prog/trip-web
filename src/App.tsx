@@ -29,7 +29,17 @@ function App() {
           <Route
             path="/diary"
             element={
-              <Suspense fallback={<div className="px-6 py-10 text-sm text-[#5d7381]">正在加载日记模块...</div>}>
+              <Suspense
+                fallback={
+                  <div className="mx-auto max-w-[1400px] animate-pulse px-6 py-10">
+                    <div className="mb-6 h-8 w-48 rounded-lg bg-[var(--ds-muted)]" />
+                    <div className="grid gap-4 md:grid-cols-[280px_1fr]">
+                      <div className="h-64 rounded-2xl bg-[var(--ds-muted)]" />
+                      <div className="h-96 rounded-2xl bg-[var(--ds-muted)]" />
+                    </div>
+                  </div>
+                }
+              >
                 <DiaryPage />
               </Suspense>
             }

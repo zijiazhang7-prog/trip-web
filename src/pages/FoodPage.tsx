@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import { fetchRecommendedDestinationsPage, type PageResult } from '../api/destination'
 import { inferTotalPages } from '../api/pagination'
 import type { FoodVO } from '../api/food'
@@ -9,6 +9,7 @@ import {
   searchFoodsAcrossDestinations,
 } from '../api/food'
 import { foodTags, foods as foodsFallback, type Food } from '../data/siteData'
+import { readSessionCache, writeSessionCache } from '../lib/sessionCache'
 
 const glass =
   'rounded-[28px] border border-white/80 bg-white/65 shadow-[0_8px_32px_rgba(42,107,78,0.07)] backdrop-blur-xl'
@@ -27,10 +28,14 @@ const MAX_FOOD_WAVE = 8
 /** 仅首屏 runFoodFeed 内：浏览扫描最大步数 */
 const BROWSE_PUMP_MAX_ITERATIONS = 16
 /** 探测哪些 destinationId 上挂了美食（缩小范围减请求） */
-const FOOD_ANCHOR_PROBE_MAX = 48
-const FOOD_ANCHOR_CHUNK = 8
-/** 首屏为锚点目的地连续拉取的前几页（后端常把 pageSize 收紧到 10，需多页才能铺满） */
-const INITIAL_ANCHOR_PREFETCH_PAGES = 8
+const FOOD_ANCHOR_PROBE_MAX = 20
+const FOOD_ANCHOR_CHUNK = 6
+const PROBE_CACHE_KEY = 'trip_food_anchor_ids_v1'
+const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+/** 首屏只拉第 1 页，其余页后台预取 */
+const INITIAL_ANCHOR_PREFETCH_PAGES = 1
+/** 后台为锚点连续预取的上限页数 */
+const BACKGROUND_ANCHOR_PREFETCH_PAGES = 4
 /** 单次「加载更多」只为锚点目的地连续请求几页，填满瀑布流且不把接口打爆 */
 const ANCHOR_PAGES_PER_LOAD_MORE = 4
 
@@ -53,6 +58,60 @@ async function probeFoodAnchoredDestinationIds(): Promise<number[]> {
     })
   }
   return [...new Set(found)].sort((a, b) => a - b)
+}
+
+async function resolveFoodAnchorIds(): Promise<number[]> {
+  const cached = readSessionCache<number[]>(PROBE_CACHE_KEY, PROBE_CACHE_TTL_MS)
+  if (cached?.length) return cached
+  const anchored = await probeFoodAnchoredDestinationIds()
+  if (anchored.length) writeSessionCache(PROBE_CACHE_KEY, anchored)
+  return anchored
+}
+
+async function prefetchAnchorFoodPages(
+  anchored: number[],
+  fromPage: number,
+  toPage: number,
+  appendFoodVOs: (vos: FoodVO[]) => number,
+  anchorNextFoodPageRef: MutableRefObject<Map<number, number>>,
+): Promise<void> {
+  await Promise.all(
+    anchored.map(async (id) => {
+      for (let p = fromPage; p <= toPage; p++) {
+        const res = await fetchRecommendedFoodsPage(id, {
+          pageNum: p,
+          pageSize: FOOD_PAGE_SIZE,
+          sortBy: 'heat',
+        }).catch(() => null)
+        if (!res || res.list.length === 0) {
+          anchorNextFoodPageRef.current.delete(id)
+          break
+        }
+        appendFoodVOs(res.list)
+        const cap = inferTotalPages(
+          { list: res.list, pageNum: res.pageNum, pageSize: res.pageSize, total: res.total, pages: res.pages },
+          res.pageSize || FOOD_PAGE_SIZE,
+          p,
+        )
+        const advanced = p + 1
+        if (advanced > cap) anchorNextFoodPageRef.current.delete(id)
+        else anchorNextFoodPageRef.current.set(id, advanced)
+      }
+    }),
+  )
+}
+
+function FoodCardSkeleton() {
+  return (
+    <article className={`animate-pulse overflow-hidden ${waterfallCard}`}>
+      <div className="h-[200px] bg-gradient-to-br from-[var(--ds-muted)] to-[#F5ECD8]" />
+      <div className="space-y-3 p-5">
+        <div className="h-5 w-2/3 rounded-lg bg-[var(--ds-muted)]" />
+        <div className="h-4 w-full rounded-lg bg-[var(--ds-muted)]" />
+        <div className="h-4 w-4/5 rounded-lg bg-[var(--ds-muted)]" />
+      </div>
+    </article>
+  )
 }
 
 function foodVODedupeKey(vo: FoodVO): string {
@@ -393,32 +452,41 @@ export function FoodPage() {
       setMode('browse')
       resetBrowseRefs()
       try {
-        const anchored = await probeFoodAnchoredDestinationIds()
+        const anchored = await resolveFoodAnchorIds()
         foodAnchorIdsRef.current = anchored
         foodAnchorIdSetRef.current = new Set(anchored)
         anchorNextFoodPageRef.current.clear()
-        for (const id of anchored) {
-          for (let p = 1; p <= INITIAL_ANCHOR_PREFETCH_PAGES; p++) {
-            const res = await fetchRecommendedFoodsPage(id, {
-              pageNum: p,
-              pageSize: FOOD_PAGE_SIZE,
-              sortBy: 'heat',
-            })
-            if (res.list.length === 0) {
-              anchorNextFoodPageRef.current.delete(id)
-              break
-            }
-            appendFoodVOs(res.list)
-            anchorNextFoodPageRef.current.set(id, p + 1)
-          }
+
+        if (anchored.length > 0) {
+          await prefetchAnchorFoodPages(
+            anchored,
+            1,
+            INITIAL_ANCHOR_PREFETCH_PAGES,
+            appendFoodVOs,
+            anchorNextFoodPageRef,
+          )
         }
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const before = seenFoodKeysRef.current.size
-          await pumpBrowseBatch()
-          if (seenFoodKeysRef.current.size > before) break
-        }
-        setMoreAvailable(true)
+
+        setMoreAvailable(anchored.length > 0 || destIdsRef.current.length > 0)
         setUsingFallback(false)
+        setLoadingInitial(false)
+
+        void (async () => {
+          if (anchored.length > 0 && BACKGROUND_ANCHOR_PREFETCH_PAGES > INITIAL_ANCHOR_PREFETCH_PAGES) {
+            await prefetchAnchorFoodPages(
+              anchored,
+              INITIAL_ANCHOR_PREFETCH_PAGES + 1,
+              BACKGROUND_ANCHOR_PREFETCH_PAGES,
+              appendFoodVOs,
+              anchorNextFoodPageRef,
+            )
+          }
+          for (let attempt = 0; attempt < 2; attempt++) {
+            const before = seenFoodKeysRef.current.size
+            await pumpBrowseBatch()
+            if (seenFoodKeysRef.current.size > before) break
+          }
+        })()
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载失败')
         setFoods(foodsFallback)
@@ -535,7 +603,11 @@ export function FoodPage() {
             </p>
           ) : null}
           {loadingInitial ? (
-            <p className="mb-4 font-body text-sm text-[#6B8076]">正在加载美食...</p>
+            <div className="columns-1 gap-x-5 md:columns-2 xl:columns-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <FoodCardSkeleton key={`sk-${i}`} />
+              ))}
+            </div>
           ) : null}
           {!loadingInitial && !usingFallback && foods.length === 0 ? (
             <p className="mb-4 font-body text-sm text-[#6B8076]">暂无美食数据，请下滑加载或更换关键词。</p>

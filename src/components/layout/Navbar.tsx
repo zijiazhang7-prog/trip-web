@@ -76,7 +76,13 @@ export function Navbar({ onAccountClick, isAuthed = false, onLogout }: NavbarPro
             旅游推荐
           </button>
           {routes.map(({ to, label }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => navClass(isActive)}>
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) => navClass(isActive)}
+              onMouseEnter={to === '/diary' ? () => void import('../../pages/DiaryPage') : undefined}
+              onFocus={to === '/diary' ? () => void import('../../pages/DiaryPage') : undefined}
+            >
               {label}
             </NavLink>
           ))}

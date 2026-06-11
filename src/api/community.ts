@@ -94,7 +94,7 @@ export async function fetchCommunityFeed(sortBy: 'latest' | 'heat' = 'latest'): 
   const query = new URLSearchParams({
     sortBy,
     pageNum: '1',
-    pageSize: '30',
+    pageSize: '20',
   })
   const page = await httpRequest<PageResult<DiaryItem>>(`/api/v1/diaries?${query.toString()}`, {
     method: 'GET',
