@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { BEIJING_CENTER } from '../../types/macroRoute'
+import { BEIJING_CENTER, BEIJING_DEFAULT_ZOOM } from '../../types/macroRoute'
 import type { RouteWaypoint } from '../../types/macroRoute'
 import { getAmapSecurityCode, hasAmapJsKey } from '../../lib/amap/config'
 import { loadAmap } from '../../lib/amap/loader'
@@ -29,7 +29,55 @@ function simplifyPolyline(points: [number, number][], max = 500): [number, numbe
 }
 
 function isValidCoord(lng: number, lat: number): boolean {
-  return Number.isFinite(lng) && Number.isFinite(lat) && Math.abs(lng) <= 180 && Math.abs(lat) <= 90
+  return (
+    Number.isFinite(lng) &&
+    Number.isFinite(lat) &&
+    Math.abs(lng) <= 180 &&
+    Math.abs(lat) <= 90 &&
+    !(lng === 0 && lat === 0)
+  )
+}
+
+const SINGLE_POINT_ZOOM = 16
+const ROUTE_MAX_ZOOM = 15
+
+function applyMapViewport(
+  map: {
+    setCenter: (center: [number, number]) => void
+    setZoom: (zoom: number) => void
+    setFitView: (o?: unknown[], immediately?: boolean, avoid?: number[], maxZoom?: number) => void
+    getZoom?: () => number
+  },
+  validWaypoints: RouteWaypoint[],
+  safeLine: [number, number][],
+  overlays: unknown[],
+): void {
+  if (safeLine.length >= 2 && overlays.length > 0) {
+    map.setFitView(overlays, false, [48, 48, 48, 48], ROUTE_MAX_ZOOM)
+    window.setTimeout(() => {
+      const z = map.getZoom?.()
+      if (typeof z === 'number' && z < 11) map.setZoom(11)
+    }, 150)
+    return
+  }
+
+  if (validWaypoints.length >= 2 && overlays.length > 0) {
+    map.setFitView(overlays, false, [48, 48, 48, 48], ROUTE_MAX_ZOOM)
+    window.setTimeout(() => {
+      const z = map.getZoom?.()
+      if (typeof z === 'number' && z < 11) map.setZoom(11)
+    }, 150)
+    return
+  }
+
+  if (validWaypoints.length === 1) {
+    map.setCenter([validWaypoints[0].lng, validWaypoints[0].lat])
+    map.setZoom(SINGLE_POINT_ZOOM)
+    return
+  }
+
+  map.setCenter(BEIJING_CENTER)
+  map.setZoom(BEIJING_DEFAULT_ZOOM)
 }
 
 export function AmapMapView({
@@ -49,6 +97,7 @@ export function AmapMapView({
     setFitView: (o?: unknown[], immediately?: boolean, avoid?: number[], maxZoom?: number) => void
     setCenter: (center: [number, number]) => void
     setZoom: (zoom: number) => void
+    getZoom?: () => number
     clearMap?: () => void
   } | null>(null)
   const overlaysRef = useRef<unknown[]>([])
@@ -81,9 +130,10 @@ export function AmapMapView({
         }
 
         const map = new AMap.Map(container, {
-          zoom: 16,
+          zoom: BEIJING_DEFAULT_ZOOM,
           center: BEIJING_CENTER,
           viewMode: '2D',
+          zooms: [10, 18],
         })
         mapRef.current = map
         window.setTimeout(() => map.resize?.(), 120)
@@ -190,18 +240,14 @@ export function AmapMapView({
         })
       }
 
+      const validWaypoints = waypoints.filter((wp) => isValidCoord(wp.lng, wp.lat))
+
       if (next.length) {
         map.add(next)
         overlaysRef.current = next
-        if (safeLine.length >= 2) {
-          map.setFitView(next, false, [48, 48, 48, 48], 17)
-        } else if (waypoints.length === 1 && isValidCoord(waypoints[0].lng, waypoints[0].lat)) {
-          map.setCenter([waypoints[0].lng, waypoints[0].lat])
-          map.setZoom(17)
-        } else {
-          map.setFitView(next, false, [48, 48, 48, 48], 17)
-        }
       }
+
+      applyMapViewport(map, validWaypoints, safeLine, next)
     } catch (err) {
       const msg = err instanceof Error ? err.message : '地图渲染失败'
       queueMicrotask(() => setMapError(msg))

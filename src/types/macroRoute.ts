@@ -53,3 +53,5 @@ export const TRANSPORT_OPTIONS: { value: TransportMode; label: string; icon: str
 ]
 
 export const BEIJING_CENTER: [number, number] = [116.397428, 39.90923]
+/** 路径规划页默认视野：北京市区 */
+export const BEIJING_DEFAULT_ZOOM = 12
