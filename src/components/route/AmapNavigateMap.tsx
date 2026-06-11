@@ -31,11 +31,13 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
   } | null>(null)
   const routeOverlayRef = useRef<unknown | null>(null)
   const geoMarkerRef = useRef<unknown | null>(null)
+  const [mapReady, setMapReady] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
 
   const legFrom = plan.waypoints[activeLegIndex] ?? plan.waypoints[0]
   const legTo = plan.waypoints[activeLegIndex + 1] ?? activeWaypoint ?? plan.waypoints[1]
 
+  // ── 初始化地图（只执行一次） ──────────────────────────────────────────────
   useEffect(() => {
     if (!hasAmapJsKey() || !containerRef.current) return
     let destroyed = false
@@ -46,12 +48,15 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
         const AMap = await loadAmap()
         if (destroyed || !containerRef.current) return
         const map = new AMap.Map(container, {
-          zoom: 17,
+          zoom: 13,
           center: [legFrom.lng, legFrom.lat],
           viewMode: '2D',
         })
         mapRef.current = map
-        window.setTimeout(() => map.resize?.(), 120)
+        window.setTimeout(() => {
+          map.resize?.()
+          setMapReady(true)
+        }, 120)
         if (!getAmapSecurityCode()) {
           setMapError('未配置 VITE_AMAP_SECURITY_CODE，地图瓦片可能无法显示')
         }
@@ -62,6 +67,7 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
 
     return () => {
       destroyed = true
+      setMapReady(false)
       try {
         mapRef.current?.destroy()
       } catch {
@@ -70,16 +76,21 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
       mapRef.current = null
       if (container) container.innerHTML = ''
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅初始化一次，instanceId 保证组件级唯一
   }, [instanceId])
 
+  // ── 绘制路线（地图就绪 + legFrom/legTo 变化时执行） ─────────────────────
   useEffect(() => {
+    if (!mapReady) return
     const map = mapRef.current
     if (!map || !window.AMap || !legFrom || !legTo) return
 
     const AMap = window.AMap
+
+    // 清除旧路线覆盖物
     if (routeOverlayRef.current) {
       try {
-        map.remove(routeOverlayRef.current)
+        ;(routeOverlayRef.current as { clear?: () => void }).clear?.()
       } catch {
         /* ignore */
       }
@@ -87,20 +98,24 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
     }
 
     const plugin = modeToPlugin(plan.transportMode)
+    const policy = plan.transportMode === 'transit'
+      ? (AMap.TransferPolicy?.LEAST_TIME ?? 0)
+      : undefined
+
     AMap.plugin(`AMap.${plugin}`, () => {
-      const policy =
-        plan.transportMode === 'transit'
-          ? AMap.TransferPolicy?.LEAST_TIME ?? 0
-          : undefined
+      const serviceOpts =
+        plugin === 'Transfer'
+          ? { map, city: '北京市', policy }
+          : { map, policy }
 
       const service =
         plugin === 'Transfer'
-          ? new AMap.Transfer({ map, city: '北京市', policy })
+          ? new AMap.Transfer(serviceOpts)
           : plugin === 'Driving'
-            ? new AMap.Driving({ map, policy })
+            ? new AMap.Driving(serviceOpts)
             : plugin === 'Riding'
-              ? new AMap.Riding({ map, policy })
-              : new AMap.Walking({ map, policy })
+              ? new AMap.Riding(serviceOpts)
+              : new AMap.Walking(serviceOpts)
 
       const start = new AMap.LngLat(legFrom.lng, legFrom.lat)
       const end = new AMap.LngLat(legTo.lng, legTo.lat)
@@ -112,16 +127,23 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
         }
         setMapError(null)
         routeOverlayRef.current = service
-        const midLng = (legFrom.lng + legTo.lng) / 2
-        const midLat = (legFrom.lat + legTo.lat) / 2
+        // 自动适配视野，让整条路线都在屏幕内
         window.setTimeout(() => {
           if (!mapRef.current) return
-          mapRef.current.setCenter([midLng, midLat])
-          mapRef.current.setZoom(17)
-        }, 320)
+          try {
+            mapRef.current.setFitView(undefined, false, [80, 80, 80, 80], 17)
+          } catch {
+            // setFitView 在极端情况下可能抛错，降级到居中
+            const midLng = (legFrom.lng + legTo.lng) / 2
+            const midLat = (legFrom.lat + legTo.lat) / 2
+            mapRef.current.setCenter([midLng, midLat])
+            mapRef.current.setZoom(14)
+          }
+        }, 400)
       })
     })
 
+    // 获取用户当前位置并在地图上标记
     AMap.plugin('AMap.Geolocation', () => {
       const geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 })
       geo.getCurrentPosition(
@@ -145,7 +167,7 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
         () => {},
       )
     })
-  }, [plan.transportMode, legFrom, legTo, activeLegIndex])
+  }, [mapReady, plan.transportMode, legFrom, legTo, activeLegIndex])
 
   if (!hasAmapJsKey()) {
     return (
@@ -157,6 +179,11 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
 
   return (
     <div className={`relative overflow-hidden rounded-[2rem] border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] ${className}`}>
+      {!mapReady && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--ds-muted)] rounded-[2rem]">
+          <span className="font-body text-sm text-[var(--ds-muted-foreground)]">地图加载中…</span>
+        </div>
+      )}
       <div ref={containerRef} className="h-full w-full min-h-[360px]" />
       {mapError ? (
         <div className="absolute bottom-3 left-3 right-3 rounded-xl bg-white/90 px-3 py-2 text-center text-xs text-[var(--ds-destructive)]">
