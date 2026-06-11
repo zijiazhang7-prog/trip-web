@@ -1,0 +1,82 @@
+.target-cursor-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10050;
+}
+
+.target-cursor-inner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  will-change: transform;
+}
+
+.target-cursor-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 48px;
+  height: 48px;
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
+  will-change: transform, width, height;
+}
+
+.target-cursor-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #2a6b4e;
+  border-radius: 1px;
+}
+
+.target-cursor-corner.tl {
+  top: 0;
+  left: 0;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.target-cursor-corner.tr {
+  top: 0;
+  right: 0;
+  border-left: 0;
+  border-bottom: 0;
+}
+
+.target-cursor-corner.br {
+  bottom: 0;
+  right: 0;
+  border-left: 0;
+  border-top: 0;
+}
+
+.target-cursor-corner.bl {
+  bottom: 0;
+  left: 0;
+  border-right: 0;
+  border-top: 0;
+}
+
+.target-cursor-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  background: #2a6b4e;
+  border-radius: 999px;
+  opacity: 0.95;
+}
+
+.target-cursor-root.is-locked .target-cursor-corner {
+  border-color: #3e8c70;
+}
+
+.target-cursor-root.is-locked .target-cursor-dot {
+  opacity: 0.35;
+}

@@ -1,0 +1,48 @@
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+@import 'tailwindcss' source(none);
+@source "./**/*.{ts,tsx,js,jsx,html}";
+@import './styles/theme.css';
+
+@theme {
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-body: 'Nunito', ui-rounded, system-ui, sans-serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--ds-background);
+  color: var(--ds-foreground);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+/* Paper grain — multiply, subtle (3–4%) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+#root {
+  position: relative;
+  z-index: 0;
+}
+
+.img-warm {
+  filter: saturate(0.78) contrast(0.94) brightness(1.02) sepia(0.08) hue-rotate(-8deg);
+}
