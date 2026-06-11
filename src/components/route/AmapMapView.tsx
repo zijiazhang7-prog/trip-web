@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { BEIJING_CENTER } from '../../types/macroRoute'
 import type { RouteWaypoint } from '../../types/macroRoute'
-import { hasAmapJsKey } from '../../lib/amap/config'
+import { getAmapSecurityCode, hasAmapJsKey } from '../../lib/amap/config'
 import { loadAmap } from '../../lib/amap/loader'
 import { RoutePathSvg } from './RoutePathSvg'
 
@@ -46,7 +46,9 @@ export function AmapMapView({
     destroy: () => void
     add: (o: unknown | unknown[]) => void
     remove: (o: unknown | unknown[]) => void
-    setFitView: (o?: unknown[], immediately?: boolean, avoid?: number[]) => void
+    setFitView: (o?: unknown[], immediately?: boolean, avoid?: number[], maxZoom?: number) => void
+    setCenter: (center: [number, number]) => void
+    setZoom: (zoom: number) => void
     clearMap?: () => void
   } | null>(null)
   const overlaysRef = useRef<unknown[]>([])
@@ -74,15 +76,18 @@ export function AmapMapView({
         const AMap = await loadAmap()
         if (destroyed || !containerRef.current) return
 
+        if (!getAmapSecurityCode()) {
+          setMapError('未配置 VITE_AMAP_SECURITY_CODE，地图瓦片可能无法显示（与后端无关）')
+        }
+
         const map = new AMap.Map(container, {
-          zoom: 11,
+          zoom: 16,
           center: BEIJING_CENTER,
           viewMode: '2D',
-          mapStyle: 'amap://styles/whitesmoke',
         })
         mapRef.current = map
+        window.setTimeout(() => map.resize?.(), 120)
         setMapReady(true)
-        setMapError(null)
       } catch (err) {
         setMapError(err instanceof Error ? err.message : '地图加载失败')
       }
@@ -188,7 +193,14 @@ export function AmapMapView({
       if (next.length) {
         map.add(next)
         overlaysRef.current = next
-        map.setFitView(next, false, [40, 40, 40, 40])
+        if (safeLine.length >= 2) {
+          map.setFitView(next, false, [48, 48, 48, 48], 17)
+        } else if (waypoints.length === 1 && isValidCoord(waypoints[0].lng, waypoints[0].lat)) {
+          map.setCenter([waypoints[0].lng, waypoints[0].lat])
+          map.setZoom(17)
+        } else {
+          map.setFitView(next, false, [48, 48, 48, 48], 17)
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '地图渲染失败'

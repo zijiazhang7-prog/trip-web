@@ -69,6 +69,14 @@ export async function planMacroRoute(
       try {
         if (transportMode === 'transit') {
           leg = await fetchTransitLeg(from, to)
+          if (leg.polyline.length <= 2) {
+            try {
+              const walk = await fetchDirectionLeg('walking', from, to)
+              leg = { ...leg, polyline: walk.polyline }
+            } catch {
+              /* keep transit steps */
+            }
+          }
         } else {
           leg = await fetchDirectionLeg(transportMode, from, to)
         }

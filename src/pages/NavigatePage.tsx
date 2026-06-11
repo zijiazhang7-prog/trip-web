@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AmapNavigateMap } from '../components/route/AmapNavigateMap'
 import { RouteTimelinePanel } from '../components/route/RouteTimelinePanel'
 import { GlassPanel } from '../components/ui/GlassPanel'
@@ -26,7 +26,8 @@ export function NavigatePage() {
 }
 
 function NavigatePageContent() {
-  const { macroPlan, activeWaypoint, setActiveWaypoint } = useRoutePlan()
+  const navigate = useNavigate()
+  const { macroPlan, activeWaypoint, setActiveWaypoint, setMacroPlan } = useRoutePlan()
   const [facilityType, setFacilityType] = useState('')
   const [facilities, setFacilities] = useState<NearbyPoiResult[]>([])
   const [loadingFac, setLoadingFac] = useState(false)
@@ -100,13 +101,33 @@ function NavigatePageContent() {
     [macroPlan, setActiveWaypoint],
   )
 
+  const handleClearRoute = () => {
+    setMacroPlan(null)
+    setActiveWaypoint(null)
+    setFacilities([])
+    navigate('/route')
+  }
+
   return (
     <div className="mx-auto max-w-[1320px] animate-fade-rise px-5 py-8 md:px-10">
-      <PageHeader
-        eyebrow="Travel Navigate"
-        title="旅行导航 · 北京市内"
-        description="高德导航时间轴含步行/地铁分段；地图根据当前站点与定位显示路线。"
-      />
+      <div className="mb-10 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <PageHeader
+            eyebrow="Travel Navigate"
+            title="旅行导航 · 北京市内"
+            description="高德导航时间轴含步行/地铁分段；地图根据当前站点与定位显示路线。"
+          />
+        </div>
+        {macroPlan ? (
+          <button
+            type="button"
+            onClick={handleClearRoute}
+            className="shrink-0 rounded-full border border-[color-mix(in_srgb,var(--ds-destructive)_35%,transparent)] bg-white px-5 py-2.5 font-body text-sm font-semibold text-[var(--ds-destructive)] transition hover:bg-[color-mix(in_srgb,var(--ds-destructive)_8%,white)]"
+          >
+            清空路线
+          </button>
+        ) : null}
+      </div>
 
       {!macroPlan ? (
         <InlineNotice variant="info">
@@ -127,7 +148,7 @@ function NavigatePageContent() {
       </section>
 
       <section className="grid min-h-[360px] gap-5 lg:grid-cols-[minmax(260px,34%)_1fr]">
-        <GlassPanel className="flex flex-col p-5">
+        <GlassPanel className="flex max-h-[min(58vh,560px)] min-h-[360px] flex-col overflow-hidden p-5">
           <h2 className="font-display text-lg font-semibold text-[var(--ds-foreground)]">附近设施</h2>
           <p className="font-body mt-1 text-xs text-[var(--ds-muted-foreground)]">
             {focusWaypoint
@@ -151,7 +172,7 @@ function NavigatePageContent() {
             <p className="mt-3 font-body text-xs text-[var(--ds-destructive)]">{facError}</p>
           ) : null}
 
-          <ul className="mt-4 flex-1 space-y-3 overflow-y-auto">
+          <ul className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             {loadingFac ? (
               <li className="py-6 text-center font-body text-sm text-[var(--ds-muted-foreground)]">查询中…</li>
             ) : null}

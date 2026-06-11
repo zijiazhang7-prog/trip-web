@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { MacroRoutePlan, RouteWaypoint, TransportMode } from '../../types/macroRoute'
-import { hasAmapJsKey } from '../../lib/amap/config'
+import { getAmapSecurityCode, hasAmapJsKey } from '../../lib/amap/config'
 import { loadAmap } from '../../lib/amap/loader'
 
 type AmapNavigateMapProps = {
@@ -20,7 +20,15 @@ function modeToPlugin(mode: TransportMode): 'Walking' | 'Driving' | 'Riding' | '
 export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, className = '' }: AmapNavigateMapProps) {
   const instanceId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<{ destroy: () => void; add: (o: unknown) => void; remove: (o: unknown) => void; setFitView: (o?: unknown[]) => void } | null>(null)
+  const mapRef = useRef<{
+    destroy: () => void
+    add: (o: unknown) => void
+    remove: (o: unknown) => void
+    setFitView: (o?: unknown[], immediately?: boolean, avoid?: number[], maxZoom?: number) => void
+    setCenter: (center: [number, number]) => void
+    setZoom: (zoom: number) => void
+    resize?: () => void
+  } | null>(null)
   const routeOverlayRef = useRef<unknown | null>(null)
   const geoMarkerRef = useRef<unknown | null>(null)
   const [mapError, setMapError] = useState<string | null>(null)
@@ -38,11 +46,15 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
         const AMap = await loadAmap()
         if (destroyed || !containerRef.current) return
         const map = new AMap.Map(container, {
-          zoom: 13,
+          zoom: 17,
           center: [legFrom.lng, legFrom.lat],
           viewMode: '2D',
         })
         mapRef.current = map
+        window.setTimeout(() => map.resize?.(), 120)
+        if (!getAmapSecurityCode()) {
+          setMapError('未配置 VITE_AMAP_SECURITY_CODE，地图瓦片可能无法显示')
+        }
       } catch (err) {
         setMapError(err instanceof Error ? err.message : '地图加载失败')
       }
@@ -94,14 +106,20 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
       const end = new AMap.LngLat(legTo.lng, legTo.lat)
 
       service.search(start, end, (status: string) => {
-          if (status !== 'complete') {
-            setMapError('路线规划失败，请检查网络或 Key 配置')
-          } else {
-            setMapError(null)
-            routeOverlayRef.current = service
-          }
-        },
-      )
+        if (status !== 'complete') {
+          setMapError('路线规划失败，请检查网络或 Key 配置')
+          return
+        }
+        setMapError(null)
+        routeOverlayRef.current = service
+        const midLng = (legFrom.lng + legTo.lng) / 2
+        const midLat = (legFrom.lat + legTo.lat) / 2
+        window.setTimeout(() => {
+          if (!mapRef.current) return
+          mapRef.current.setCenter([midLng, midLat])
+          mapRef.current.setZoom(17)
+        }, 320)
+      })
     })
 
     AMap.plugin('AMap.Geolocation', () => {

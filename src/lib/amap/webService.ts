@@ -125,7 +125,12 @@ type RawTransitSegment = {
   walking?: {
     distance?: string | number
     duration?: string | number
-    steps?: Array<{ instruction?: string; distance?: string | number; duration?: string | number }>
+    steps?: Array<{
+      instruction?: string
+      distance?: string | number
+      duration?: string | number
+      polyline?: string
+    }>
   }
   bus?: {
     buslines?: Array<{
@@ -179,6 +184,7 @@ export async function fetchTransitLeg(
   for (const seg of transit.segments ?? []) {
     if (seg.walking?.steps?.length) {
       for (const w of seg.walking.steps) {
+        if (w.polyline) polyline.push(...decodeAmapPolyline(w.polyline))
         steps.push({
           type: 'walking',
           instruction: w.instruction?.replace(/<[^>]+>/g, '') || '步行',
@@ -222,7 +228,21 @@ export async function fetchTransitLeg(
     }
   }
 
-  polyline.push([origin.lng, origin.lat], [destination.lng, destination.lat])
+  if (polyline.length < 2) {
+    polyline.push([origin.lng, origin.lat], [destination.lng, destination.lat])
+  }
+
+  if (polyline.length <= 2) {
+    try {
+      const walk = await fetchDirectionLeg('walking', origin, destination)
+      if (walk.polyline.length >= 2) {
+        polyline.length = 0
+        polyline.push(...walk.polyline)
+      }
+    } catch {
+      /* keep straight fallback */
+    }
+  }
 
   return {
     distance: Number(transit.distance) || 0,

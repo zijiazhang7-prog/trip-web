@@ -8,20 +8,19 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { PrimaryButton } from '../components/ui/PrimaryButton'
 import { useRoutePlan } from '../context/routePlanContext'
 import { planMacroRoute } from '../lib/amap/planMacroRoute'
-import { hasAmapJsKey, hasAmapWebKey, hasFullAmapSetup } from '../lib/amap/config'
-import type { RouteWaypoint, TransportMode } from '../types/macroRoute'
-import { TRANSPORT_OPTIONS } from '../types/macroRoute'
+import { hasAmapJsKey, hasAmapWebKey, hasFullAmapSetup, getAmapSecurityCode } from '../lib/amap/config'
+import type { RouteWaypoint } from '../types/macroRoute'
 
 export function RoutePlanningPage() {
   const navigate = useNavigate()
-  const { setMacroPlan, setActiveWaypoint } = useRoutePlan()
+  const { macroPlan, setMacroPlan, setActiveWaypoint } = useRoutePlan()
   const [selected, setSelected] = useState<RouteWaypoint[]>([])
-  const [transportMode, setTransportMode] = useState<TransportMode>('transit')
   const [planning, setPlanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [localPlan, setLocalPlan] = useState<Awaited<ReturnType<typeof planMacroRoute>> | null>(null)
+  const [localPlan, setLocalPlan] = useState(macroPlan)
 
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected])
+  const displayPlan = localPlan ?? macroPlan
 
   const toggleWaypoint = (wp: RouteWaypoint, checked: boolean) => {
     setSelected((prev) => {
@@ -38,10 +37,11 @@ export function RoutePlanningPage() {
     setPlanning(true)
     setError(null)
     try {
-      const result = await planMacroRoute(selected, transportMode)
+      const result = await planMacroRoute(selected, 'transit')
       setLocalPlan(result)
       setMacroPlan(result)
       setActiveWaypoint(result.waypoints[0] ?? null)
+      navigate('/navigate', { replace: false })
     } catch (err) {
       setError(err instanceof Error ? err.message : '路线规划失败')
       setLocalPlan(null)
@@ -50,10 +50,12 @@ export function RoutePlanningPage() {
     }
   }
 
-  const goNavigate = () => {
-    if (!localPlan) return
-    setMacroPlan(localPlan)
-    navigate('/navigate', { replace: false })
+  const handleClear = () => {
+    setSelected([])
+    setLocalPlan(null)
+    setMacroPlan(null)
+    setActiveWaypoint(null)
+    setError(null)
   }
 
   return (
@@ -66,8 +68,14 @@ export function RoutePlanningPage() {
 
       {!hasFullAmapSetup() ? (
         <InlineNotice variant="info">
-          高德配置不完整：{!hasAmapJsKey() ? '缺 JS Key（地图）' : ''}
-          {!hasAmapWebKey() ? '缺 Web 服务 Key（路径规划）' : ''}。请在 .env 填写 VITE_AMAP_JS_KEY、VITE_AMAP_WEB_KEY、VITE_AMAP_SECURITY_CODE。
+          高德配置不完整：{!hasAmapJsKey() ? '缺 JS Key（地图瓦片）' : ''}
+          {!hasAmapWebKey() ? '缺 Web 服务 Key（路径规划）' : ''}
+          {!getAmapSecurityCode() ? '缺 securityJsCode（地图可能空白）' : ''}
+          。请在 .env 填写 VITE_AMAP_JS_KEY、VITE_AMAP_WEB_KEY、VITE_AMAP_SECURITY_CODE。
+        </InlineNotice>
+      ) : !getAmapSecurityCode() ? (
+        <InlineNotice variant="offline">
+          未配置 VITE_AMAP_SECURITY_CODE，地图区域可能只显示网格而无街景。这是高德 JS API 要求，与后端无关。
         </InlineNotice>
       ) : null}
 
@@ -77,59 +85,42 @@ export function RoutePlanningPage() {
         </InlineNotice>
       ) : null}
 
-      <section className="mb-6 min-h-[300px] lg:min-h-[340px]">
+      <section className="mb-6 max-h-[min(52vh,520px)] min-h-[280px]">
         <DestinationSearchGrid selectedIds={selectedIds} onToggle={toggleWaypoint} />
       </section>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <span className="font-body text-xs font-semibold uppercase tracking-wider text-[var(--ds-muted-foreground)]">
-          交通方式
-        </span>
-        {TRANSPORT_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => {
-              setTransportMode(opt.value)
-              setLocalPlan(null)
-            }}
-            className={`rounded-full border px-4 py-2 font-body text-sm font-semibold transition ${
-              transportMode === opt.value
-                ? 'border-[var(--ds-primary)] bg-[var(--ds-primary)] text-[var(--ds-primary-foreground)]'
-                : 'border-[color-mix(in_srgb,var(--ds-border)_60%,transparent)] bg-white text-[var(--ds-foreground)]'
-            }`}
-          >
-            {opt.icon} {opt.label}
-          </button>
-        ))}
-        <span className="font-body text-xs text-[var(--ds-muted-foreground)]">
-          已选 {selected.length} 个景点 · 顺序将自动优化
-        </span>
-      </div>
+      <p className="mb-4 font-body text-sm text-[var(--ds-muted-foreground)]">
+        已选 {selected.length} 个景点 · 默认公交地铁出行 · 顺序将自动优化
+      </p>
 
-      <section className="grid min-h-[420px] gap-5 lg:grid-cols-[minmax(240px,28%)_1fr]">
-        <RouteSequenceSidebar plan={localPlan} planning={planning} />
+      <section className="mb-6 grid min-h-[420px] gap-5 lg:grid-cols-[minmax(240px,28%)_1fr]">
+        <RouteSequenceSidebar plan={displayPlan} planning={planning} />
         <AmapMapView
           key="route-plan-map"
           className="min-h-[420px]"
-          waypoints={localPlan?.waypoints ?? selected}
-          polyline={localPlan?.polyline}
+          waypoints={displayPlan?.waypoints ?? selected}
+          polyline={displayPlan?.polyline}
+          activeId={displayPlan?.waypoints[0]?.id}
         />
       </section>
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3">
         <PrimaryButton
           fullWidth
           className="max-w-md py-4 text-base"
           disabled={planning || selected.length < 2}
           onClick={() => void handlePlan()}
         >
-          {planning ? '正在生成路线…' : '生成路线'}
+          {planning ? '正在规划并进入导航…' : '生成路线并导航'}
         </PrimaryButton>
-        {localPlan ? (
-          <PrimaryButton variant="secondary" className="py-4" onClick={goNavigate}>
-            前往旅行导航
-          </PrimaryButton>
+        {selected.length > 0 || displayPlan ? (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="rounded-full border border-[color-mix(in_srgb,var(--ds-destructive)_35%,transparent)] bg-white px-6 py-4 font-body text-sm font-semibold text-[var(--ds-destructive)] transition hover:bg-[color-mix(in_srgb,var(--ds-destructive)_8%,white)]"
+          >
+            清空路线
+          </button>
         ) : null}
       </div>
     </div>

@@ -42,25 +42,30 @@ export async function describeTravelImage(input: {
     input.context?.trim() ||
     '这是一张旅行照片。请用 1-2 句中文手账风格描述画面中的场景、氛围与情绪，适合作为图片配文，不要列清单。'
 
-  const res = await fetch(LLM_ENDPOINTS.doubaoResponses, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getDoubaoApiKey()}`,
-    },
-    body: JSON.stringify({
-      model: getDoubaoVisionModel(),
-      input: [
-        {
-          role: 'user',
-          content: [
-            { type: 'input_image', image_url: input.imageDataUrl },
-            { type: 'input_text', text: prompt },
-          ],
-        },
-      ],
-    }),
-  })
+  let res: Response
+  try {
+    res = await fetch(LLM_ENDPOINTS.doubaoResponses, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getDoubaoApiKey()}`,
+      },
+      body: JSON.stringify({
+        model: getDoubaoVisionModel(),
+        input: [
+          {
+            role: 'user',
+            content: [
+              { type: 'input_image', image_url: input.imageDataUrl },
+              { type: 'input_text', text: prompt },
+            ],
+          },
+        ],
+      }),
+    })
+  } catch {
+    throw new Error('豆包识图网络请求失败，请检查 VITE_DOUBAO_API_KEY 与 dev 代理 /llm-doubao')
+  }
 
   const data = (await res.json()) as DoubaoResponsesResult
   if (!res.ok) {

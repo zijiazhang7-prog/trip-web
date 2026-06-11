@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { searchDestinationsPage } from '../../api/destination'
 import { BEIJING_ATTRACTIONS, filterBeijingAttractions, type BeijingAttraction } from '../../data/beijingDestinations'
+import { hasAmapWebKey } from '../../lib/amap/config'
+import { geocodeBeijingSpot } from '../../lib/amap/webService'
 import type { RouteWaypoint } from '../../types/macroRoute'
 import { InlineNotice } from '../ui/InlineNotice'
 
@@ -66,8 +68,22 @@ export function DestinationSearchGrid({ selectedIds, onToggle }: DestinationSear
             })
 
           if (apiRows.length) {
-            setItems(apiRows)
-            setUsingFallback(false)
+            const withCoords = await Promise.all(
+              apiRows.map(async (row) => {
+                if (row.lng && row.lat) return row
+                const fb = BEIJING_ATTRACTIONS.find((a) => a.name === row.name)
+                if (fb) return { ...row, lng: fb.lng, lat: fb.lat }
+                if (hasAmapWebKey()) {
+                  const geo = await geocodeBeijingSpot(row.name)
+                  if (geo) return { ...row, ...geo }
+                }
+                return row
+              }),
+            )
+            if (!cancelled) {
+              setItems(withCoords)
+              setUsingFallback(false)
+            }
           } else {
             setItems(filterBeijingAttractions(keyword))
             setUsingFallback(true)
@@ -90,7 +106,7 @@ export function DestinationSearchGrid({ selectedIds, onToggle }: DestinationSear
   }, [keyword])
 
   return (
-    <div className="flex h-full min-h-[280px] flex-col rounded-[2rem] border border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] bg-[color-mix(in_srgb,white_88%,var(--ds-background))] p-5 shadow-[var(--ds-shadow-soft)] backdrop-blur-xl">
+    <div className="flex h-full max-h-[min(52vh,520px)] min-h-[280px] flex-col overflow-hidden rounded-[2rem] border border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] bg-[color-mix(in_srgb,white_88%,var(--ds-background))] p-5 shadow-[var(--ds-shadow-soft)] backdrop-blur-xl">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold text-[var(--ds-foreground)]">目的地搜索</h2>
@@ -116,7 +132,7 @@ export function DestinationSearchGrid({ selectedIds, onToggle }: DestinationSear
       {loading ? (
         <p className="py-8 text-center font-body text-sm text-[var(--ds-muted-foreground)]">搜索中…</p>
       ) : (
-        <div className="grid flex-1 grid-cols-2 gap-4 overflow-y-auto sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-4 overflow-y-auto sm:grid-cols-3 lg:grid-cols-4">
           {items.map((item) => {
             const wp = toWaypoint(item)
             const checked = selectedIds.has(item.id)

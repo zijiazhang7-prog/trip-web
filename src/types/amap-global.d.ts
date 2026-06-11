@@ -10,8 +10,15 @@ declare global {
         destroy: () => void
         add: (overlays: unknown | unknown[]) => void
         remove: (overlays: unknown | unknown[]) => void
-        setFitView: (overlays?: unknown[], immediately?: boolean, avoid?: number[]) => void
-        setCenter: (center: [number, number]) => void
+        setFitView: (
+          overlays?: unknown[],
+          immediately?: boolean,
+          avoid?: number[],
+          maxZoom?: number,
+        ) => void
+        setCenter: (center: [number, number] | unknown) => void
+        setZoom: (zoom: number) => void
+        resize?: () => void
       }
       Marker: new (opts: Record<string, unknown>) => {
         on: (type: string, cb: () => void) => void

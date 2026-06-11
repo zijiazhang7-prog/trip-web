@@ -11,7 +11,7 @@ import {
   polishDiaryText,
 } from '../api/llm'
 import { useDiaryPublish } from '../features/diary/useDiaryPublish'
-import type { DiaryBook, DiaryContentBlock, DiaryEntry, DiaryImageBlock, DiaryVideoBlock } from '../features/diary/types'
+import type { DiaryBook, DiaryContentBlock, DiaryEntry } from '../features/diary/types'
 import { InlineNotice } from '../components/ui/InlineNotice'
 
 const coverLoaders = import.meta.glob('/src/features/diary/components/cover/*.{png,jpg,jpeg,webp}', {
@@ -34,8 +34,18 @@ const stickerLoaders = {
 }
 
 type AssetLoaders = Record<string, () => Promise<string>>
-type TextLayer = { id: string; value: string; top: number; left: number; width: number; height: number }
-type StickerLayer = { id: string; url: string; left: number; top: number; scale: number; rotate: number; z: number }
+type TextLayer = { id: string; value: string; top: number; left: number; scale: number; rotate: number; z: number }
+type StickerLayer = {
+  id: string
+  url: string
+  left: number
+  top: number
+  scale: number
+  rotate: number
+  z: number
+  kind?: 'sticker' | 'image' | 'video'
+  blockId?: string
+}
 type MaterialTab = 'cover' | 'paper' | 'sticker'
 type SnapGuide = { x: number | null; y: number | null }
 type StickerPointerEvent = React.PointerEvent<HTMLElement>
@@ -45,14 +55,6 @@ const panel = 'ds-glass-panel rounded-[24px]'
 
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`
-}
-
-function asImage(block: DiaryContentBlock): block is DiaryImageBlock {
-  return block.type === 'image'
-}
-
-function asVideo(block: DiaryContentBlock): block is DiaryVideoBlock {
-  return block.type === 'video'
 }
 
 function splitPages(raw: string): { left: string; right: string } {
@@ -102,6 +104,7 @@ export function DiaryPage() {
   const [loadingBook, setLoadingBook] = useState(false)
   const [uploadedCount, setUploadedCount] = useState(0)
   const [aiBusy, setAiBusy] = useState(false)
+  const [uploadBusy, setUploadBusy] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
   const [isShelfCollapsed, setIsShelfCollapsed] = useState(false)
   const [isMaterialCollapsed, setIsMaterialCollapsed] = useState(false)
@@ -127,12 +130,20 @@ export function DiaryPage() {
   const textLayerDragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null)
   const textLayerResizeRef = useRef<{
     id: string
-    startWidth: number
-    startHeight: number
-    startX: number
-    startY: number
+    startScale: number
+    startDist: number
+    cx: number
+    cy: number
+  } | null>(null)
+  const textLayerRotateRef = useRef<{
+    id: string
+    startRotate: number
+    startAngle: number
+    cx: number
+    cy: number
   } | null>(null)
   const pendingTextFocusRef = useRef<string | null>(null)
+  const uploadFileCacheRef = useRef<Map<string, File>>(new Map())
 
   const [coverAssets, setCoverAssets] = useState<string[]>([])
   const [paperAssets, setPaperAssets] = useState<string[]>([])
@@ -338,14 +349,6 @@ export function DiaryPage() {
     }
   }, [diaryApi, selectedBookId, isShelfCollapsed, paperAssets])
 
-  const imageBlocks = useMemo(
-    () => selectedEntry?.blocks.filter(asImage).filter((block) => Boolean(block.assetUrl)) ?? [],
-    [selectedEntry],
-  )
-  const videoBlocks = useMemo(
-    () => selectedEntry?.blocks.filter(asVideo).filter((block) => Boolean(block.assetUrl)) ?? [],
-    [selectedEntry],
-  )
   const routeBlocks = useMemo(
     () => selectedEntry?.blocks.filter((block) => block.type === 'routeSketch') ?? [],
     [selectedEntry],
@@ -404,36 +407,59 @@ export function DiaryPage() {
     setBooks((prev) => prev.map((book) => (book.id === updated.id ? updated : book)))
   }
 
+  const addMediaLayer = (url: string, kind: 'image' | 'video', blockId: string) => {
+    const nextId = uid('media')
+    setActiveStickerId(nextId)
+    setActiveTextLayerId(null)
+    setStickerLayers((prev) => {
+      const topZ = prev.reduce((max, it) => Math.max(max, it.z), 0)
+      return [
+        ...prev,
+        {
+          id: nextId,
+          url,
+          kind,
+          blockId,
+          left: 34 + (prev.length % 4) * 7,
+          top: 42 + (prev.length % 3) * 5,
+          scale: kind === 'video' ? 1.15 : 1,
+          rotate: 0,
+          z: topZ + 1,
+        },
+      ]
+    })
+  }
+
   const onUploadFiles = async (files: FileList | null) => {
     if (!files || !selectedBook || !selectedEntry) return
     setAiError(null)
-    setAiBusy(true)
+    setUploadBusy(true)
     const appended: DiaryContentBlock[] = []
     try {
       for (const file of Array.from(files)) {
         const localUrl = URL.createObjectURL(file)
         if (file.type.startsWith('image/')) {
-          let caption = ''
-          if (hasDoubaoKey()) {
-            try {
-              const dataUrl = await fileToDataUrl(file)
-              caption = await describeTravelImage({
-                imageDataUrl: dataUrl,
-                context: `为旅行手账「${entryTitle}」写一句图片配文，温馨具体。`,
-              })
-            } catch {
-              caption = ''
-            }
-          }
+          const blockId = uid('blk_img')
+          uploadFileCacheRef.current.set(blockId, file)
           appended.push({
-            id: uid('blk_img'),
+            id: blockId,
             type: 'image',
             assetId: uid('asset_local'),
             assetUrl: localUrl,
-            caption,
+            caption: '',
           })
+          addMediaLayer(localUrl, 'image', blockId)
         } else if (file.type.startsWith('video/')) {
-          appended.push({ id: uid('blk_vid'), type: 'video', assetId: uid('asset_local'), assetUrl: localUrl, caption: '' })
+          const blockId = uid('blk_vid')
+          uploadFileCacheRef.current.set(blockId, file)
+          appended.push({
+            id: blockId,
+            type: 'video',
+            assetId: uid('asset_local'),
+            assetUrl: localUrl,
+            caption: '',
+          })
+          addMediaLayer(localUrl, 'video', blockId)
         }
       }
       if (appended.length === 0) return
@@ -449,7 +475,7 @@ export function DiaryPage() {
     } catch (err) {
       setAiError(err instanceof Error ? err.message : '上传失败')
     } finally {
-      setAiBusy(false)
+      setUploadBusy(false)
     }
   }
 
@@ -457,93 +483,143 @@ export function DiaryPage() {
     setTextLayers((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)))
   }
 
-  const addTransparentTextLayer = () => {
+  const addTransparentTextLayerAt = (clientX: number, clientY: number) => {
+    const point = getSpreadPoint(clientX, clientY)
     const nextId = uid('layer')
     pendingTextFocusRef.current = nextId
     setActiveTextLayerId(nextId)
-    setTextLayers((prev) => [
-      ...prev,
-      { id: nextId, value: '', left: 12 + prev.length * 4, top: 16 + prev.length * 4, width: 40, height: 18 },
-    ])
+    setActiveStickerId(null)
+    setTextLayers((prev) => {
+      const topZ = prev.reduce((max, it) => Math.max(max, it.z), 0)
+      return [
+        ...prev,
+        {
+          id: nextId,
+          value: '',
+          left: point?.leftPct ?? 58,
+          top: point?.topPct ?? 38,
+          scale: 1,
+          rotate: 0,
+          z: topZ + 1,
+        },
+      ]
+    })
   }
 
-  const getRightPagePoint = (clientX: number, clientY: number) => {
-    const host = rightPageRef.current
-    if (!host) return null
-    const rect = host.getBoundingClientRect()
-    return {
-      rect,
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-      leftPct: ((clientX - rect.left) / rect.width) * 100,
-      topPct: ((clientY - rect.top) / rect.height) * 100,
-    }
-  }
+  const getLayerCenterPx = (left: number, top: number, rect: DOMRect) => ({
+    cx: (left / 100) * rect.width,
+    cy: (top / 100) * rect.height,
+  })
 
   const onTextLayerDragPointerDown = (e: StickerPointerEvent, layerId: string) => {
     e.stopPropagation()
-    e.preventDefault()
-    const point = getRightPagePoint(e.clientX, e.clientY)
+    const point = getSpreadPoint(e.clientX, e.clientY)
     const layer = textLayers.find((it) => it.id === layerId)
     if (!point || !layer) return
-    const leftPx = (layer.left / 100) * point.rect.width
-    const topPx = (layer.top / 100) * point.rect.height
+    const { cx, cy } = getLayerCenterPx(layer.left, layer.top, point.rect)
     textLayerDragRef.current = {
       id: layerId,
-      offsetX: point.x - leftPx,
-      offsetY: point.y - topPx,
+      offsetX: point.x - cx,
+      offsetY: point.y - cy,
     }
+    const topZ = textLayers.reduce((max, it) => Math.max(max, it.z), 0)
+    updateTextLayer(layerId, { z: topZ + 1 })
     setActiveTextLayerId(layerId)
+    setActiveStickerId(null)
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
   const onTextLayerResizePointerDown = (e: StickerPointerEvent, layerId: string) => {
     e.stopPropagation()
-    e.preventDefault()
-    const point = getRightPagePoint(e.clientX, e.clientY)
+    const point = getSpreadPoint(e.clientX, e.clientY)
     const layer = textLayers.find((it) => it.id === layerId)
     if (!point || !layer) return
-    textLayerResizeRef.current = {
+    const { cx, cy } = getLayerCenterPx(layer.left, layer.top, point.rect)
+    const startDist = Math.max(24, Math.hypot(point.x - cx, point.y - cy))
+    textLayerResizeRef.current = { id: layerId, startScale: layer.scale, startDist, cx, cy }
+    setActiveTextLayerId(layerId)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const onTextLayerRotatePointerDown = (e: StickerPointerEvent, layerId: string) => {
+    e.stopPropagation()
+    const point = getSpreadPoint(e.clientX, e.clientY)
+    const layer = textLayers.find((it) => it.id === layerId)
+    if (!point || !layer) return
+    const { cx, cy } = getLayerCenterPx(layer.left, layer.top, point.rect)
+    textLayerRotateRef.current = {
       id: layerId,
-      startWidth: layer.width,
-      startHeight: layer.height,
-      startX: point.x,
-      startY: point.y,
+      startRotate: layer.rotate,
+      startAngle: Math.atan2(point.y - cy, point.x - cx),
+      cx,
+      cy,
     }
     setActiveTextLayerId(layerId)
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
-  const onTextLayerPointerMove = (e: StickerPointerEvent) => {
-    const point = getRightPagePoint(e.clientX, e.clientY)
-    if (!point) return
-
-    const resize = textLayerResizeRef.current
-    if (resize) {
-      const dx = ((point.x - resize.startX) / point.rect.width) * 100
-      const dy = ((point.y - resize.startY) / point.rect.height) * 100
-      updateTextLayer(resize.id, {
-        width: Math.max(14, Math.min(88, Number((resize.startWidth + dx).toFixed(1)))),
-        height: Math.max(10, Math.min(55, Number((resize.startHeight + dy).toFixed(1)))),
-      })
+  const runAiForMediaSticker = async (stickerId: string) => {
+    const sticker = stickerLayers.find((item) => item.id === stickerId)
+    if (!sticker?.blockId || sticker.kind !== 'image' || !selectedBook || !selectedEntry || aiBusy) return
+    if (!hasDoubaoKey()) {
+      setAiError('未配置豆包 API Key，请在 .env 设置 VITE_DOUBAO_API_KEY（与后端无关）')
       return
     }
+    setAiBusy(true)
+    setAiError(null)
+    try {
+      const cached = uploadFileCacheRef.current.get(sticker.blockId)
+      const dataUrl = cached
+        ? await fileToDataUrl(cached)
+        : await fileToDataUrl(
+            new File(
+              [await (await fetch(sticker.url)).blob()],
+              'upload.jpg',
+              { type: 'image/jpeg' },
+            ),
+          )
+      const caption = await describeTravelImage({
+        imageDataUrl: dataUrl,
+        context: `为旅行手账「${entryTitle}」写 2-3 句读图配文，温馨具体，适合放在图片旁边。`,
+      })
+      const textId = uid('layer')
+      const topZ = textLayers.reduce((max, it) => Math.max(max, it.z), 0)
+      setTextLayers((prev) => [
+        ...prev,
+        {
+          id: textId,
+          value: caption,
+          left: Math.min(88, sticker.left + 10),
+          top: sticker.top,
+          scale: 0.95,
+          rotate: sticker.rotate,
+          z: topZ + 1,
+        },
+      ])
+      setActiveTextLayerId(textId)
+      setActiveStickerId(null)
+      pendingTextFocusRef.current = textId
 
-    const drag = textLayerDragRef.current
-    if (!drag) return
-    const layer = textLayers.find((it) => it.id === drag.id)
-    if (!layer) return
-    let left = ((point.x - drag.offsetX) / point.rect.width) * 100
-    let top = ((point.y - drag.offsetY) / point.rect.height) * 100
-    left = Math.max(2, Math.min(92 - layer.width, left))
-    top = Math.max(10, Math.min(88 - layer.height, top))
-    updateTextLayer(drag.id, { left, top })
-  }
-
-  const endTextLayerGesture = (e: StickerPointerEvent) => {
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
-    textLayerDragRef.current = null
-    textLayerResizeRef.current = null
+      const next = await diaryApi.upsertEntry(selectedBook.id, {
+        dayIndex: selectedEntry.dayIndex,
+        title: entryTitle,
+        entryDate: selectedEntry.entryDate,
+        blocks: selectedEntry.blocks.map((block) =>
+          block.id === sticker.blockId && block.type === 'image' ? { ...block, caption } : block,
+        ),
+      })
+      setSelectedEntry(next)
+      setBookEntries((prev) => prev.map((entry) => (entry.id === next.id ? next : entry)))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'AI 配文失败'
+      setAiError(
+        msg.includes('fetch') || msg.includes('Failed')
+          ? '豆包识图 API 请求失败，请检查 VITE_DOUBAO_API_KEY 与网络（非后端接口问题）'
+          : msg,
+      )
+    } finally {
+      setAiBusy(false)
+    }
   }
 
   const runAiForTextLayer = async (layerId: string) => {
@@ -693,6 +769,36 @@ export function DiaryPage() {
     const point = getSpreadPoint(e.clientX, e.clientY)
     if (!point) return
 
+    const textResize = textLayerResizeRef.current
+    if (textResize) {
+      const dist = Math.max(20, Math.hypot(point.x - textResize.cx, point.y - textResize.cy))
+      const ratio = dist / textResize.startDist
+      updateTextLayer(textResize.id, {
+        scale: Math.max(0.35, Math.min(3.5, Number((textResize.startScale * ratio).toFixed(3)))),
+      })
+      return
+    }
+
+    const textRotate = textLayerRotateRef.current
+    if (textRotate) {
+      const angle = Math.atan2(point.y - textRotate.cy, point.x - textRotate.cx)
+      const deltaDeg = ((angle - textRotate.startAngle) * 180) / Math.PI
+      updateTextLayer(textRotate.id, {
+        rotate: Number((textRotate.startRotate + deltaDeg).toFixed(2)),
+      })
+      return
+    }
+
+    const textDrag = textLayerDragRef.current
+    if (textDrag) {
+      let left = ((point.x - textDrag.offsetX) / point.rect.width) * 100
+      let top = ((point.y - textDrag.offsetY) / point.rect.height) * 100
+      left = Math.max(4, Math.min(96, left))
+      top = Math.max(8, Math.min(92, top))
+      updateTextLayer(textDrag.id, { left, top })
+      return
+    }
+
     const resize = stickerResizeRef.current
     if (resize) {
       const dist = Math.max(20, Math.hypot(point.x - resize.cx, point.y - resize.cy))
@@ -746,6 +852,9 @@ export function DiaryPage() {
     stickerDragRef.current = null
     stickerResizeRef.current = null
     stickerRotateRef.current = null
+    textLayerDragRef.current = null
+    textLayerResizeRef.current = null
+    textLayerRotateRef.current = null
     setSnapGuide({ x: null, y: null })
   }
 
@@ -999,6 +1108,11 @@ export function DiaryPage() {
                         onPointerMove={onSpreadPointerMove}
                         onPointerUp={endStickerGesture}
                         onPointerCancel={endStickerGesture}
+                        onDoubleClick={(e) => {
+                          if ((e.target as HTMLElement).closest('[data-text-layer],[data-sticker],textarea,input,button,video')) return
+                          e.stopPropagation()
+                          addTransparentTextLayerAt(e.clientX, e.clientY)
+                        }}
                         onClick={() => {
                           setActiveStickerId(null)
                           setActiveTextLayerId(null)
@@ -1042,14 +1156,7 @@ export function DiaryPage() {
                         <div
                           ref={rightPageRef}
                           className="relative rounded-[18px] border border-[color-mix(in_srgb,var(--ds-border)_42%,transparent)] bg-white/78 p-4 shadow-[inset_8px_0_16px_rgba(141,177,198,0.2)]"
-                          onDoubleClick={(e) => {
-                            e.stopPropagation()
-                            addTransparentTextLayer()
-                          }}
-                          onPointerMove={onTextLayerPointerMove}
-                          onPointerUp={endTextLayerGesture}
-                          onPointerCancel={endTextLayerGesture}
-                          title="双击右页添加透明文字框"
+                          title="双击页面任意位置可添加透明文字框"
                           style={{
                             backgroundImage: selectedPaper ? `linear-gradient(rgba(255,255,255,0.2),rgba(255,255,255,0.24)), url('${selectedPaper}')` : undefined,
                             backgroundSize: selectedPaper ? 'cover, cover' : undefined,
@@ -1076,103 +1183,6 @@ export function DiaryPage() {
                             className="mt-2 min-h-[8rem] w-full resize-none overflow-hidden rounded-xl border border-white/55 bg-white/20 p-2.5 text-[14px] leading-6 text-[var(--ds-foreground)] outline-none"
                             placeholder="在透明文本框中写下旅行故事..."
                           />
-                          {textLayers.map((layer) => {
-                            const active = activeTextLayerId === layer.id
-                            const empty = !layer.value.trim()
-                            if (!active && empty) return null
-                            return (
-                              <div
-                                key={layer.id}
-                                data-text-layer="root"
-                                className={`absolute touch-none ${active ? 'z-[18]' : 'z-[12]'}`}
-                                style={{
-                                  top: `${layer.top}%`,
-                                  left: `${layer.left}%`,
-                                  width: `${layer.width}%`,
-                                  minHeight: `${layer.height}%`,
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {active ? (
-                                  <div
-                                    role="presentation"
-                                    onPointerDown={(e) => onTextLayerDragPointerDown(e, layer.id)}
-                                    onPointerMove={onTextLayerPointerMove}
-                                    onPointerUp={endTextLayerGesture}
-                                    onPointerCancel={endTextLayerGesture}
-                                    className="absolute -top-1 left-0 right-0 h-2 cursor-grab rounded-t active:cursor-grabbing"
-                                  />
-                                ) : null}
-                                <div
-                                  className={`relative h-full w-full ${active ? 'rounded-md ring-1 ring-[color-mix(in_srgb,var(--ds-primary)_35%,transparent)] ring-offset-1' : ''}`}
-                                >
-                                  <textarea
-                                    id={`text-layer-input-${layer.id}`}
-                                    value={layer.value}
-                                    onChange={(e) => {
-                                      updateTextLayer(layer.id, { value: e.target.value })
-                                      autoResizeTextarea(e.target)
-                                    }}
-                                    onFocus={() => {
-                                      setActiveTextLayerId(layer.id)
-                                      setActiveStickerId(null)
-                                    }}
-                                    onBlur={(e) => {
-                                      const next = e.relatedTarget as Node | null
-                                      if (next && e.currentTarget.closest('[data-text-layer]')?.contains(next)) return
-                                      setActiveTextLayerId((cur) => (cur === layer.id ? null : cur))
-                                    }}
-                                    rows={2}
-                                    className={`w-full resize-none overflow-hidden leading-relaxed text-[var(--ds-foreground)] outline-none transition ${
-                                      active
-                                        ? 'min-h-[3.5rem] rounded-md border border-white/45 bg-white/18 p-2 text-[13px]'
-                                        : 'min-h-0 cursor-text border-0 bg-transparent p-0 text-[14px] shadow-none'
-                                    }`}
-                                    placeholder={active ? '写下这一刻…' : ''}
-                                  />
-                                  {active ? (
-                                    <>
-                                      <div
-                                        role="presentation"
-                                        data-text-layer="resize"
-                                        onPointerDown={(e) => onTextLayerResizePointerDown(e, layer.id)}
-                                        onPointerMove={onTextLayerPointerMove}
-                                        onPointerUp={endTextLayerGesture}
-                                        onPointerCancel={endTextLayerGesture}
-                                        className="absolute bottom-0 right-0 h-2.5 w-2.5 translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded-sm border border-[color-mix(in_srgb,var(--ds-primary)_55%,transparent)] bg-white/90"
-                                      />
-                                      <div
-                                        data-text-layer="toolbar"
-                                        className="absolute -bottom-7 left-0 flex items-center gap-1.5"
-                                      >
-                                        <button
-                                          type="button"
-                                          disabled={aiBusy}
-                                          onMouseDown={(e) => e.preventDefault()}
-                                          onClick={() => void runAiForTextLayer(layer.id)}
-                                          className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-2 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm disabled:opacity-50"
-                                        >
-                                          AI 续写
-                                        </button>
-                                        <button
-                                          type="button"
-                                          aria-label="删除文字"
-                                          onMouseDown={(e) => e.preventDefault()}
-                                          onClick={() => {
-                                            setTextLayers((prev) => prev.filter((it) => it.id !== layer.id))
-                                            setActiveTextLayerId(null)
-                                          }}
-                                          className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ds-destructive)]/92 text-[11px] leading-none text-white shadow-sm"
-                                        >
-                                          ×
-                                        </button>
-                                      </div>
-                                    </>
-                                  ) : null}
-                                </div>
-                              </div>
-                            )
-                          })}
                           <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-[var(--ds-muted-foreground)]/80">P.2</div>
                           {pageFlipDir ? (
                             <div
@@ -1197,13 +1207,109 @@ export function DiaryPage() {
                         {snapGuide.y !== null ? (
                           <div className="pointer-events-none absolute left-0 right-0 z-[25] h-px bg-[#5b8da8]/55" style={{ top: `${snapGuide.y}%` }} />
                         ) : null}
+                        {textLayers.map((layer) => {
+                          const active = activeTextLayerId === layer.id
+                          const empty = !layer.value.trim()
+                          if (!active && empty) return null
+                          const boxW = 200 * layer.scale
+                          return (
+                            <div
+                              key={layer.id}
+                              data-text-layer="root"
+                              className="absolute touch-none"
+                              style={{
+                                left: `${layer.left}%`,
+                                top: `${layer.top}%`,
+                                width: boxW,
+                                transform: `translate(-50%, -50%) rotate(${layer.rotate}deg)`,
+                                transformOrigin: 'center',
+                                zIndex: 15 + layer.z,
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className={`relative w-full ${active ? 'ring-1 ring-[color-mix(in_srgb,var(--ds-primary)_35%,transparent)] ring-offset-1' : ''}`}>
+                                {active ? (
+                                  <div
+                                    role="presentation"
+                                    onPointerDown={(e) => onTextLayerDragPointerDown(e, layer.id)}
+                                    className="absolute -top-1 left-0 right-0 h-2 cursor-grab rounded-t active:cursor-grabbing"
+                                  />
+                                ) : null}
+                                <textarea
+                                  id={`text-layer-input-${layer.id}`}
+                                  value={layer.value}
+                                  onChange={(e) => {
+                                    updateTextLayer(layer.id, { value: e.target.value })
+                                    autoResizeTextarea(e.target)
+                                  }}
+                                  onFocus={() => {
+                                    setActiveTextLayerId(layer.id)
+                                    setActiveStickerId(null)
+                                  }}
+                                  onBlur={(e) => {
+                                    const next = e.relatedTarget as Node | null
+                                    if (next && e.currentTarget.closest('[data-text-layer]')?.contains(next)) return
+                                    setActiveTextLayerId((cur) => (cur === layer.id ? null : cur))
+                                  }}
+                                  rows={2}
+                                  className={`w-full resize-none overflow-hidden leading-relaxed text-[var(--ds-foreground)] outline-none ${
+                                    active
+                                      ? 'min-h-[3.5rem] rounded-md border border-white/45 bg-white/18 p-2 text-[13px]'
+                                      : 'cursor-text border-0 bg-transparent p-0 text-[14px] shadow-none'
+                                  }`}
+                                  placeholder={active ? '写下这一刻…' : ''}
+                                />
+                                {active ? (
+                                  <>
+                                    <div className="pointer-events-none absolute left-1/2 top-0 h-5 w-px -translate-x-1/2 -translate-y-full bg-[#4c7d97]/70" />
+                                    <div
+                                      role="presentation"
+                                      onPointerDown={(e) => onTextLayerRotatePointerDown(e, layer.id)}
+                                      className="absolute left-1/2 top-0 h-3.5 w-3.5 -translate-x-1/2 -translate-y-[calc(100%+6px)] cursor-grab rounded-full border-2 border-[var(--ds-primary)] bg-white shadow-sm active:cursor-grabbing"
+                                    />
+                                    <div
+                                      role="presentation"
+                                      data-text-layer="resize"
+                                      onPointerDown={(e) => onTextLayerResizePointerDown(e, layer.id)}
+                                      className="absolute bottom-0 right-0 h-2.5 w-2.5 translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded-sm border border-[color-mix(in_srgb,var(--ds-primary)_55%,transparent)] bg-white/90"
+                                    />
+                                    <div className="absolute -bottom-7 left-0 flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        disabled={aiBusy}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => void runAiForTextLayer(layer.id)}
+                                        className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-2 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm disabled:opacity-50"
+                                      >
+                                        AI 续写
+                                      </button>
+                                      <button
+                                        type="button"
+                                        aria-label="删除文字"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                          setTextLayers((prev) => prev.filter((it) => it.id !== layer.id))
+                                          setActiveTextLayerId(null)
+                                        }}
+                                        className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ds-destructive)]/92 text-[11px] leading-none text-white shadow-sm"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : null}
+                              </div>
+                            </div>
+                          )
+                        })}
                         {stickerLayers.map((sticker) => {
                           const active = sticker.id === activeStickerId
-                          const baseSize = 80
+                          const baseSize = sticker.kind === 'video' ? 120 : 80
                           const box = baseSize * sticker.scale
                           return (
                             <div
                               key={sticker.id}
+                              data-sticker="root"
                               className="absolute touch-none"
                               style={{
                                 left: `${sticker.left}%`,
@@ -1222,12 +1328,13 @@ export function DiaryPage() {
                                 <div
                                   role="presentation"
                                   onPointerDown={(e) => onStickerBodyPointerDown(e, sticker.id)}
-                                  onPointerMove={onSpreadPointerMove}
-                                  onPointerUp={endStickerGesture}
-                                  onPointerCancel={endStickerGesture}
                                   className={`h-full w-full cursor-grab overflow-hidden rounded-md border bg-white/15 p-1 active:cursor-grabbing ${active ? 'border-[var(--ds-primary)]' : 'border-white/70'}`}
                                 >
-                                  <img src={sticker.url} alt="" className="h-full w-full object-contain select-none" draggable={false} />
+                                  {sticker.kind === 'video' ? (
+                                    <video src={sticker.url} className="h-full w-full object-contain" controls draggable={false} />
+                                  ) : (
+                                    <img src={sticker.url} alt="" className="h-full w-full object-contain select-none" draggable={false} />
+                                  )}
                                 </div>
                                 {active ? (
                                   <>
@@ -1235,22 +1342,27 @@ export function DiaryPage() {
                                     <div
                                       role="presentation"
                                       onPointerDown={(e) => onStickerRotatePointerDown(e, sticker.id)}
-                                      onPointerMove={onSpreadPointerMove}
-                                      onPointerUp={endStickerGesture}
-                                      onPointerCancel={endStickerGesture}
                                       className="absolute left-1/2 top-0 h-3.5 w-3.5 -translate-x-1/2 -translate-y-[calc(100%+6px)] cursor-grab rounded-full border-2 border-[var(--ds-primary)] bg-white shadow-sm active:cursor-grabbing"
                                     />
                                     <div
                                       role="presentation"
                                       onPointerDown={(e) => onStickerResizePointerDown(e, sticker.id)}
-                                      onPointerMove={onSpreadPointerMove}
-                                      onPointerUp={endStickerGesture}
-                                      onPointerCancel={endStickerGesture}
                                       className="absolute bottom-0 right-0 h-3 w-3 translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded-sm border-2 border-[var(--ds-primary)] bg-white shadow-sm"
                                     />
+                                    {sticker.kind === 'image' && hasDoubaoKey() ? (
+                                      <button
+                                        type="button"
+                                        disabled={aiBusy}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => void runAiForMediaSticker(sticker.id)}
+                                        className="absolute -bottom-7 left-0 rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-2 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm disabled:opacity-50"
+                                      >
+                                        AI 配文
+                                      </button>
+                                    ) : null}
                                     <button
                                       type="button"
-                                      aria-label="删除贴纸"
+                                      aria-label="删除"
                                       className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ds-destructive)] text-[11px] font-bold leading-none text-white shadow"
                                       onClick={() => {
                                         setStickerLayers((prev) => prev.filter((it) => it.id !== sticker.id))
@@ -1271,12 +1383,8 @@ export function DiaryPage() {
                 </div>
               </div>
 
-              {imageBlocks.length + videoBlocks.length + routeBlocks.length > 0 ? (
+              {routeBlocks.length > 0 ? (
                 <div className="grid h-[5.2rem] grid-cols-4 gap-2 overflow-auto rounded-xl border border-white/70 bg-white/50 p-2">
-                  {imageBlocks.map((block) => <img key={block.id} src={block.assetUrl} alt="" className="h-full w-full rounded-lg object-cover" />)}
-                  {videoBlocks.map((block) => (
-                    <video key={block.id} src={block.assetUrl} className="h-full w-full rounded-lg object-cover" controls />
-                  ))}
                   {routeBlocks.map((block) => <img key={block.id} src={block.imageUrl} alt="路线图" className="h-full w-full rounded-lg object-cover" />)}
                 </div>
               ) : null}
@@ -1426,7 +1534,7 @@ export function DiaryPage() {
               <div className={`row-span-1 overflow-auto p-3 ${panel}`}>
                 <h4 className="text-base font-semibold text-[var(--ds-foreground)]">内页操作</h4>
                 <p className="mt-1 text-[11px] leading-relaxed text-[var(--ds-muted-foreground)]">
-                  双击右页添加文字；点击文字可编辑，拖拽顶部移动、角点缩放。贴纸可跨左右页。
+                  双击页面添加文字；可拖拽、缩放、旋转，左右页均可放置。导入图片/视频后可自由摆放，AI 配文需手动点击。
                 </p>
 
                 {hasGlmKey() ? (
@@ -1526,9 +1634,9 @@ export function DiaryPage() {
                 ) : null}
                 <div className="mt-3">
                   <p className="mb-1.5 text-[10px] font-semibold tracking-wide text-[color-mix(in_srgb,var(--ds-muted-foreground)_75%,transparent)]">上传</p>
-                  <label className="block cursor-pointer rounded-xl border border-dashed border-[color-mix(in_srgb,var(--ds-border)_62%,transparent)] bg-white/60 px-3 py-2.5 text-center text-xs font-semibold text-[var(--ds-foreground)] transition hover:bg-white/80">
-                    选择图片 / 视频
-                    <input type="file" className="hidden" multiple accept="image/*,video/*" onChange={(e) => void onUploadFiles(e.target.files)} />
+                  <label className={`block rounded-xl border border-dashed border-[color-mix(in_srgb,var(--ds-border)_62%,transparent)] bg-white/60 px-3 py-2.5 text-center text-xs font-semibold text-[var(--ds-foreground)] transition ${uploadBusy ? 'cursor-wait opacity-60' : 'cursor-pointer hover:bg-white/80'}`}>
+                    {uploadBusy ? '导入中…' : '选择图片 / 视频'}
+                    <input type="file" className="hidden" multiple accept="image/*,video/*" disabled={uploadBusy} onChange={(e) => void onUploadFiles(e.target.files)} />
                   </label>
                   <p className="mt-1 text-[11px] text-[var(--ds-muted-foreground)]">本次已添加 {uploadedCount} 个内容块</p>
                 </div>

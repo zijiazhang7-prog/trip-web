@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BlurText } from '../effects/BlurText'
 
 const VIDEO_SRC = '/video/beijing.mp4'
+const POSTER_SRC = '/images/recommend-hero-new.png'
 
 type CinematicHeroProps = {
   onStartStory?: () => void
@@ -10,6 +11,8 @@ type CinematicHeroProps = {
 export function CinematicHero({ onStartStory }: CinematicHeroProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const rafRef = useRef(0)
+  const [videoReady, setVideoReady] = useState(false)
+  const [videoFailed, setVideoFailed] = useState(false)
 
   useEffect(() => {
     const video = videoRef.current
@@ -19,11 +22,9 @@ export function CinematicHero({ onStartStory }: CinematicHeroProps) {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
 
     const applyOpacityFromTime = () => {
+      if (!videoReady || videoFailed) return
       const duration = video.duration
-      if (!Number.isFinite(duration) || duration <= 0) {
-        video.style.opacity = '0'
-        return
-      }
+      if (!Number.isFinite(duration) || duration <= 0) return
 
       const t = video.currentTime
       let opacity = 1
@@ -50,31 +51,51 @@ export function CinematicHero({ onStartStory }: CinematicHeroProps) {
       }, 100)
     }
 
-    const onLoadedData = () => {
-      void video.play()
+    const onCanPlay = () => {
+      setVideoFailed(false)
+      setVideoReady(true)
+      video.style.opacity = '1'
+      void video.play().catch(() => setVideoFailed(true))
     }
 
-    video.addEventListener('loadeddata', onLoadedData)
+    const onError = () => {
+      setVideoFailed(true)
+      setVideoReady(false)
+      video.style.opacity = '0'
+    }
+
+    video.addEventListener('canplay', onCanPlay)
     video.addEventListener('ended', onEnded)
+    video.addEventListener('error', onError)
     rafRef.current = requestAnimationFrame(tick)
 
     return () => {
-      video.removeEventListener('loadeddata', onLoadedData)
+      video.removeEventListener('canplay', onCanPlay)
       video.removeEventListener('ended', onEnded)
+      video.removeEventListener('error', onError)
       cancelAnimationFrame(rafRef.current)
       if (timeoutId !== undefined) clearTimeout(timeoutId)
     }
-  }, [])
+  }, [videoReady, videoFailed])
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[var(--ds-forest)] pb-28 md:pb-36">
       <div className="pointer-events-none absolute inset-x-0 top-[280px] bottom-0 z-0 overflow-hidden">
+        <img
+          src={POSTER_SRC}
+          alt=""
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${videoReady && !videoFailed ? 'opacity-0' : 'opacity-90'}`}
+          aria-hidden
+        />
         <video
           ref={videoRef}
-          className="h-full w-full object-cover opacity-90"
+          className="relative h-full w-full object-cover"
           src={VIDEO_SRC}
+          poster={POSTER_SRC}
           muted
           playsInline
+          autoPlay
+          loop
           preload="auto"
           aria-hidden
         />
@@ -83,6 +104,11 @@ export function CinematicHero({ onStartStory }: CinematicHeroProps) {
           className="absolute inset-x-0 bottom-0 h-[min(58%,440px)] bg-[linear-gradient(to_top,var(--ds-cream)_0%,color-mix(in_srgb,var(--ds-forest)_55%,transparent)_55%,transparent_100%)]"
           aria-hidden
         />
+        {videoFailed ? (
+          <p className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/35 px-4 py-1.5 font-body text-[11px] text-white/85">
+            请将 beijing.mp4 放入 public/video/ 目录以启用背景视频
+          </p>
+        ) : null}
       </div>
 
       <div

@@ -25,6 +25,10 @@ export function hasFullAmapSetup(): boolean {
   return hasAmapJsKey() && hasAmapWebKey()
 }
 
+export function hasAmapSecurityCode(): boolean {
+  return Boolean(getAmapSecurityCode())
+}
+
 /** @deprecated 使用 hasAmapJsKey */
 export function hasAmapKey(): boolean {
   return hasAmapJsKey()

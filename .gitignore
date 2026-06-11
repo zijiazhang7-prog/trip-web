@@ -25,3 +25,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 大体积首页视频（本地保留于 public/video/，不入库）
+public/video/*.mp4
+**/4K*.mp4
