@@ -749,5 +749,8 @@ P1
 ## 13. 评论数据结构当前边界
 
 - `destination_comment`、`food_comment`、`diary_comment` 已作为数据层结构落地。
-- 当前不新增独立 Comment 业务模块，也不改变 Destination、Food、Diary 的现有职责。
-- 后续实现评论 API 时，应再更新本文件和 `ADR-003-module-split.md`，确定统一评论服务或分模块实现方案。
+- 已新增 Comment 公共业务模块，外部接口仍分别挂在 Destination、Food、Diary 资源路径下。
+- `CommentService` 统一处理内容校验、分页、当前用户、VO 组装和软删除权限。
+- 三个 `CommentTargetHandler` 分别处理目标可评论条件和三张独立评论表，禁止动态表名。
+- 第一阶段只支持一级评论、时间倒序、发布和软删除，不接入点赞、回复、图片、搜索或热门排序。
+- Comment 不依赖 `IndexEngine`、`CompressionEngine`、`GraphEngine` 或 `RankService`。

@@ -36,6 +36,10 @@
 | `/api/v1/diaries` | POST | 是 | 已登录用户 | JWT | POST 未 permitAll，落入 `.anyRequest().authenticated()` | `SecurityConfig.java`、`DiaryController.java` | 发布日记 |
 | `/api/v1/diaries/{id}/ratings` | POST | 是 | 已登录用户 | JWT | POST 落入 `.anyRequest().authenticated()` | `SecurityConfig.java`、`DiaryController.java` | 提交或更新评分 |
 | `/api/v1/diaries/{id}/ratings/me` | GET | 是 | 已登录用户 | JWT | 专用 authenticated matcher 位于日记公开 GET 规则之前 | `SecurityConfig.java`、`DiaryController.java` | 查询当前用户评分 |
+| `/api/v1/destinations/{id}/comments` | GET/POST | GET 否，POST 是 | 发布为已登录用户 | GET 无 / POST JWT | GET 命中目的地公开规则，POST 落入 authenticated | `SecurityConfig.java`、`DestinationController.java` | 一级评论 |
+| `/api/v1/foods/{id}/comments` | GET/POST | GET 否，POST 是 | 发布为已登录用户 | GET 无 / POST JWT | GET 命中美食公开规则，POST 落入 authenticated | `SecurityConfig.java`、`FoodController.java` | 一级评论 |
+| `/api/v1/diaries/{id}/comments` | GET/POST | GET 否，POST 是 | 发布为已登录用户 | GET 无 / POST JWT | GET 命中日记公开规则，POST 落入 authenticated | `SecurityConfig.java`、`DiaryController.java` | 仅公开启用日记 |
+| `/api/v1/comments/{commentType}/{commentId}` | DELETE | 是 | 评论所有者或 admin | JWT + Service 权限校验 | 未 permitAll，落入 authenticated；Service 校验所有者/管理员 | `SecurityConfig.java`、`CommentController.java`、`CommentServiceImpl.java` | 普通用户置 2，管理员置 0 |
 | `/api/v1/files/upload` | POST | 是 | 已登录用户 | JWT | `requestMatchers(POST, "/api/v1/files/upload").authenticated()` | `SecurityConfig.java`、`FileController.java` | multipart 上传 |
 | `/files/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/files/**").permitAll()` | `SecurityConfig.java`、`FileResourceConfig.java` | 静态访问上传资源 |
 | `/api/v1/admin/**` | 全部 | 是 | admin | JWT + `ROLE_admin` | `requestMatchers("/api/v1/admin/**").hasRole("admin")` | `SecurityConfig.java`、`AdminController.java` | 覆盖管理端维护与导入 |

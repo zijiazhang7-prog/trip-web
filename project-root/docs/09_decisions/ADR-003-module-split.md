@@ -384,3 +384,13 @@
 3. 若 `UserPreference`、Diary 手账基础形态、Route 回顾输入、AI 增强能力的边界发生实质变化，必须更新本文件
 4. 若模块优先级从 P1 / P2 提前到当前主线，应同步更新本文件与 `ADR-002`
 5. 若模块边界变化影响 `module-map.md`、`dependency-map.md`、`api-spec.md` 或测试文档，应同步更新对应文档
+
+---
+
+## 12. 2026-06-11 评论模块边界补充
+
+- 新增 Comment 公共业务模块，但不合并三张评论表。
+- Destination、Food、Diary Controller 保留各自资源路径，对内统一调用 `CommentService`。
+- `CommentService` 通过 `CommentTargetHandler` 分发到三套 Mapper，不接受动态表名。
+- 评论模块只负责一级评论发布、分页展示和软删除，不负责排序算法、搜索、点赞、回复或审核流。
+- 该调整不改变 Destination、Food、Diary 原有主流程，也不改变数据库结构。

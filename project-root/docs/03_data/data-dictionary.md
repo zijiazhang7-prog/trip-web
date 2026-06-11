@@ -314,7 +314,8 @@
 
 **当前边界：**
 - 表结构和演示数据已定义；
-- 评论 API、Entity、Mapper 和 Service 尚未实现；
+- 评论 Entity、三套 Mapper、统一 Service 和三类资源 API 已实现；
+- 第一阶段只发布和展示一级评论，`parent_comment_id` 保留但不接收前端输入；
 - 评论暂不参与热度或评分聚合。
 
 ---

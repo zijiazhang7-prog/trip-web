@@ -36,6 +36,11 @@ public class GlobalExceptionHandler {
                 && "score".equals(fieldError.get().getField())) {
             return ApiResponse.fail(ErrorCode.DIARY_008);
         }
+        if (fieldError.isPresent()
+                && "commentCreateRequest".equals(fieldError.get().getObjectName())
+                && "contentText".equals(fieldError.get().getField())) {
+            return ApiResponse.fail(ErrorCode.COMMENT_003);
+        }
         String message = fieldError
                 .map(error -> error.getField() + " " + error.getDefaultMessage())
                 .orElse(ErrorCode.COMMON_001.getMessage());
@@ -58,11 +63,13 @@ public class GlobalExceptionHandler {
     private HttpStatus statusOf(ErrorCode errorCode) {
         return switch (errorCode) {
             case AUTH_002, AUTH_003, AUTH_004 -> HttpStatus.UNAUTHORIZED;
-            case AUTH_005, AUTH_006, DIARY_011 -> HttpStatus.FORBIDDEN;
+            case AUTH_005, AUTH_006, COMMENT_004, DIARY_011 -> HttpStatus.FORBIDDEN;
             case AUTH_001 -> HttpStatus.CONFLICT;
-            case AUTH_009, COMMON_003, ROUTE_001, ROUTE_002, DIARY_003 -> HttpStatus.NOT_FOUND;
+            case AUTH_009, COMMON_003, ROUTE_001, ROUTE_002, COMMENT_002, DIARY_003 ->
+                HttpStatus.NOT_FOUND;
             case AUTH_010, ROUTE_003, FILE_002, FILE_003, FILE_005,
-                    IMPORT_002, IMPORT_003, IMPORT_004, DIARY_006 -> HttpStatus.UNPROCESSABLE_ENTITY;
+                    IMPORT_002, IMPORT_003, IMPORT_004, COMMENT_001, COMMENT_005, DIARY_006 ->
+                HttpStatus.UNPROCESSABLE_ENTITY;
             default -> HttpStatus.BAD_REQUEST;
         };
     }

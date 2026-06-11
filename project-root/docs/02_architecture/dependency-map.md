@@ -740,4 +740,17 @@ P1
     -> DIARY_TITLE / DIARY_CONTENT 等索引可用
 ```
 
-评论表当前仅依赖对应业务对象表和 `user` 表，不被现有 Service 调用，也不参与推荐、排序或热度聚合。
+评论模块依赖关系：
+
+```text
+Destination / Food / Diary Controller
+    -> CommentService
+    -> CommentTargetHandler
+    -> 对应 CommentMapper
+    -> destination_comment / food_comment / diary_comment
+
+CommentService -> UserMapper（当前用户校验和展示信息组装）
+```
+
+评论不参与推荐、评分、热度聚合，也不依赖 Engine 层。普通用户删除自己的评论时置
+`status=2`，管理员隐藏评论时置 `status=0`。

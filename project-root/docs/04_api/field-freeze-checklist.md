@@ -115,6 +115,19 @@
 | `/api/v1/diaries/search/title` | `title` | query | string | 标题关键词 | 强冻结 | 否 | 否 | 否 | 检索 DTO 已实现 | `DiaryTitleSearchQuery.java` |  |
 | `/api/v1/diaries/search/fulltext` | `keyword` | query | string | 正文关键词 | 强冻结 | 否 | 否 | 否 | 检索 DTO 已实现 | `DiaryFulltextSearchQuery.java` |  |
 
+## 9A. 评论字段
+
+|接口名/路径|字段名|位置|当前类型|当前语义|冻结等级|允许改名|允许改类型|允许改语义|冻结原因|来源证据|风险说明|
+|---|---|---|---|---|---|---|---|---|---|---|---|
+|三类评论发布接口|`contentText`|body|string|一级评论正文，trim 后 1～500 字符|强冻结|否|否|否|请求 DTO 和校验已实现|`CommentCreateRequest.java`|前端不可提交 parent/media 字段代替正文|
+|三类评论列表|`pageNum/pageSize/total/pages/list`|response|分页结构|统一分页结果|强冻结|否|否|否|复用 `PageResultVO`|`PageResultVO.java`|`pageSize` 最大 100|
+|CommentVO|`id`|response|long|评论 ID|强冻结|否|否|否|删除接口依赖|`CommentVO.java`|高风险字段|
+|CommentVO|`targetType`|response|string|`destination/food/diary`|强冻结|否|否|否|统一前端组件区分目标|`CommentTargetType.java`|值域固定为小写|
+|CommentVO|`targetId/userId`|response|long|目标资源 ID / 评论用户 ID|强冻结|否|否|否|资源归属核心字段|`CommentVO.java`|高风险字段|
+|CommentVO|`nickname/avatarUrl`|response|string/null|评论用户展示信息|建议冻结|否|否|否|前端评论展示需要|`CommentVO.java`|用户缺失时当前允许为空|
+|CommentVO|`contentText/createdAt`|response|string/datetime|评论正文和发布时间|强冻结|否|否|否|评论展示核心字段|`CommentVO.java`|时间为后端日期时间序列化格式|
+|评论删除接口|`commentType/commentId`|path|string/long|评论表类型和评论 ID|强冻结|否|否|否|统一删除路由已实现|`CommentController.java`|类型只允许三种固定值|
+
 ## 10. 文件上传字段
 
 | 接口名/路径 | 字段名 | 位置 | 当前类型 | 当前语义 | 冻结等级 | 允许改名 | 允许改类型 | 允许改语义 | 冻结原因 | 来源证据 | 风险说明 |

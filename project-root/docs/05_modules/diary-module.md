@@ -926,5 +926,7 @@ P1 阶段优先做：
 ## 19. 2026-06-08 评论数据与导入后处理
 
 - 新增 `diary_comment` 表结构和演示数据，用于后续日记交流能力。
-- 当前未实现评论 Controller、Service、Mapper、DTO/VO，评论接口仍不属于当前可联调范围。
+- 2026-06-11 已接入统一 `CommentService`，日记评论支持公开分页列表、登录发布和软删除。
+- 日记评论只允许作用于 `status=1`、`visibility=public` 的日记，第一阶段只展示一级评论。
+- 评论模块不调用 IndexEngine、CompressionEngine、GraphEngine 或 RankService。
 - 直接 SQL 导入的日记不会经过 `DiaryService`，因此 `content_compressed` 初始为空；导入后必须由 `CompressionMaintenanceService` 回填，并在应用启动时重建 `DIARY_TITLE`、`DIARY_CONTENT` 索引。

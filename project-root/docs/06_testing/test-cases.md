@@ -404,3 +404,16 @@
 | TC-DATA-004 | Compression | P0 | 导入日记压缩回填 | 正文非空日记压缩字段非空，解压等于原文，失败数为 0 | 待实库执行 |
 | TC-DATA-005 | Index | P0 | 导入后索引重建 | 目的地、美食、日记标题和正文搜索命中新数据 | 待实库执行 |
 | TC-DATA-006 | API | P1 | Facility/Food 新字段返回 | 管理端与用户端响应字段正确，原排序和分页不变 | 单元回归通过，待实库 HTTP 回归 |
+
+## 15. 评论基础版测试
+
+|用例编号|模块|优先级|测试目标|验收标准|当前状态|
+|---|---|---|---|---|---|
+|TC-COMMENT-001|Comment|P1|三类评论发布成功|登录用户可分别发布目的地、美食、公开日记评论|通过：MySQL 8 HTTP 测试|
+|TC-COMMENT-002|Comment|P1|未登录写操作拦截|POST/DELETE 返回 401、`AUTH_003`|通过|
+|TC-COMMENT-003|Comment|P1|评论正文校验|空白或超过 500 字符返回 `COMMENT_003`|通过：单元测试|
+|TC-COMMENT-004|Comment|P1|目标状态校验|禁用目的地、私有/禁用日记和不存在美食不可评论|通过：Handler 单元测试 + 私有日记实库验证|
+|TC-COMMENT-005|Comment|P1|一级评论分页展示|只返回 `parent_comment_id IS NULL`、`status=1`，按时间和 ID 倒序|通过：实库 SQL/HTTP 验证|
+|TC-COMMENT-006|Comment|P1|所有者软删除|普通用户只能删除自己的评论并置 `status=2`|通过：单元测试|
+|TC-COMMENT-007|Comment|P1|越权删除拦截|普通用户删除他人评论返回 403、`COMMENT_004`|通过：MySQL 8 HTTP 测试|
+|TC-COMMENT-008|Comment|P1|管理员隐藏评论|管理员可将任意正常评论置 `status=0`，列表不再展示|通过：MySQL 8 HTTP 测试|

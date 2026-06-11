@@ -1,13 +1,18 @@
 package com.trip.controller;
 
 import com.trip.common.ApiResponse;
+import com.trip.common.CommentTargetType;
+import com.trip.dto.request.CommentCreateRequest;
+import com.trip.dto.request.CommentPageQuery;
 import com.trip.dto.request.DiaryCreateRequest;
 import com.trip.dto.request.DiaryFulltextSearchQuery;
 import com.trip.dto.request.DiaryListQuery;
 import com.trip.dto.request.DiaryRatingRequest;
 import com.trip.dto.request.DiaryTitleSearchQuery;
+import com.trip.service.CommentService;
 import com.trip.service.DiaryRatingService;
 import com.trip.service.DiaryService;
+import com.trip.vo.response.CommentVO;
 import com.trip.vo.response.DiaryCreateResponse;
 import com.trip.vo.response.DiaryRatingVO;
 import com.trip.vo.response.DiaryVO;
@@ -30,10 +35,15 @@ public class DiaryController {
 
     private final DiaryService diaryService;
     private final DiaryRatingService diaryRatingService;
+    private final CommentService commentService;
 
-    public DiaryController(DiaryService diaryService, DiaryRatingService diaryRatingService) {
+    public DiaryController(
+            DiaryService diaryService,
+            DiaryRatingService diaryRatingService,
+            CommentService commentService) {
         this.diaryService = diaryService;
         this.diaryRatingService = diaryRatingService;
+        this.commentService = commentService;
     }
 
     @PostMapping("/api/v1/diaries")
@@ -78,5 +88,21 @@ public class DiaryController {
     @GetMapping("/api/v1/diaries/{id}/ratings/me")
     public ApiResponse<DiaryRatingVO> getMyRating(@PathVariable Long id) {
         return ApiResponse.success(diaryRatingService.getMyRating(id));
+    }
+
+    @GetMapping("/api/v1/diaries/{id}/comments")
+    public ApiResponse<PageResultVO<CommentVO>> comments(
+            @PathVariable Long id,
+            @Valid @ModelAttribute CommentPageQuery query) {
+        return ApiResponse.success(commentService.listComments(CommentTargetType.DIARY, id, query));
+    }
+
+    @PostMapping("/api/v1/diaries/{id}/comments")
+    public ApiResponse<CommentVO> createComment(
+            @PathVariable Long id,
+            @Valid @RequestBody CommentCreateRequest request) {
+        return ApiResponse.success(
+                "created",
+                commentService.createComment(CommentTargetType.DIARY, id, request));
     }
 }

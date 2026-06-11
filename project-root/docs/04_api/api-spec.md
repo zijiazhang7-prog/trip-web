@@ -968,6 +968,59 @@ Authorization: Bearer <token>
 
 ---
 
+## 13.8 景点、美食、日记评论基础版
+
+### 13.8.1 接口
+
+|功能|方法|路径|权限|
+|---|---|---|---|
+|目的地评论列表|GET|`/api/v1/destinations/{destinationId}/comments`|公开|
+|发布目的地评论|POST|`/api/v1/destinations/{destinationId}/comments`|登录用户|
+|美食评论列表|GET|`/api/v1/foods/{foodId}/comments`|公开|
+|发布美食评论|POST|`/api/v1/foods/{foodId}/comments`|登录用户|
+|日记评论列表|GET|`/api/v1/diaries/{diaryId}/comments`|公开|
+|发布日记评论|POST|`/api/v1/diaries/{diaryId}/comments`|登录用户|
+|删除或隐藏评论|DELETE|`/api/v1/comments/{commentType}/{commentId}`|登录用户|
+
+列表参数为 `pageNum`、`pageSize`，默认值分别为 1、10，`pageSize` 最大为 100。列表只返回
+`parent_comment_id IS NULL` 且 `status=1` 的一级评论，按 `created_at DESC, id DESC` 排序。
+
+发布请求：
+
+```json
+{
+  "contentText": "环境很好，适合周末参观。"
+}
+```
+
+`contentText` 会去除首尾空白，不能为空，最大 500 个字符。第一阶段不接收
+`parentCommentId`、`mediaUrl`、点赞或回复字段。
+
+评论响应字段：
+
+```json
+{
+  "id": 1,
+  "targetType": "destination",
+  "targetId": 10,
+  "userId": 3,
+  "nickname": "测试用户",
+  "avatarUrl": null,
+  "contentText": "环境很好，适合周末参观。",
+  "createdAt": "2026-06-11T20:00:00"
+}
+```
+
+业务约束：
+
+- 目的地必须存在且 `status=1`。
+- 美食表当前没有状态字段，因此只校验美食记录存在。
+- 日记必须满足 `status=1`、`visibility=public`。
+- 普通用户只能删除自己的正常评论，删除后置 `status=2`。
+- 管理员可隐藏任意正常评论，隐藏后置 `status=0`。
+- `commentType` 只允许 `destination`、`food`、`diary`。
+- 当前不维护目的地、美食、日记主表的评论数聚合字段。
+
 ## 14. File 接口
 
 ## 14.1 上传图片 / 视频
