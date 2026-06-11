@@ -203,6 +203,9 @@
 |name|varchar(100)|否|是||设施名称|
 |facility_type|varchar(50)|否|是||设施类型，如厕所/食堂/商店|
 |description|text|否|否||设施描述|
+|address|varchar(255)|否|否||设施地址或位置描述|
+|tel|varchar(50)|否|否||联系电话|
+|cover_url|varchar(255)|否|否||封面图地址|
 |lng|decimal(10,6)|否|否||经度|
 |lat|decimal(10,6)|否|否||纬度|
 |status|tinyint|否|否|1|状态|
@@ -280,12 +283,39 @@
 |rating_score|decimal(3,2)|否|否|0|评分|
 |avg_price|decimal(8,2)|否|否||平均价格|
 |cover_url|varchar(255)|否|否||封面图地址|
+|lng|decimal(10,6)|否|否||店铺或窗口经度|
+|lat|decimal(10,6)|否|否||店铺或窗口纬度|
 
 **建议索引：**
 - `destination_id`
 - `name`
 - `food_type`
 - `shop_name`
+
+---
+
+## 5.8A 评论表公共字段
+
+当前已落地 `destination_comment`、`food_comment`、`diary_comment`，分别通过 `destination_id`、`food_id`、`diary_id` 关联业务对象。
+
+|字段名|数据类型|主键|非空|默认值|字段说明|
+|---|---|--:|--:|---|---|
+|id|bigint|是|是||主键|
+|对象外键|bigint|否|是||所属目的地、美食或日记 ID|
+|user_id|bigint|否|是||评论用户 ID|
+|parent_comment_id|bigint|否|否||父评论 ID，顶级评论为空|
+|content_text|text|否|是||评论正文|
+|media_url|varchar(255)|否|否||评论附图地址|
+|like_count|int|否|是|0|点赞数|
+|reply_count|int|否|是|0|回复数|
+|status|tinyint|否|是|1|1 正常、0 隐藏、2 删除/违规|
+|created_at|datetime|否|是|CURRENT_TIMESTAMP|创建时间|
+|updated_at|datetime|否|是|CURRENT_TIMESTAMP|更新时间|
+
+**当前边界：**
+- 表结构和演示数据已定义；
+- 评论 API、Entity、Mapper 和 Service 尚未实现；
+- 评论暂不参与热度或评分聚合。
 
 ---
 
@@ -304,9 +334,10 @@
 |route_history_id|bigint|否|否||关联路线记录 ID，可为空|
 |title|varchar(150)|否|是||日记标题|
 |content_text|longtext|否|是||日记正文|
-|content_compressed|longblob|否|否||压缩内容，扩展字段|
+|content_compressed|longblob|否|否||自描述 Huffman 压缩包；历史数据或压缩降级时可空|
 |heat_score|decimal(5,2)|否|否|0|热度分|
 |rating_score|decimal(3,2)|否|否|0|平均评分|
+|rating_count|int|否|是|0|有效评分人数|
 |visibility|varchar(20)|否|否|public|可见性，如 `public/private`|
 |status|tinyint|否|否|1|状态|
 |created_at|datetime|否|是||创建时间|
@@ -350,11 +381,13 @@
 |id|bigint|是|是||主键|
 |diary_id|bigint|否|是||日记 ID|
 |user_id|bigint|否|是||评分用户 ID|
-|score|int|否|是||评分值|
+|score|tinyint|否|是||评分值，范围 1～5|
 |created_at|datetime|否|是||评分时间|
+|updated_at|datetime|否|是||最近更新时间|
 
 **建议索引：**
 - `(diary_id, user_id)` 唯一索引
+- `user_id`
 
 ---
 

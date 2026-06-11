@@ -16,6 +16,7 @@ public class AdminDiaryVO {
     private String title;
     private BigDecimal heatScore;
     private BigDecimal ratingScore;
+    private Integer ratingCount;
     private String visibility;
     private Integer status;
     private LocalDateTime createdAt;
@@ -30,6 +31,7 @@ public class AdminDiaryVO {
         vo.setTitle(diary.getTitle());
         vo.setHeatScore(diary.getHeatScore());
         vo.setRatingScore(diary.getRatingScore());
+        vo.setRatingCount(diary.getRatingCount());
         vo.setVisibility(diary.getVisibility());
         vo.setStatus(diary.getStatus());
         vo.setCreatedAt(diary.getCreatedAt());
@@ -91,6 +93,14 @@ public class AdminDiaryVO {
 
     public void setRatingScore(BigDecimal ratingScore) {
         this.ratingScore = ratingScore;
+    }
+
+    public Integer getRatingCount() {
+        return ratingCount;
+    }
+
+    public void setRatingCount(Integer ratingCount) {
+        this.ratingCount = ratingCount;
     }
 
     public String getVisibility() {

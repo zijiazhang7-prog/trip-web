@@ -4,9 +4,12 @@ import com.trip.common.ApiResponse;
 import com.trip.dto.request.DiaryCreateRequest;
 import com.trip.dto.request.DiaryFulltextSearchQuery;
 import com.trip.dto.request.DiaryListQuery;
+import com.trip.dto.request.DiaryRatingRequest;
 import com.trip.dto.request.DiaryTitleSearchQuery;
+import com.trip.service.DiaryRatingService;
 import com.trip.service.DiaryService;
 import com.trip.vo.response.DiaryCreateResponse;
+import com.trip.vo.response.DiaryRatingVO;
 import com.trip.vo.response.DiaryVO;
 import com.trip.vo.response.PageResultVO;
 import jakarta.validation.Valid;
@@ -26,9 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class DiaryController {
 
     private final DiaryService diaryService;
+    private final DiaryRatingService diaryRatingService;
 
-    public DiaryController(DiaryService diaryService) {
+    public DiaryController(DiaryService diaryService, DiaryRatingService diaryRatingService) {
         this.diaryService = diaryService;
+        this.diaryRatingService = diaryRatingService;
     }
 
     @PostMapping("/api/v1/diaries")
@@ -61,5 +66,17 @@ public class DiaryController {
     @GetMapping("/api/v1/diaries/search/fulltext")
     public ApiResponse<PageResultVO<DiaryVO>> searchFulltext(@Valid @ModelAttribute DiaryFulltextSearchQuery query) {
         return ApiResponse.success(diaryService.searchFulltext(query));
+    }
+
+    @PostMapping("/api/v1/diaries/{id}/ratings")
+    public ApiResponse<Boolean> rateDiary(
+            @PathVariable Long id,
+            @Valid @RequestBody DiaryRatingRequest request) {
+        return ApiResponse.success(diaryRatingService.rateDiary(id, request));
+    }
+
+    @GetMapping("/api/v1/diaries/{id}/ratings/me")
+    public ApiResponse<DiaryRatingVO> getMyRating(@PathVariable Long id) {
+        return ApiResponse.success(diaryRatingService.getMyRating(id));
     }
 }

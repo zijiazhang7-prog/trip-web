@@ -8,6 +8,9 @@ import com.trip.dto.request.DiaryFulltextSearchQuery;
 import com.trip.dto.request.DiaryListQuery;
 import com.trip.dto.request.DiaryMediaRequest;
 import com.trip.dto.request.DiaryTitleSearchQuery;
+import com.trip.engine.compression.CompressionEngine;
+import com.trip.engine.index.IndexDocument;
+import com.trip.engine.index.IndexNamespace;
 import com.trip.entity.Destination;
 import com.trip.entity.Diary;
 import com.trip.entity.DiaryMedia;
@@ -21,6 +24,7 @@ import com.trip.mapper.RouteHistoryMapper;
 import com.trip.mapper.UserMapper;
 import com.trip.security.JwtClaims;
 import com.trip.service.SearchService;
+import com.trip.service.IndexMaintenanceService;
 import com.trip.service.impl.DiaryServiceImpl;
 import com.trip.vo.response.DiaryCreateResponse;
 import com.trip.vo.response.DiaryVO;
@@ -35,6 +39,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -52,13 +58,17 @@ class DiaryServiceTests {
     private final UserMapper userMapper = mock(UserMapper.class);
     private final RouteHistoryMapper routeHistoryMapper = mock(RouteHistoryMapper.class);
     private final SearchService searchService = mock(SearchService.class);
+    private final IndexMaintenanceService indexMaintenanceService = mock(IndexMaintenanceService.class);
+    private final CompressionEngine compressionEngine = new CompressionEngine();
     private final DiaryServiceImpl diaryService = new DiaryServiceImpl(
             diaryMapper,
             diaryMediaMapper,
             destinationMapper,
             userMapper,
             routeHistoryMapper,
-            searchService);
+            searchService,
+            indexMaintenanceService,
+            compressionEngine);
 
     @AfterEach
     void clearSecurityContext() {
@@ -90,8 +100,13 @@ class DiaryServiceTests {
         assertEquals(9001L, savedDiary.getRouteHistoryId());
         assertEquals("校园散步", savedDiary.getTitle());
         assertEquals("今天去了图书馆。", savedDiary.getContentText());
+        assertNotNull(savedDiary.getContentCompressed());
+        assertEquals(
+                savedDiary.getContentText(),
+                compressionEngine.decompress(savedDiary.getContentCompressed()));
         assertEquals("private", savedDiary.getVisibility());
         assertEquals(BigDecimal.ZERO, savedDiary.getHeatScore());
+        assertEquals(0, savedDiary.getRatingCount());
 
         ArgumentCaptor<DiaryMedia> mediaCaptor = ArgumentCaptor.forClass(DiaryMedia.class);
         verify(diaryMediaMapper).insert(mediaCaptor.capture());
@@ -101,6 +116,63 @@ class DiaryServiceTests {
         assertEquals("/files/diary/20260505/photo.jpg", savedMedia.getFileUrl());
         assertEquals("photo.jpg", savedMedia.getFileName());
         assertEquals(0, savedMedia.getSortNo());
+        verify(indexMaintenanceService).invalidateAfterCommit(IndexNamespace.DIARY_TITLE);
+        verify(indexMaintenanceService).removeAfterCommit(IndexNamespace.DIARY_CONTENT, 4001L);
+    }
+
+    @Test
+    void createPublicDiaryShouldIncrementallyAddContentAfterCommit() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
+        when(routeHistoryMapper.selectById(9001L)).thenReturn(routeHistory(9001L, 7L, 101L));
+        when(diaryMapper.insert(any(Diary.class))).thenAnswer(invocation -> {
+            Diary diary = invocation.getArgument(0);
+            diary.setId(4002L);
+            return 1;
+        });
+        when(diaryMediaMapper.insert(any(DiaryMedia.class))).thenReturn(1);
+        DiaryCreateRequest request = createRequest();
+        request.setVisibility("public");
+
+        diaryService.createDiary(request);
+
+        verify(indexMaintenanceService).invalidateAfterCommit(IndexNamespace.DIARY_TITLE);
+        verify(indexMaintenanceService).upsertAfterCommit(
+                IndexNamespace.DIARY_CONTENT,
+                new IndexDocument(4002L, "今天去了图书馆。"));
+    }
+
+    @Test
+    void createDiaryShouldKeepOriginalTextWhenCompressionFails() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
+        when(routeHistoryMapper.selectById(9001L)).thenReturn(routeHistory(9001L, 7L, 101L));
+        when(diaryMapper.insert(any(Diary.class))).thenAnswer(invocation -> {
+            Diary diary = invocation.getArgument(0);
+            diary.setId(4003L);
+            return 1;
+        });
+        when(diaryMediaMapper.insert(any(DiaryMedia.class))).thenReturn(1);
+        CompressionEngine failingEngine = mock(CompressionEngine.class);
+        when(failingEngine.compress(any(String.class))).thenThrow(new IllegalStateException("test failure"));
+        DiaryServiceImpl service = new DiaryServiceImpl(
+                diaryMapper,
+                diaryMediaMapper,
+                destinationMapper,
+                userMapper,
+                routeHistoryMapper,
+                searchService,
+                indexMaintenanceService,
+                failingEngine);
+
+        service.createDiary(createRequest());
+
+        ArgumentCaptor<Diary> diaryCaptor = ArgumentCaptor.forClass(Diary.class);
+        verify(diaryMapper).insert(diaryCaptor.capture());
+        assertEquals("今天去了图书馆。", diaryCaptor.getValue().getContentText());
+        assertNull(diaryCaptor.getValue().getContentCompressed());
     }
 
     @Test
@@ -328,6 +400,7 @@ class DiaryServiceTests {
         diary.setContentText("正文");
         diary.setHeatScore(heatScore);
         diary.setRatingScore(new BigDecimal("4.50"));
+        diary.setRatingCount(2);
         diary.setVisibility("public");
         diary.setStatus(1);
         diary.setCreatedAt(LocalDateTime.of(2026, 5, 5, 10, 0));

@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.trip.AdminServiceTests
 -------------------------------------------------------------------------------
-Tests run: 23, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.679 s -- in com.trip.AdminServiceTests
+Tests run: 24, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.562 s -- in com.trip.AdminServiceTests

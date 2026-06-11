@@ -15,6 +15,8 @@ import com.trip.dto.request.AdminMapNodeRequest;
 import com.trip.dto.request.AdminPageQuery;
 import com.trip.dto.request.AdminPlaceRequest;
 import com.trip.dto.request.AdminStatusRequest;
+import com.trip.engine.index.IndexDocument;
+import com.trip.engine.index.IndexNamespace;
 import com.trip.entity.Destination;
 import com.trip.entity.Diary;
 import com.trip.entity.Facility;
@@ -38,6 +40,7 @@ import com.trip.mapper.PlaceMapper;
 import com.trip.mapper.UserMapper;
 import com.trip.service.AdminService;
 import com.trip.service.ImportService;
+import com.trip.service.IndexMaintenanceService;
 import com.trip.vo.response.AdminDiaryVO;
 import com.trip.vo.response.AdminDestinationVO;
 import com.trip.vo.response.AdminFacilityVO;
@@ -68,6 +71,7 @@ public class AdminServiceImpl implements AdminService {
     private static final int DEFAULT_PAGE_NUM = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final String VISIBILITY_PUBLIC = "public";
 
     private final DestinationMapper destinationMapper;
     private final PlaceMapper placeMapper;
@@ -80,6 +84,7 @@ public class AdminServiceImpl implements AdminService {
     private final ImportBatchMapper importBatchMapper;
     private final ImportFailureMapper importFailureMapper;
     private final ImportService importService;
+    private final IndexMaintenanceService indexMaintenanceService;
 
     public AdminServiceImpl(
             DestinationMapper destinationMapper,
@@ -92,7 +97,8 @@ public class AdminServiceImpl implements AdminService {
             DiaryMapper diaryMapper,
             ImportBatchMapper importBatchMapper,
             ImportFailureMapper importFailureMapper,
-            ImportService importService) {
+            ImportService importService,
+            IndexMaintenanceService indexMaintenanceService) {
         this.destinationMapper = destinationMapper;
         this.placeMapper = placeMapper;
         this.facilityMapper = facilityMapper;
@@ -104,6 +110,7 @@ public class AdminServiceImpl implements AdminService {
         this.importBatchMapper = importBatchMapper;
         this.importFailureMapper = importFailureMapper;
         this.importService = importService;
+        this.indexMaintenanceService = indexMaintenanceService;
     }
 
     @Override
@@ -140,6 +147,7 @@ public class AdminServiceImpl implements AdminService {
         destination.setStatus(ENABLED_STATUS);
         destination.setCreatedAt(LocalDateTime.now());
         destinationMapper.insert(destination);
+        indexMaintenanceService.invalidate(IndexNamespace.DESTINATION_NAME);
         return AdminDestinationVO.from(destinationMapper.selectById(destination.getId()));
     }
 
@@ -149,6 +157,7 @@ public class AdminServiceImpl implements AdminService {
         Destination destination = requireDestination(id);
         fillDestination(destination, request);
         destinationMapper.updateById(destination);
+        indexMaintenanceService.invalidate(IndexNamespace.DESTINATION_NAME);
         return AdminDestinationVO.from(destinationMapper.selectById(id));
     }
 
@@ -158,6 +167,7 @@ public class AdminServiceImpl implements AdminService {
         Destination destination = requireDestination(id);
         destination.setStatus(DISABLED_STATUS);
         destinationMapper.updateById(destination);
+        indexMaintenanceService.invalidate(IndexNamespace.DESTINATION_NAME);
         return true;
     }
 
@@ -319,6 +329,7 @@ public class AdminServiceImpl implements AdminService {
         Food food = new Food();
         fillFood(food, request);
         foodMapper.insert(food);
+        invalidateFoodIndexes();
         return FoodVO.from(foodMapper.selectById(food.getId()));
     }
 
@@ -329,6 +340,7 @@ public class AdminServiceImpl implements AdminService {
         requireDestination(request.getDestinationId());
         fillFood(food, request);
         foodMapper.updateById(food);
+        invalidateFoodIndexes();
         return FoodVO.from(foodMapper.selectById(id));
     }
 
@@ -336,7 +348,11 @@ public class AdminServiceImpl implements AdminService {
     @Transactional
     public Boolean deleteFood(Long id) {
         requireFood(id);
-        return foodMapper.deleteById(id) > 0;
+        boolean deleted = foodMapper.deleteById(id) > 0;
+        if (deleted) {
+            invalidateFoodIndexes();
+        }
+        return deleted;
     }
 
     @Override
@@ -506,6 +522,15 @@ public class AdminServiceImpl implements AdminService {
         Diary diary = requireDiary(id);
         diary.setStatus(status(request));
         diaryMapper.updateById(diary);
+        indexMaintenanceService.invalidateAfterCommit(IndexNamespace.DIARY_TITLE);
+        if (diary.getStatus() == ENABLED_STATUS
+                && VISIBILITY_PUBLIC.equals(diary.getVisibility())) {
+            indexMaintenanceService.upsertAfterCommit(
+                    IndexNamespace.DIARY_CONTENT,
+                    new IndexDocument(diary.getId(), diary.getContentText()));
+        } else {
+            indexMaintenanceService.removeAfterCommit(IndexNamespace.DIARY_CONTENT, diary.getId());
+        }
         return AdminDiaryVO.from(diaryMapper.selectById(id));
     }
 
@@ -582,6 +607,9 @@ public class AdminServiceImpl implements AdminService {
         facility.setName(normalizeRequired(request.getName()));
         facility.setFacilityType(normalizeRequired(request.getFacilityType()));
         facility.setDescription(normalize(request.getDescription()));
+        facility.setAddress(normalize(request.getAddress()));
+        facility.setTel(normalize(request.getTel()));
+        facility.setCoverUrl(normalize(request.getCoverUrl()));
         facility.setLng(request.getLng());
         facility.setLat(request.getLat());
     }
@@ -612,6 +640,8 @@ public class AdminServiceImpl implements AdminService {
         food.setRatingScore(defaultScore(request.getRatingScore()));
         food.setAvgPrice(request.getAvgPrice());
         food.setCoverUrl(normalize(request.getCoverUrl()));
+        food.setLng(request.getLng());
+        food.setLat(request.getLat());
     }
 
     private void fillMapNode(MapNode node, AdminMapNodeRequest request) {
@@ -792,5 +822,10 @@ public class AdminServiceImpl implements AdminService {
 
     private String normalize(String value) {
         return value == null ? null : value.trim();
+    }
+
+    private void invalidateFoodIndexes() {
+        indexMaintenanceService.invalidate(IndexNamespace.FOOD_NAME);
+        indexMaintenanceService.invalidate(IndexNamespace.FOOD_SHOP_NAME);
     }
 }

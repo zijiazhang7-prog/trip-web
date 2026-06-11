@@ -123,6 +123,7 @@
 | TC-REC-005 | Recommend | P0 | 类型筛选成功 | 数据中同时存在 scenic 和 campus | 1. 调用搜索/推荐接口 2. type=campus | type=campus | 返回结果均为校园类型 | 待填写 | 未执行 | |
 | TC-REC-006 | Recommend | P0 | 无结果时正确返回空列表 | 当前数据中不存在相关关键字 | 1. 调用搜索接口 | keyword=不存在的地方abcxyz | 返回空列表，不报系统异常 | 待填写 | 未执行 | |
 | TC-REC-007 | Recommend | P0 | 已设置偏好时推荐接口可正常返回 | 用户已登录，且已设置偏好 | 1. 设置偏好 2. 调用推荐接口 | preferThemeList=["人文建筑型"] | 推荐接口正常返回，不因偏好存在而报错 | 待填写 | 未执行 | |
+| TC-REC-008 | Recommend / IndexEngine | P1 | 目的地名称索引启用与失效时结果一致 | MySQL 8 可连接，已准备 4 条唯一前缀目的地 | 1. 重建 `DESTINATION_NAME` 2. 请求精确、前缀及第 2 页 3. 失效索引后重复请求 4. 比较完整分页数据 | `sortBy=heat/rating`, `pageSize=2` | 两种状态的列表、顺序、分页字段完全一致 | `IndexEngineDatabaseIntegrationTests` 通过；精确查询、前缀第 1/2 页的 `data` 完全一致 | 通过 | 2026-06-07 MySQL 8 实库 HTTP 回归；临时数据已清理 |
 
 ---
 
@@ -136,13 +137,13 @@
 | TC-ROUTE-004 | Route | P0 | 路径结果与图数据一致 | 已手工验证一组最短路径 | 1. 调用单目标路径接口 2. 对比人工期望结果 | 固定测试图数据 | 返回的路径长度与人工验证一致 | 待填写 | 未执行 | |
 | TC-ROUTE-005 | Route | P0 | 非法节点输入处理正确 | 接口可调用 | 1. 输入不存在的 startNodeId | startNodeId=-1, targetNodeId=110 | 返回参数错误或节点不存在提示 | 待填写 | 未执行 | |
 | TC-ROUTE-006 | Route | P0 | 路线历史查询成功 | 已成功产生至少一条路线历史 | 1. 请求 `/routes/history` | pageNum=1,pageSize=10 | 返回当前用户路线历史列表 | 后端实库预检中已根据 `historyId=7` 查询 `route_history`，确认用户、目的地、策略、交通方式和总距离落库正确 | 通过 | 2026-05-07 本次验证为数据库落库核验，未单独调用历史列表接口；临时数据已清理 |
-| TC-ROUTE-007 | Route | P1 | 多目标路径规划成功 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/multi` 2. 输入多个目标点 | startNodeId=A, targetNodeIds=[B,C], returnToStart=false | 返回拼接后的路径节点、路径边和总距离 | 单元测试通过；实库接口验证通过，临时图数据下 `returnToStart=false` 返回成功，最终路径终点为 C | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
+| TC-ROUTE-007 | Route | P1 | 多目标路径规划成功 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/multi` 2. 输入多个目标点 | startNodeId=A, targetNodeIds=[B,C], returnToStart=false | 返回拼接后的路径节点、路径边和总距离 | 单元测试通过；实库接口验证通过，临时图数据下 `returnToStart=false` 返回成功，最终路径终点为 C；2026-06-03 GraphEngine 抽取后再次验证路径 `A -> B -> C`、总距离 `200.00`，`route_history` 写入成功 | 通过 | 2026-05-07 后端单元测试 + 实库接口验证；2026-06-03 GraphEngine 抽取后实库回归 |
 | TC-ROUTE-008 | Route | P1 | 多目标返回起点处理正确 | 固定测试图数据存在返回边 | 1. 调用多目标接口 2. 设置 returnToStart=true | startNodeId=A, targetNodeIds=[B,C], returnToStart=true | 完成多目标访问后追加返回起点路径 | 单元测试通过；实库接口验证路径为 `A -> B -> C -> A`，总距离 `360.00`，`route_history` 写入并校验通过 | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
 | TC-ROUTE-009 | Route | P1 | 多目标重复目标被拦截 | 接口可调用 | 1. targetNodeIds 传重复节点 | targetNodeIds=[B,B] | 返回参数错误，不进入路径计算 | 单元测试通过；实库接口返回 HTTP 400，错误码 `COMMON_001` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
 | TC-ROUTE-010 | Route | P1 | 多目标目标数量超限被拦截 | 接口可调用 | 1. targetNodeIds 超过 8 个 | targetNodeIds=[2,3,4,5,6,7,8,9,10] | 返回参数错误，不进入路径计算 | `RouteServiceTests.planMultiRouteShouldRejectTooManyTargets` 通过 | 通过 | 2026-05-07 后端单元测试 |
 | TC-ROUTE-011 | Route | P1 | 多目标不可达目标返回合理提示 | 图中存在不可达目标 | 1. 调用多目标路径规划 | startNodeId=A, targetNodeIds=[D]，D 无可达边 | 返回不可达类业务错误，不暴露堆栈 | 单元测试通过；实库接口返回 HTTP 422，错误码 `ROUTE_003` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
-| TC-ROUTE-012 | Route | P1 | 单目标最短距离策略返回距离最优路径 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/single` 2. strategyType=shortest_distance | A->B=100、B->C=100、A->C=300 | 返回距离最短路径 `A -> B -> C`，总距离为 `200.00`，并写入路线历史 | 实库接口返回路径 `A -> B -> C`、总距离 `200.00`、`estimatedTime=3`；`route_history.id=5` 落库，`strategy_type=shortest_distance` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
-| TC-ROUTE-013 | Route | P1 | 单目标最短时间策略返回时间最优路径 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/single` 2. strategyType=shortest_time | A->B->C 总时间 20，A->C 总时间 3 | 返回时间最短路径 `A -> C`，总距离可大于最短距离路径，并写入路线历史 | 实库接口返回路径 `A -> C`、总距离 `300.00`、`estimatedTime=3`；`route_history.id=6` 落库，`strategy_type=shortest_time` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
+| TC-ROUTE-012 | Route | P1 | 单目标最短距离策略返回距离最优路径 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/single` 2. strategyType=shortest_distance | A->B=100、B->C=100、A->C=300 | 返回距离最短路径 `A -> B -> C`，总距离为 `200.00`，并写入路线历史 | 实库接口返回路径 `A -> B -> C`、总距离 `200.00`、`estimatedTime=3`；2026-06-03 GraphEngine 抽取后再次验证 `route_history.strategy_type=shortest_distance`、总距离和预计时间与接口一致 | 通过 | 2026-05-07 后端单元测试 + 实库接口验证；2026-06-03 GraphEngine 抽取后实库回归 |
+| TC-ROUTE-013 | Route | P1 | 单目标最短时间策略返回时间最优路径 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/single` 2. strategyType=shortest_time | A->B->C 总时间 20，A->C 总时间 3 | 返回时间最短路径 `A -> C`，总距离可大于最短距离路径，并写入路线历史 | 实库接口返回路径 `A -> C`、总距离 `300.00`、`estimatedTime=3`；2026-06-03 GraphEngine 抽取后再次验证 `route_history.strategy_type=shortest_time`、总距离和预计时间与接口一致 | 通过 | 2026-05-07 后端单元测试 + 实库接口验证；2026-06-03 GraphEngine 抽取后实库回归 |
 
 ---
 
@@ -150,10 +151,10 @@
 
 | 用例编号 | 模块 | 优先级 | 测试目标 | 前置条件 | 测试步骤 | 测试数据 | 预期结果 | 实际结果 | 状态 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TC-FAC-001 | Facility | P0 | 根据当前位置查询附近设施成功 | 已有设施、节点和边数据 | 1. 调用附近设施接口 2. 输入当前位置和设施类型 | destinationId=1, sourceNodeId=101, facilityType=toilet | 返回厕所类设施列表 | 待填写 | 未执行 | |
+| TC-FAC-001 | Facility | P0 | 根据当前位置查询附近设施成功 | 已有设施、节点和边数据 | 1. 调用附近设施接口 2. 输入当前位置和设施类型 | destinationId=1, sourceNodeId=101, facilityType=toilet | 返回厕所类设施列表 | 2026-06-03 GraphEngine 抽取后实库回归通过：临时设施节点 D 可从 A 到达，`GET /api/v1/facilities/nearby` 返回临时 toilet 设施 | 通过 | 后端实库接口回归；临时数据已清理 |
 | TC-FAC-002 | Facility | P0 | 按设施类型过滤正确 | 当前目的地下存在多类设施 | 1. 调用设施接口 2. type=library | facilityType=library | 返回结果均为图书馆类设施 | 待填写 | 未执行 | |
-| TC-FAC-003 | Facility | P0 | 图上可达距离排序正确 | 已知两处设施的可达距离顺序 | 1. 调用设施接口 2. 对比结果顺序 | sourceNodeId=101, facilityType=shop | 返回结果按图上可达距离升序排列 | 待填写 | 未执行 | 核心验证点 |
-| TC-FAC-004 | Facility | P0 | 无该类设施时返回空列表 | 当前目的地下无某类设施 | 1. 调用设施接口 | facilityType=medical_station | 返回空列表，不报系统异常 | 待填写 | 未执行 | |
+| TC-FAC-003 | Facility | P0 | 图上可达距离排序正确 | 已知两处设施的可达距离顺序 | 1. 调用设施接口 2. 对比结果顺序 | sourceNodeId=101, facilityType=shop | 返回结果按图上可达距离升序排列 | 2026-06-03 GraphEngine 抽取后实库回归通过：返回设施 `reachableDistance=40.00`，来源节点和目标节点与临时图一致 | 通过 | 核心验证点；本次为单设施可达距离核验，排序链路随 `RankService.sortByScore` 执行 |
+| TC-FAC-004 | Facility | P0 | 无该类设施时返回空列表 | 当前目的地下无某类设施 | 1. 调用设施接口 | facilityType=medical_station | 返回空列表，不报系统异常 | 2026-06-03 GraphEngine 抽取后实库回归通过：同一目的地下查询 `medical_station` 返回空列表，接口仍为 `SUCCESS` | 通过 | 后端实库接口回归 |
 | TC-FAC-005 | Facility | P0 | 非法设施类型处理正确 | 接口可调用 | 1. 输入非法 facilityType | facilityType=@@@ | 返回参数错误提示 | 待填写 | 未执行 | |
 
 ---
@@ -170,11 +171,23 @@
 | TC-DIARY-006 | Diary | P0 | 查看日记详情成功 | 已有有效日记 ID | 1. 调用详情接口 | diaryId=2 | 返回完整日记内容和媒体列表 | 详情返回成功，标题与媒体列表正确，媒体数量为 1；2026-05-07 临时日记详情返回成功且媒体数量为 1 | 通过 | 2026-05-05 后端实库联调；2026-05-07 P0 主线后端接口预检 |
 | TC-DIARY-007 | Diary | P0 | 按目的地查看日记成功 | 某目的地下已有样例日记 | 1. 调用按目的地查看接口 | destinationId=1, pageNum=1,pageSize=10, sortBy=latest | 返回该目的地下的日记列表 | 目的地日记列表返回成功，包含 `diaryId=2`；2026-05-07 临时目的地相关日记接口包含本次临时 `diaryId=3` | 通过 | 2026-05-05 后端实库联调；2026-05-07 P0 主线后端接口预检 |
 | TC-DIARY-008 | Diary | P0 | 获取我的日记列表成功 | 用户已登录并发布过日记 | 1. 调用 `/diaries/me` | pageNum=1,pageSize=10 | 返回当前用户的日记分页列表 | 待填写 | 未执行 | |
-| TC-DIARY-009 | Diary | P1 | 日记评分成功 | 用户已登录，存在日记 | 1. 调用评分接口 | diaryId=1, score=5 | 返回评分成功，平均分更新 | 待填写 | 未执行 | |
-| TC-DIARY-010 | Diary | P1 | 同一用户重复评分处理正确 | 已对 diaryId=1 评分 | 1. 再次调用评分接口 | diaryId=1, score=4 | 更新原评分或按规则拦截，结果符合设计 | 待填写 | 未执行 | |
+| TC-DIARY-009 | Diary | P1 | 日记评分成功 | 用户已登录，存在公开启用日记 | 1. 调用评分接口 | diaryId=1, score=5 | 返回评分成功，平均分和评分人数更新 | 单元及 MySQL 实库测试通过 | 通过 | 2026-06-10 |
+| TC-DIARY-010 | Diary | P1 | 同一用户重复评分处理正确 | 已对 diaryId=1 评分 | 1. 再次调用评分接口 | diaryId=1, score=4 | 更新原评分且明细数不增加 | 实库验证重复评分由 5 更新为 3，用户明细仍为 1 条 | 通过 | 2026-06-10 |
 | TC-DIARY-011 | Diary | P1 | 标题查询成功 | 已实现标题查询接口 | 1. 调用标题查询接口 | title=校园 | 返回匹配标题的公开日记分页 | `SearchServiceTests` 覆盖标题查询、空标题、超长标题和分页上限；`DiaryServiceTests` 覆盖 VO 组装 | 通过 | 2026-05-06 后端单元测试 |
 | TC-DIARY-012 | Diary | P1 | 关键词检索成功 | 已实现全文检索接口 | 1. 调用检索接口 | keyword=图书馆, destinationId=101 | 返回正文匹配的公开日记分页 | `SearchServiceTests` 覆盖正文关键词、目的地过滤、空关键词、超长关键词和非法目的地 | 通过 | 2026-05-06 后端单元测试 |
 | TC-DIARY-013 | Diary | P1 | 检索结果排序字段校验 | 已实现标题 / 正文检索接口 | 1. 调用标题检索 sortBy=heat 2. 调用正文检索 sortBy=rating 3. 调用非法 sortBy | title=校园, keyword=图书馆, sortBy=heat/rating/unknown | 合法排序返回分页，非法排序返回参数错误 | `SearchServiceTests` 覆盖标题热度排序、正文评分排序和非法排序字段；`mvn test` 157 个测试通过 | 通过 | 2026-05-07 后端单元测试 |
+| TC-DIARY-014 | Diary / IndexEngine | P1 | 标题索引启用与失效时检索语义一致 | MySQL 8 可连接，已准备精确、前缀和非前缀包含标题 | 1. 重建 `DIARY_TITLE` 2. 请求精确、前缀分页、非前缀包含 3. 失效索引后重复请求 4. 比较完整分页数据 | `sortBy=latest/heat/rating`, `pageSize=2` | 两种状态结果、顺序和分页完全一致；非前缀包含仍由 LIKE 召回 | `IndexEngineDatabaseIntegrationTests` 通过；非前缀标题命中 1 条，索引失效后结果不变 | 通过 | 2026-06-07 MySQL 8 实库 HTTP 回归；临时数据已清理 |
+| TC-DIARY-015 | Diary / IndexEngine | P1 | 正文倒排索引与 LIKE 兜底语义一致 | MySQL 8 可连接，已准备中文、英文、跨目的地正文 | 1. 重建 `DIARY_CONTENT` 2. 验证中文连续子串、英文大小写、目的地过滤和分页 3. 验证索引 MISS 空页 4. 失效索引后重复请求 | `keyword`, `destinationId`, `sortBy=latest/heat/rating` | HIT 使用候选 ID；MISS 返回空页；UNAVAILABLE 使用 LIKE；两种可用路径的响应一致 | 实库 HTTP 回归通过；索引 SQL 使用 `id IN`，失效后使用 `content_text LIKE`，完整分页对象一致 | 通过 | 2026-06-07；临时日记、美食、目的地和用户已清理 |
+| TC-DIARY-016 | Diary / IndexEngine | P1 | 正文索引单文档新增、替换和删除 | 已构建 `DIARY_CONTENT` | 1. upsert 新文档 2. 同 ID 替换正文 3. remove 文档 4. 查询新旧关键词 | 中文、英文大小写、Emoji | 新增后 HIT；替换后旧词 MISS、新词 HIT；删除后 MISS；Unicode 位置正确 | `IndexEngineTests` 通过 | 通过 | 2026-06-07 单元测试 |
+| TC-DIARY-017 | Diary / IndexEngine | P1 | 增量维护遵守事务提交边界 | 已构建 `DIARY_CONTENT` | 1. 事务内注册更新 2. 提交前查询 3. 触发提交 4. 模拟回滚 | 同 ID 新旧正文 | 提交前旧快照不变；提交后新正文生效；回滚不修改索引 | `IndexMaintenanceServiceTests` 通过 | 通过 | 2026-06-07 单元测试 |
+| TC-DIARY-018 | Diary / IndexEngine | P1 | 日记可见性和状态驱动正文索引维护 | 日记写服务可用 | 1. 发布公开日记 2. 发布私有日记 3. 管理员禁用 4. 管理员重新启用公开日记 | `visibility=public/private`, `status=0/1` | 公开启用执行 upsert；私有或禁用执行 remove；标题在提交后失效 | `DiaryServiceTests`、`AdminServiceTests` 通过 | 通过 | 2026-06-07 单元测试 |
+| TC-DIARY-019 | Diary / CompressionEngine | P1 | Huffman 压缩可无损还原多语言正文 | CompressionEngine 可用 | 1. 压缩正文 2. 解压二进制包 3. 比较原文 | ASCII、中文、Emoji、辅助平面 Unicode | 解压结果逐码点等于原文，长度和 CRC32 校验通过 | `CompressionEngineTests` 通过 | 通过 | 2026-06-07 单元测试 |
+| TC-DIARY-020 | Diary / CompressionEngine | P1 | Huffman 边界和损坏数据处理正确 | CompressionEngine 可用 | 1. 测试空文本和单字符文本 2. 测试 10000 字正文 3. 修改 magic/version/CRC 或截断数据 | 空文本、重复字符、最大日记长度、损坏压缩包 | 合法数据可还原；损坏数据被拒绝；重复压缩结果稳定 | `CompressionEngineTests` 通过 | 通过 | 2026-06-07 单元测试 |
+| TC-DIARY-021 | Diary / CompressionEngine | P1 | 日记发布保存压缩副本且压缩故障可降级 | 用户、目的地和发布服务可用 | 1. 发布正常日记 2. 捕获入库实体 3. 解压 `contentCompressed` 4. 模拟压缩异常后再次发布 | `contentText=今天去了图书馆。` | 正常时原文与压缩包同时保存；异常时原文仍保存、压缩字段为空 | `DiaryServiceTests` 通过 | 通过 | 2026-06-07 单元测试 |
+| TC-DIARY-022 | Diary / CompressionEngine | P1 | 历史日记按主键游标分批回填 | 存在正文非空且压缩字段为空的历史日记 | 1. 配置批大小 2. 执行维护服务 3. 检查游标和条件更新 | 两批历史日记 | 不遗漏、不重复；仅更新压缩字段为空且正文未变化的数据 | 单元测试通过；MySQL 8 以批大小 2 扫描 3 条并回填 3 条，失败 0 | 通过 | 2026-06-07 单元测试及实库验证 |
+| TC-DIARY-023 | Diary / CompressionEngine | P1 | 已有压缩包完整性校验与修复 | 开启 `verify-existing` | 1. 准备正常、损坏、内容不一致压缩包 2. 执行维护 | 正常包、非法字节、旧正文压缩包 | 正常包只统计；损坏和不一致数据从原文重新压缩 | 单元测试覆盖修复分支；实库二次扫描 3 条，校验通过 3 条、修复 0、失败 0 | 通过 | 2026-06-07 单元测试及实库验证 |
+| TC-DIARY-024 | Diary / CompressionEngine | P1 | 单条维护失败不阻塞后续记录 | 批次内同时存在异常和正常日记 | 1. 模拟首条压缩异常 2. 执行维护 3. 检查后续更新和统计 | 失败正文、正常正文 | 失败计数增加；后续记录仍成功回填；日志不记录正文 | `CompressionMaintenanceServiceTests` 通过 | 通过 | 2026-06-07 单元测试 |
+| TC-DIARY-025 | Diary / CompressionEngine | P1 | 压缩维护后全量回归 | MySQL 8 可连接，默认未开启启动回填 | 1. 执行 `mvn -q test` 2. 汇总 Surefire 报告 | 全部后端测试 | 原有接口、索引和日记行为不变 | 25 个测试套件、198 个测试，0 失败、0 错误、0 跳过 | 通过 | 2026-06-07 后端全量测试 |
 
 ---
 
@@ -197,6 +210,7 @@
 | TC-FOOD-002 | Food | P1 | 按菜系过滤正确 | 存在多种 foodType | 1. 调用美食接口 2. foodType=川菜 | destinationId=1, foodType=面食 | 返回结果均为指定菜系 | `GET /foods/recommend?destinationId=1&foodType=面食&sortBy=rating&topK=5` 返回 `SUCCESS`，仅返回面食测试数据 | 通过 | 2026-05-05 后端实库接口验证 |
 | TC-FOOD-003 | Food | P1 | 按评分排序正确 | 样例美食评分值已知 | 1. 调用美食接口 2. sortBy=rating | sortBy=rating | 结果按评分降序排列 | 面食评分排序返回番茄面、牛肉面，顺序符合评分值 | 通过 | 2026-05-05 后端实库接口验证 |
 | TC-FOOD-004 | Food | P1 | 美食名称模糊查询成功 | 存在名称中含“面”的数据 | 1. 调用接口 2. keyword=面 | keyword=面 | 返回名称或描述匹配结果 | `GET /foods/search?destinationId=1&keyword=面&sortBy=rating` 返回 `SUCCESS`，包含两条面食测试数据 | 通过 | 2026-05-05 后端实库接口验证 |
+| TC-FOOD-005 | Food / IndexEngine | P1 | 美食名称和店铺名索引启用与失效时结果一致 | MySQL 8 可连接，同一目的地下已准备 4 条美食 | 1. 重建名称和店铺名索引 2. 请求名称前缀第 1/2 页和店铺名精确查询 3. 失效索引后重复请求 4. 比较完整分页数据 | `sortBy=heat/rating`, `pageSize=2` | 两种状态的列表、顺序、分页字段完全一致 | `IndexEngineDatabaseIntegrationTests` 通过；名称分页和店铺名精确查询的 `data` 完全一致 | 通过 | 2026-06-07 MySQL 8 实库 HTTP 回归；临时数据已清理 |
 
 说明：Food 基础版进入开发后，优先以后端接口和 Service 测试执行 `TC-FOOD-001 ~ TC-FOOD-004`；前端美食页联调不在当前可执行范围内。
 
@@ -271,7 +285,7 @@
 
 ### 8.2 Diary 增强
 - 全文检索
-- 压缩存储
+- 压缩存储（Huffman 编解码、发布写入、历史回填与校验修复已完成）
 - 路线回顾页
 - AI 生成草稿
 
@@ -302,6 +316,7 @@
 | REG-005 | 文件上传逻辑修改 | 上传与日记发布相关用例 |
 | REG-006 | 日记表或媒体逻辑修改 | Diary 发布 / 列表 / 详情 / 评分相关用例 |
 | REG-007 | 权限逻辑修改 | Auth + Admin + Security 相关用例 |
+| REG-008 | IndexEngine、QueryService 或 SearchService 索引调度修改 | 目的地搜索 + 美食搜索 + 日记标题检索 + 日记正文全文检索 |
 
 ---
 
@@ -378,3 +393,14 @@
 6. Food、Admin、Import、AI 等模块正式进入测试执行范围时；
 7. 新增高优先级缺陷后需要补回归用例时；
 8. 验收前需要收敛为最终执行版测试用例集时。
+
+## 14. 演示数据导入前变更测试
+
+| 用例编号 | 模块 | 优先级 | 测试目标 | 验收标准 | 当前状态 |
+|---|---|---|---|---|---|
+| TC-DATA-001 | Schema | P0 | 现有库重复执行迁移 | 新字段和评论表存在，重复执行不报重复列/表错误 | 通过：迁移连续执行两次成功 |
+| TC-DATA-002 | Import | P0 | 新旧 Facility/Food 模板兼容 | 新字段可导入，旧模板缺少可选字段仍成功 | 通过：相关单测及全量回归通过 |
+| TC-DATA-003 | Demo Data | P0 | 保留现有用户并幂等导入 | 不修改旧用户；演示用户、偏好、日记、评论无重复 | 待实库执行 |
+| TC-DATA-004 | Compression | P0 | 导入日记压缩回填 | 正文非空日记压缩字段非空，解压等于原文，失败数为 0 | 待实库执行 |
+| TC-DATA-005 | Index | P0 | 导入后索引重建 | 目的地、美食、日记标题和正文搜索命中新数据 | 待实库执行 |
+| TC-DATA-006 | API | P1 | Facility/Food 新字段返回 | 管理端与用户端响应字段正确，原排序和分页不变 | 单元回归通过，待实库 HTTP 回归 |

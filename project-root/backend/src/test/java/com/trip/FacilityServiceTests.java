@@ -61,6 +61,9 @@ class FacilityServiceTests {
         assertEquals(new BigDecimal("120.00"), result.getList().get(0).getReachableDistance());
         assertEquals(10L, result.getList().get(0).getSourceNodeId());
         assertEquals(202L, result.getList().get(0).getTargetNodeId());
+        assertEquals("校园服务点", result.getList().get(0).getAddress());
+        assertEquals("010-12345678", result.getList().get(0).getTel());
+        assertEquals("/files/facility/2.jpg", result.getList().get(0).getCoverUrl());
     }
 
     @Test
@@ -182,6 +185,9 @@ class FacilityServiceTests {
         facility.setName(name);
         facility.setFacilityType(facilityType);
         facility.setDescription("测试设施");
+        facility.setAddress("校园服务点");
+        facility.setTel("010-12345678");
+        facility.setCoverUrl("/files/facility/" + id + ".jpg");
         facility.setLng(new BigDecimal("116.123456"));
         facility.setLat(new BigDecimal("40.123456"));
         facility.setStatus(1);

@@ -64,7 +64,8 @@
 ├─ SearchService
 ├─ FileService
 ├─ AIService
-└─ ImportService
+├─ ImportService
+└─ 算法引擎层（GraphEngine / IndexEngine / CompressionEngine，逐步抽取）
 
 第 3 层：核心业务模块
 ├─ Auth
@@ -114,6 +115,10 @@
 [FileService] ────────────────┼──→ [Diary 发布 / 手账基础形态]  
 [ImportService] ──────────────┼──→ [Admin / 数据初始化]  
 [AIService] ──────────────────┘ [创新功能扩展]  
+
+[IndexEngine] ────────────────→ [QueryService / SearchService]
+[GraphEngine] ────────────────→ [MapService]
+[CompressionEngine] ──────────→ [Diary 压缩增强]
   
 [Auth] ─────────→ [Diary]  
 [Auth] ─────────→ [Admin]  
@@ -168,6 +173,9 @@
 | SearchService    | 全文 / 模糊检索         | 索引能力、文本数据                                                                                                        | Diary 检索增强                         | P1      |
 | ImportService    | 导入与初始化            | ImportEngine、MySQL、文件存储                                                                                          | Admin、数据准备                         | P1      |
 | AIService        | AI 扩展能力           | 外部 AI 能力、基础主线模块、统一输入输出定义                                                                                         | Diary 增强、Recommend 增强、创新功能         | P2      |
+| IndexEngine      | Hash / Trie / 倒排索引等检索结构 | 基础数据快照、索引构建触发点                                                                                                  | QueryService、SearchService          | P1      |
+| GraphEngine      | 图结构、Dijkstra、单源最短路、路径回溯 | MapService 转换后的节点和边                                                                                                | MapService                           | P1      |
+| CompressionEngine | Huffman 无损压缩与还原     | 日记文本、已有 `diary.content_compressed` 字段                                                                                | Diary 压缩增强                         | P1 |
 | Auth             | 注册、登录、当前用户        | User 表、Security                                                                                                  | UserPreference、Diary、Admin         | P0      |
 | UserPreference   | 偏好标签、自由偏好描述       | Auth、用户偏好表                                                                                                       | Recommend、AIService                | P0 / P1 |
 | Recommend        | 推荐、搜索、筛选          | QueryService、RankService、UserPreference                                                                          | 首页、推荐页、目的地详情                       | P0      |
@@ -381,6 +389,10 @@ AI 日记草稿、图片摘要、手账增强作为 P2 能力后接，不阻塞�
 - Mapper
 - 必要的索引能力
 
+### 后续重构方向
+
+QueryService 后续应优先调用 `IndexEngine` 进行 Hash 精确查找或 Trie 前缀匹配；当索引未构建、未命中或查询条件超出索引能力时，回退到 Mapper 条件查询。
+
 ### 开发优先级
 
 P0
@@ -415,6 +427,10 @@ P0
 - MapNode / MapEdge
 - GraphEngine
 
+### 后续重构方向
+
+MapService 目标上作为地图公共能力门面，负责加载 `map_node` / `map_edge`、选择距离或时间策略、调用 `GraphEngine` 并转换业务结果；邻接表、Dijkstra、单源最短路和路径回溯逐步下沉到 `GraphEngine`。
+
 ### 开发优先级
 
 P0
@@ -436,9 +452,78 @@ P0
 - 文本数据
 - 索引能力
 
+### 后续重构方向
+
+SearchService 当前已优先通过 `IndexEngine` 召回候选 ID，再由 Mapper 查询对象并完成过滤、排序和分页。日记正文倒排索引命中时使用候选 ID，已构建但未命中时返回空分页，索引不可用时继续使用 Mapper `LIKE` 兜底。
+
 ### 开发优先级
 
 P1
+
+---
+
+## 7.4A IndexEngine
+
+### 作用
+
+提供 Hash 精确查找、Trie 前缀匹配和日记正文字符位置倒排索引能力，支撑 QueryService 与 SearchService。
+
+### 前置依赖
+
+- 可用于构建索引的业务数据快照
+- 索引构建和刷新触发点
+- Mapper 兜底查询能力
+
+### 开发优先级
+
+P1
+
+### 当前状态说明
+
+当前已实现名称/标题 Hash 与 Trie、日记正文字符位置倒排索引，以及 `DIARY_CONTENT` 单文档增量维护。`QueryService` / `SearchService` 负责调度，Mapper 继续承担结构化过滤、排序、分页与索引不可用时的 `LIKE` 兜底。日记正文索引仅在事务提交后更新，维护失败时 namespace 失效。
+
+---
+
+## 7.4B GraphEngine
+
+### 作用
+
+提供纯图结构与图算法能力，支撑 MapService 的路线规划和设施可达距离计算。
+
+### 前置依赖
+
+- MapService 提供的节点、边和边权策略输入
+- 非负权有向图数据
+
+### 开发优先级
+
+P1
+
+### 当前状态说明
+
+当前图算法主要仍在 `MapServiceImpl` 中，后续应在不改变 Route / Facility 接口契约的前提下逐步抽取。
+
+---
+
+## 7.4C CompressionEngine
+
+### 作用
+
+提供基于 Huffman 编码的日记正文无损压缩与还原能力。
+
+### 前置依赖
+
+- 日记正文数据
+- 后续压缩结果表结构
+- 压缩和还原一致性测试
+
+### 开发优先级
+
+P1 / P2
+
+### 当前状态说明
+
+第一阶段已实现。日记发布时调用 `CompressionEngine`，将自描述 Huffman 压缩包写入已有 `diary.content_compressed`；`diary.content_text` 原文和现有接口语义保持不变。
 
 ---
 
@@ -644,3 +729,15 @@ P1
 7. Diary 正式承接手账基础形态时
 8. AIService 正式接入外部模型 API 时
 9. 外部地图 API 正式接入并影响 Route / MapService 边界时
+
+## 13. 演示数据导入后处理依赖
+
+```text
+直接 SQL 导入 diary
+    -> CompressionMaintenanceService 回填 content_compressed
+    -> 应用启动
+    -> IndexMaintenanceService.rebuildAll()
+    -> DIARY_TITLE / DIARY_CONTENT 等索引可用
+```
+
+评论表当前仅依赖对应业务对象表和 `user` 表，不被现有 Service 调用，也不参与推荐、排序或热度聚合。

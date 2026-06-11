@@ -1,6 +1,7 @@
 package com.trip.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.math.BigDecimal;
@@ -22,11 +23,14 @@ public class Diary {
 
     private String contentText;
 
+    @TableField(select = false)
     private byte[] contentCompressed;
 
     private BigDecimal heatScore;
 
     private BigDecimal ratingScore;
+
+    private Integer ratingCount;
 
     private String visibility;
 
@@ -106,6 +110,14 @@ public class Diary {
 
     public void setRatingScore(BigDecimal ratingScore) {
         this.ratingScore = ratingScore;
+    }
+
+    public Integer getRatingCount() {
+        return ratingCount;
+    }
+
+    public void setRatingCount(Integer ratingCount) {
+        this.ratingCount = ratingCount;
     }
 
     public String getVisibility() {

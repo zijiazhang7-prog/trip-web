@@ -8,6 +8,9 @@ import com.trip.dto.query.DestinationQuery;
 import com.trip.dto.query.FacilityQuery;
 import com.trip.dto.query.FoodQuery;
 import com.trip.dto.query.PlaceQuery;
+import com.trip.engine.index.IndexEngine;
+import com.trip.engine.index.IndexNamespace;
+import com.trip.engine.index.IndexSearchResult;
 import com.trip.entity.Destination;
 import com.trip.entity.Facility;
 import com.trip.entity.Food;
@@ -18,7 +21,9 @@ import com.trip.mapper.FacilityMapper;
 import com.trip.mapper.FoodMapper;
 import com.trip.mapper.PlaceMapper;
 import com.trip.service.QueryService;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -29,17 +34,21 @@ public class QueryServiceImpl implements QueryService {
     private static final int DEFAULT_PAGE_NUM = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_INDEX_CANDIDATES = 1000;
 
+    private final IndexEngine indexEngine;
     private final DestinationMapper destinationMapper;
     private final PlaceMapper placeMapper;
     private final FacilityMapper facilityMapper;
     private final FoodMapper foodMapper;
 
     public QueryServiceImpl(
+            IndexEngine indexEngine,
             DestinationMapper destinationMapper,
             PlaceMapper placeMapper,
             FacilityMapper facilityMapper,
             FoodMapper foodMapper) {
+        this.indexEngine = indexEngine;
         this.destinationMapper = destinationMapper;
         this.placeMapper = placeMapper;
         this.facilityMapper = facilityMapper;
@@ -54,13 +63,19 @@ public class QueryServiceImpl implements QueryService {
 
         String keyword = normalize(safeQuery.getKeyword());
         if (StringUtils.hasText(keyword)) {
-            wrapper.and(item -> item.like(Destination::getName, keyword)
-                    .or()
-                    .like(Destination::getCategory, keyword)
-                    .or()
-                    .like(Destination::getCity, keyword)
-                    .or()
-                    .like(Destination::getDescription, keyword));
+            Set<Long> indexedIds = indexedTextCandidates(IndexNamespace.DESTINATION_NAME, keyword);
+            wrapper.and(item -> {
+                if (!indexedIds.isEmpty()) {
+                    item.in(Destination::getId, indexedIds).or();
+                }
+                item.like(Destination::getName, keyword)
+                        .or()
+                        .like(Destination::getCategory, keyword)
+                        .or()
+                        .like(Destination::getCity, keyword)
+                        .or()
+                        .like(Destination::getDescription, keyword);
+            });
         }
 
         String type = normalize(safeQuery.getType());
@@ -159,13 +174,21 @@ public class QueryServiceImpl implements QueryService {
 
         String keyword = normalize(query.getKeyword());
         if (StringUtils.hasText(keyword)) {
-            wrapper.and(item -> item.like(Food::getName, keyword)
-                    .or()
-                    .like(Food::getFoodType, keyword)
-                    .or()
-                    .like(Food::getShopName, keyword)
-                    .or()
-                    .like(Food::getDescription, keyword));
+            Set<Long> indexedIds = new LinkedHashSet<>();
+            indexedIds.addAll(indexedTextCandidates(IndexNamespace.FOOD_NAME, keyword));
+            indexedIds.addAll(indexedTextCandidates(IndexNamespace.FOOD_SHOP_NAME, keyword));
+            wrapper.and(item -> {
+                if (!indexedIds.isEmpty()) {
+                    item.in(Food::getId, indexedIds).or();
+                }
+                item.like(Food::getName, keyword)
+                        .or()
+                        .like(Food::getFoodType, keyword)
+                        .or()
+                        .like(Food::getShopName, keyword)
+                        .or()
+                        .like(Food::getDescription, keyword);
+            });
         }
         wrapper.orderByAsc(Food::getId);
         return foodMapper.selectList(wrapper);
@@ -187,5 +210,18 @@ public class QueryServiceImpl implements QueryService {
 
     private String normalize(String value) {
         return value == null ? null : value.trim();
+    }
+
+    private Set<Long> indexedTextCandidates(IndexNamespace namespace, String keyword) {
+        Set<Long> ids = new LinkedHashSet<>();
+        IndexSearchResult exactResult = indexEngine.findExact(namespace, keyword);
+        if (exactResult.isAvailable()) {
+            ids.addAll(exactResult.ids());
+        }
+        IndexSearchResult prefixResult = indexEngine.findByPrefix(namespace, keyword, MAX_INDEX_CANDIDATES);
+        if (prefixResult.isAvailable()) {
+            ids.addAll(prefixResult.ids());
+        }
+        return ids;
     }
 }

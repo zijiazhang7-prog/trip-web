@@ -90,6 +90,9 @@ CREATE TABLE IF NOT EXISTS `facility` (
   `name` VARCHAR(100) NOT NULL COMMENT '设施名称',
   `facility_type` VARCHAR(50) NOT NULL COMMENT '设施类型，如厕所/食堂/商店',
   `description` TEXT NULL COMMENT '设施描述',
+  `address` VARCHAR(255) NULL COMMENT '设施地址或位置描述',
+  `tel` VARCHAR(50) NULL COMMENT '联系电话',
+  `cover_url` VARCHAR(255) NULL COMMENT '封面图地址',
   `lng` DECIMAL(10,6) NULL COMMENT '经度',
   `lat` DECIMAL(10,6) NULL COMMENT '纬度',
   `status` TINYINT NULL DEFAULT 1 COMMENT '状态',
@@ -193,6 +196,7 @@ CREATE TABLE IF NOT EXISTS `diary` (
   `content_compressed` LONGBLOB NULL COMMENT '压缩内容，扩展字段',
   `heat_score` DECIMAL(5,2) NULL DEFAULT 0 COMMENT '热度分',
   `rating_score` DECIMAL(3,2) NULL DEFAULT 0 COMMENT '平均评分',
+  `rating_count` INT NOT NULL DEFAULT 0 COMMENT '评分人数',
   `visibility` VARCHAR(20) NULL DEFAULT 'public' COMMENT '可见性，如 public/private',
   `status` TINYINT NULL DEFAULT 1 COMMENT '状态',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -227,3 +231,59 @@ CREATE TABLE IF NOT EXISTS `diary_media` (
     FOREIGN KEY (`diary_id`) REFERENCES `diary` (`id`)
     ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='日记媒体表';
+
+CREATE TABLE IF NOT EXISTS `destination_comment` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `destination_id` BIGINT NOT NULL COMMENT '所属目的地 ID',
+  `user_id` BIGINT NOT NULL COMMENT '评论用户 ID',
+  `parent_comment_id` BIGINT NULL COMMENT '父评论 ID，顶级评论为空',
+  `content_text` TEXT NOT NULL COMMENT '评论正文',
+  `media_url` VARCHAR(255) NULL COMMENT '评论附图地址',
+  `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数',
+  `reply_count` INT NOT NULL DEFAULT 0 COMMENT '回复数',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态，1 正常，0 隐藏，2 删除/违规',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_destination_comment_destination_id` (`destination_id`),
+  KEY `idx_destination_comment_user_id` (`user_id`),
+  KEY `idx_destination_comment_parent_id` (`parent_comment_id`),
+  KEY `idx_destination_comment_status_created` (`destination_id`, `status`, `created_at`),
+  CONSTRAINT `fk_destination_comment_destination`
+    FOREIGN KEY (`destination_id`) REFERENCES `destination` (`id`)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_destination_comment_user`
+    FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_destination_comment_parent`
+    FOREIGN KEY (`parent_comment_id`) REFERENCES `destination_comment` (`id`)
+    ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='目的地评论表';
+
+CREATE TABLE IF NOT EXISTS `diary_comment` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `diary_id` BIGINT NOT NULL COMMENT '所属日记 ID',
+  `user_id` BIGINT NOT NULL COMMENT '评论用户 ID',
+  `parent_comment_id` BIGINT NULL COMMENT '父评论 ID，顶级评论为空',
+  `content_text` TEXT NOT NULL COMMENT '评论正文',
+  `media_url` VARCHAR(255) NULL COMMENT '评论附图地址',
+  `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数',
+  `reply_count` INT NOT NULL DEFAULT 0 COMMENT '回复数',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态，1 正常，0 隐藏，2 删除/违规',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_diary_comment_diary_id` (`diary_id`),
+  KEY `idx_diary_comment_user_id` (`user_id`),
+  KEY `idx_diary_comment_parent_id` (`parent_comment_id`),
+  KEY `idx_diary_comment_status_created` (`diary_id`, `status`, `created_at`),
+  CONSTRAINT `fk_diary_comment_diary`
+    FOREIGN KEY (`diary_id`) REFERENCES `diary` (`id`)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_diary_comment_user`
+    FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_diary_comment_parent`
+    FOREIGN KEY (`parent_comment_id`) REFERENCES `diary_comment` (`id`)
+    ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='日记评论表';

@@ -31,6 +31,10 @@ public class Food {
 
     private String coverUrl;
 
+    private BigDecimal lng;
+
+    private BigDecimal lat;
+
     public Long getId() {
         return id;
     }
@@ -117,5 +121,21 @@ public class Food {
 
     public void setCoverUrl(String coverUrl) {
         this.coverUrl = coverUrl;
+    }
+
+    public BigDecimal getLng() {
+        return lng;
+    }
+
+    public void setLng(BigDecimal lng) {
+        this.lng = lng;
+    }
+
+    public BigDecimal getLat() {
+        return lat;
+    }
+
+    public void setLat(BigDecimal lat) {
+        this.lat = lat;
     }
 }

@@ -48,6 +48,14 @@ public class AdminFoodRequest {
     @Size(max = 255)
     private String coverUrl;
 
+    @DecimalMin("-180.000000")
+    @DecimalMax("180.000000")
+    private BigDecimal lng;
+
+    @DecimalMin("-90.000000")
+    @DecimalMax("90.000000")
+    private BigDecimal lat;
+
     public Long getDestinationId() {
         return destinationId;
     }
@@ -126,5 +134,21 @@ public class AdminFoodRequest {
 
     public void setCoverUrl(String coverUrl) {
         this.coverUrl = coverUrl;
+    }
+
+    public BigDecimal getLng() {
+        return lng;
+    }
+
+    public void setLng(BigDecimal lng) {
+        this.lng = lng;
+    }
+
+    public BigDecimal getLat() {
+        return lat;
+    }
+
+    public void setLat(BigDecimal lat) {
+        this.lat = lat;
     }
 }

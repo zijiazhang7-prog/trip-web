@@ -45,6 +45,8 @@ class FoodServiceTests {
         assertEquals(List.of(2L, 3L), result.getList().stream().map(FoodVO::getId).toList());
         assertEquals(2, result.getPageSize());
         assertEquals(3, result.getTotal());
+        assertEquals(new BigDecimal("116.123456"), result.getList().get(0).getLng());
+        assertEquals(new BigDecimal("40.123456"), result.getList().get(0).getLat());
     }
 
     @Test
@@ -121,6 +123,8 @@ class FoodServiceTests {
         food.setRatingScore(BigDecimal.valueOf(ratingScore));
         food.setAvgPrice(new BigDecimal("18.00"));
         food.setCoverUrl("/files/food/" + id + ".jpg");
+        food.setLng(new BigDecimal("116.123456"));
+        food.setLat(new BigDecimal("40.123456"));
         return food;
     }
 }

@@ -254,6 +254,9 @@ Authorization: Bearer <token>
   "name": "一层卫生间",
   "facilityType": "toilet",
   "description": "靠近大厅",
+  "address": "图书馆一层大厅东侧",
+  "tel": "010-12345678",
+  "coverUrl": "/files/facility/f2001.jpg",
   "lng": 116.123001,
   "lat": 40.123002
 }
@@ -273,7 +276,9 @@ Authorization: Bearer <token>
   "heatScore": 82.0,
   "ratingScore": 4.5,
   "avgPrice": 18.0,
-  "coverUrl": "/files/food/f3001.jpg"
+  "coverUrl": "/files/food/f3001.jpg",
+  "lng": 116.123100,
+  "lat": 40.123200
 }
 ```
 
@@ -887,6 +892,15 @@ Authorization: Bearer <token>
 
 * 方法：`POST`
 * 路径：`/api/v1/diaries/{id}/ratings`
+* 当前实现状态：已实现，需要 JWT 登录
+
+业务规则：
+
+- 评分范围为 1～5；
+- 只允许评分 `status=1` 且 `visibility=public` 的日记；
+- 同一用户再次评分时更新原评分记录；
+- 允许作者评分自己的日记；
+- 评分明细、平均分和评分人数在同一事务内更新。
 
 ### Request Body
 
@@ -907,6 +921,33 @@ Authorization: Bearer <token>
   "timestamp": "2026-04-29T12:00:00"
 }
 ```
+
+为保持既有前端契约兼容，提交接口继续返回 `Boolean`。最新个人评分和聚合结果通过下方查询接口获取。
+
+## 13.6A 获取当前用户对日记的评分
+
+* 方法：`GET`
+* 路径：`/api/v1/diaries/{id}/ratings/me`
+* 当前实现状态：已实现，需要 JWT 登录
+
+### Response
+
+```json
+{
+  "success": true,
+  "code": "SUCCESS",
+  "message": "success",
+  "data": {
+    "diaryId": 1,
+    "userScore": 5,
+    "ratingScore": 4.6,
+    "ratingCount": 12
+  },
+  "timestamp": "2026-06-10T16:00:00"
+}
+```
+
+当前用户尚未评分时，`userScore` 为 `null`，聚合字段仍返回当前日记值。
 
 ## 13.7 获取我的日记列表（建议补充）
 
@@ -1097,6 +1138,8 @@ Authorization: Bearer <token>
 * 路径：`/api/v1/admin/facilities`
 * 权限：管理员
 
+请求和响应新增可选字段：`address`、`tel`、`coverUrl`。字段分别表示设施地址、联系电话和封面图 URL；其余字段保持不变。
+
 ## 15.9 修改设施
 
 * 方法：`PUT`
@@ -1131,6 +1174,8 @@ Authorization: Bearer <token>
 * 方法：`POST`
 * 路径：`/api/v1/admin/foods`
 * 权限：管理员
+
+请求和响应新增可选字段：`lng`、`lat`，分别表示美食店铺或窗口自身经纬度；为空时不自动继承关联设施坐标。
 
 ## 15.13 修改美食
 

@@ -19,6 +19,8 @@ public class FoodVO {
     private BigDecimal ratingScore;
     private BigDecimal avgPrice;
     private String coverUrl;
+    private BigDecimal lng;
+    private BigDecimal lat;
 
     public static FoodVO from(Food food) {
         FoodVO vo = new FoodVO();
@@ -33,6 +35,8 @@ public class FoodVO {
         vo.setRatingScore(food.getRatingScore());
         vo.setAvgPrice(food.getAvgPrice());
         vo.setCoverUrl(food.getCoverUrl());
+        vo.setLng(food.getLng());
+        vo.setLat(food.getLat());
         return vo;
     }
 
@@ -122,5 +126,21 @@ public class FoodVO {
 
     public void setCoverUrl(String coverUrl) {
         this.coverUrl = coverUrl;
+    }
+
+    public BigDecimal getLng() {
+        return lng;
+    }
+
+    public void setLng(BigDecimal lng) {
+        this.lng = lng;
+    }
+
+    public BigDecimal getLat() {
+        return lat;
+    }
+
+    public void setLat(BigDecimal lat) {
+        this.lat = lat;
     }
 }

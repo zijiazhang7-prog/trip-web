@@ -22,6 +22,24 @@
 
 ## 2. 当前版本说明
 
+### 2.0A 2026-06-10 Diary 评分闭环
+
+- 新增 `diary_rating` 明细表、联合唯一约束和 `diary.rating_count`。
+- 评分提交采用事务和日记行锁，同一用户重复评分更新原记录。
+- 实现 POST 评分和 GET 当前用户评分接口，两个接口均验证未登录返回 401。
+- MySQL 实库测试完成作者自评、重复覆盖、双用户 AVG/COUNT 聚合、列表评分排序和真实 JWT HTTP 成功链路验证。
+- 迁移脚本连续执行两次成功；执行前数据库备份位于系统临时目录。
+- 后端全量回归共 28 个测试套件、211 个测试，0 失败、0 错误、0 跳过。
+
+### 2.0 2026-06-08 演示数据导入前准备
+
+- 已补 Facility `address/tel/cover_url` 和 Food `lng/lat` 的代码映射、初始化结构与导入字段。
+- 已新增三类评论表结构，当前不包含评论业务 API。
+- 已新增现有数据库迁移 SQL 和用户/偏好/日记/评论幂等演示数据 SQL。
+- 已备份 `tour_system`，实库迁移连续执行两次成功；确认 Facility 三个新列、Food 两个新列和三张评论表存在。
+- 首次全量测试因实库尚未迁移而在 Food 查询时报 `Unknown column 'lng'`；执行迁移后重跑 200 个测试，0 失败、0 错误、0 跳过。
+- 当前实库不存在“北京邮电大学沙河校区”和对应美食，演示内容脚本已增加前置校验，因此尚未导入用户、偏好、日记和评论，也尚未执行本批日记的压缩回填。
+
 ### 2.1 文档定位
 当前版本为**初版测试报告模板**，用于后续测试执行后填入真实结果。
 
@@ -44,10 +62,10 @@
 
 - 项目名称：个性化旅游系统的设计与实现
 - 文档名称：测试报告（Test Report）
-- 当前版本：V1.15
-- 当前状态：P0 主线后端接口演示预检 + P0 Diary + P1 Food / Admin / SearchService / ImportService / Route 多目标 / Route 最短时间策略后端测试记录，已追加 Diary 检索排序、Auth / Security、Admin 场所管理、Route 多目标和 Route 最短时间策略验证，前端联调阻塞说明已补充
+- 当前版本：V1.19
+- 当前状态：已追加 CompressionEngine 历史回填、完整性校验、损坏修复和维护统计测试，前端联调阻塞说明已补充
 - 测试阶段：后端实库联调测试 / 前端联调待恢复
-- 报告日期：2026-05-07
+- 报告日期：2026-06-07
 - 报告编写人：Codex
 
 ---
@@ -81,6 +99,48 @@
 - 追加 Route 最短时间策略实库验证：2026-05-07 启动后端连接 MySQL 8 实库，使用临时普通用户和临时目的地 / 地图节点 / 地图边分别请求 `shortest_distance` 与 `shortest_time`，确认两种策略返回不同路径且 `route_history` 正确落库；验证结束后临时数据均已清理。
 - 追加 Diary 检索排序后端验证：2026-05-07 为标题检索和正文检索补充 `sortBy=latest/heat/rating` 白名单排序，执行后端 `mvn test`，157 个测试执行，0 失败，构建成功。
 - 追加 P0 主线后端接口演示预检：2026-05-07 启动后端 jar 连接 MySQL 8 实库，用同一个临时普通用户 token 依次验证登录、推荐、搜索、单目标路线、文件上传、日记发布、日记列表、日记详情和目的地相关日记；验证 `route_history` 与 `diary_media` 落库正确；验证结束后临时用户、目的地、地图节点、地图边、路线历史和日记数据均已清理。
+- 追加 GraphEngine 抽取后 Route / Facility 实库回归：2026-06-03 重新打包并启动后端连接 MySQL 8 实库，使用临时普通用户 token 验证 `shortest_distance`、`shortest_time`、多目标路线和 `/api/v1/facilities/nearby`；确认 GraphEngine 抽取后接口语义和 `route_history` 落库行为保持一致，验证结束后临时数据已清理。
+- 追加 IndexEngine 实库 HTTP 回归：2026-06-07 执行 `mvn -q -Dtest=IndexEngineDatabaseIntegrationTests test`，通过随机端口真实 HTTP 入口比较索引重建与失效状态下的目的地搜索、美食名称/店铺名搜索、日记标题精确/前缀/非前缀包含检索；10 组请求的列表、顺序和分页对象完全一致，临时数据已清理并恢复索引。
+- 追加 IndexEngine 后全量回归：2026-06-07 执行 `mvn -q test`，23 个测试套件、171 个测试执行，0 失败、0 错误、0 跳过。
+- 追加 IndexEngine 第二阶段回归：2026-06-07 为 `Diary.contentText` 增加字符位置倒排索引，验证中文连续子串、英文大小写、索引 MISS、目的地过滤、排序和分页；实库日志确认索引启用时 SQL 使用候选 `id IN`，索引失效时使用 `content_text LIKE`。
+- 追加第二阶段全量回归：2026-06-07 执行 `mvn -q test`，23 个测试套件、178 个测试执行，0 失败、0 错误、0 跳过。
+- 追加 `DIARY_CONTENT` 增量维护回归：2026-06-07 验证单文档新增、替换、删除、Unicode、索引不可用保持、事务提交/回滚、异常失效降级及公开/私有/禁用/启用业务分支。
+- 追加增量维护全量回归：2026-06-07 执行 `mvn -q test`，23 个测试套件、186 个测试执行，0 失败、0 错误、0 跳过。
+- 追加 CompressionEngine 专项回归：2026-06-07 验证 ASCII、中文、Emoji、辅助平面 Unicode、空文本、单字符、10000 字正文、确定性编码、压缩效果和损坏数据拒绝。
+- 追加 Diary 压缩接入回归：2026-06-07 验证发布时同时保存原文和自描述 Huffman 压缩包，并验证压缩异常时原文仍可正常保存。
+- 追加 CompressionEngine 后全量回归：2026-06-07 执行 `mvn -q test`，24 个测试套件、194 个测试执行，0 失败、0 错误、0 跳过。
+- 追加 CompressionEngine 第二阶段维护回归：2026-06-07 验证主键游标分批回填、已有压缩包校验、损坏或内容不一致修复、并发正文保护及单条失败继续处理。
+- 追加第二阶段全量回归：2026-06-07 执行 `mvn -q test`，25 个测试套件、198 个测试执行，0 失败、0 错误、0 跳过。
+- 追加 CompressionEngine 第二阶段实库验证：2026-06-07 在 MySQL 8 中对 3 篇历史日记执行批大小为 2 的回填，扫描 3 条、回填 3 条、失败 0；随后开启已有数据校验，3 条全部解压并与原文一致，修复 0、失败 0。
+
+### 4.1 IndexEngine 回归明细
+
+- 测试数据：临时用户 1 条、目的地 4 条、美食 4 条、公开日记 4 条，名称使用随机唯一前缀，避免与既有数据混淆。
+- 索引启用状态：分别重建 `DESTINATION_NAME`、`FOOD_NAME`、`FOOD_SHOP_NAME`、`DIARY_TITLE`，并断言 Hash 精确查询和 Trie 前缀查询能召回预期 ID。
+- 索引失效状态：依次调用 `invalidate(namespace)`，断言四个 namespace 均不可用，再以完全相同参数重复 HTTP 请求。
+- 比较口径：忽略顶层动态时间戳，完整比较 `data.list`、列表顺序、`pageNum`、`pageSize`、`total`、`pages`。
+- 特别结论：标题中间包含关键词但不满足 Trie 前缀条件的日记仍由 MySQL `LIKE` 召回，说明索引接入未改变原有包含匹配语义。
+- 首次执行曾因测试将通用包含结果误判为仅 Trie 前缀结果而失败；修正预期后专项测试通过，该问题不属于业务缺陷。
+- 第二阶段新增 `DIARY_CONTENT`：索引 HIT 时使用候选 ID；MISS 时直接返回空分页；UNAVAILABLE 时使用 LIKE。
+- 正文实库场景覆盖中文连续关键词、英文大小写、跨目的地过滤、热度分页和无结果查询；索引启用与失效时完整 `data` 对象一致。
+- 增量维护采用事务提交后回调：提交前和回滚后索引保持原快照，提交成功后才执行单文档 upsert/remove。
+- 索引未构建或已失效时，单文档操作不会创建部分索引；维护异常时 namespace 失效，后续查询继续走 LIKE 兜底。
+
+### 4.2 CompressionEngine 回归明细
+
+- 数据结构：Unicode 码点频次 Map、优先队列、Huffman 二叉树、码点编码 Map 和位流字节数组。
+- 压缩包包含 magic、版本、原文字节长度、码点数量、频次表、有效位数、压缩位流和 CRC32，可独立完成解码和完整性校验。
+- 多语言正文、空文本、单字符文本和 10000 字日记上限均可无损还原。
+- 相同正文重复压缩生成相同二进制结果；长重复文本的完整压缩包小于 UTF-8 原文字节。
+- magic、版本、截断数据和 CRC32 被篡改时均拒绝解码。
+- Diary 发布正常压缩时同时保存 `content_text` 与 `content_compressed`；压缩异常时仅将压缩字段留空，不回滚原文发布。
+- `content_compressed` 配置为默认查询不加载，现有列表、详情、全文检索和 API 字段没有变化。
+- 历史维护使用递增日记 ID 游标分页，不使用深 Offset，也不一次加载全表。
+- 默认 `trip.compression.backfill-enabled=false`；启用后应用启动执行一次维护，不新增 Controller。
+- 可选校验已有压缩包；解码失败或解压内容与原文不一致时，使用原文重新压缩。
+- 回填与修复更新均校验正文仍未变化；单条失败记录日记 ID 和异常类型后继续处理。
+- 维护结果包含扫描、回填、校验、修复、跳过、失败、原文字节、压缩字节和压缩率。
+- 本次实库样例原文共 253 个 UTF-8 字节，完整自描述压缩包共 1067 字节，压缩率为 4.2174；短正文因独立频次表和完整性元数据产生膨胀，符合当前实现预期，不应将 Huffman 副本视为所有短文本的空间优化。
 
 示例写法：
 > 本轮测试针对系统的核心主线功能展开，重点覆盖登录、目的地推荐、单目标路径规划、周边设施查询、图文日记发布与浏览等功能，用于验证当前版本是否具备基本联调和演示条件。
@@ -329,7 +389,17 @@
 ---
 
 ## 10.4 Facility 模块测试结果
-- 待填写
+- GraphEngine 抽取后 Route / Facility 实库回归已完成：
+  - 重新执行 `mvn -q package -DskipTests`，确认新 jar 包含 GraphEngine 抽取后的最新代码。
+  - 启动后端连接 MySQL 8 实库，使用临时普通用户登录 token 进行接口调用。
+  - 临时图数据：4 个节点 A / B / C / D，边为 `A->B=100`、`B->C=100`、`A->C=300`、`A->D=40`；其中 D 为 `facility` 类型节点并关联临时 toilet 设施。
+  - 单目标 `shortest_distance` 返回路径 `A -> B -> C`，总距离 `200.00`，`estimatedTime=3`，并写入 `route_history`。
+  - 单目标 `shortest_time` 返回路径 `A -> C`，总距离 `300.00`，`estimatedTime=3`，并写入 `route_history`。
+  - 多目标 `returnToStart=false` 返回路径 `A -> B -> C`，总距离 `200.00`，并写入 `route_history`。
+  - `GET /api/v1/facilities/nearby` 查询 toilet 设施返回 `reachableDistance=40.00`，`sourceNodeId=A`，`targetNodeId=D`。
+  - 同一目的地下查询不存在的 `medical_station` 类型返回空列表且接口为 `SUCCESS`。
+  - 已根据接口返回的 3 个 `historyId` 查询 `route_history`，确认 `user_id`、`destination_id`、`strategy_type`、`total_distance`、`estimated_time` 与接口返回一致。
+  - 验证结束后临时 `route_history`、`map_edge`、`map_node`、`facility`、`destination` 和 `user` 清理剩余 0。
 
 建议描述：
 - 附近设施查询是否正常

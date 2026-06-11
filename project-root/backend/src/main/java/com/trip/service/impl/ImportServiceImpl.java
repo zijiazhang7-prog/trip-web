@@ -7,6 +7,7 @@ import com.trip.common.ErrorCode;
 import com.trip.dto.imports.ImportPreviewResult;
 import com.trip.dto.imports.ImportRequest;
 import com.trip.dto.imports.ImportResult;
+import com.trip.engine.index.IndexNamespace;
 import com.trip.entity.Destination;
 import com.trip.entity.Facility;
 import com.trip.entity.Food;
@@ -25,6 +26,7 @@ import com.trip.mapper.MapEdgeMapper;
 import com.trip.mapper.MapNodeMapper;
 import com.trip.mapper.PlaceMapper;
 import com.trip.service.ImportService;
+import com.trip.service.IndexMaintenanceService;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
@@ -67,6 +69,7 @@ public class ImportServiceImpl implements ImportService {
     private final MapEdgeMapper mapEdgeMapper;
     private final ImportBatchMapper importBatchMapper;
     private final ImportFailureMapper importFailureMapper;
+    private final IndexMaintenanceService indexMaintenanceService;
 
     public ImportServiceImpl(
             ObjectMapper objectMapper,
@@ -77,7 +80,8 @@ public class ImportServiceImpl implements ImportService {
             MapNodeMapper mapNodeMapper,
             MapEdgeMapper mapEdgeMapper,
             ImportBatchMapper importBatchMapper,
-            ImportFailureMapper importFailureMapper) {
+            ImportFailureMapper importFailureMapper,
+            IndexMaintenanceService indexMaintenanceService) {
         this.objectMapper = objectMapper;
         this.destinationMapper = destinationMapper;
         this.placeMapper = placeMapper;
@@ -87,6 +91,7 @@ public class ImportServiceImpl implements ImportService {
         this.mapEdgeMapper = mapEdgeMapper;
         this.importBatchMapper = importBatchMapper;
         this.importFailureMapper = importFailureMapper;
+        this.indexMaintenanceService = indexMaintenanceService;
     }
 
     /**
@@ -181,6 +186,9 @@ public class ImportServiceImpl implements ImportService {
         result.setSuccessRows(successRows);
         result.setFailedRows(failedRows);
         result.setErrors(errors);
+        if (successRows > 0) {
+            invalidateImportedIndexes(targetTable);
+        }
         return result;
     }
 
@@ -269,6 +277,9 @@ public class ImportServiceImpl implements ImportService {
         facility.setName(text(values, "name"));
         facility.setFacilityType(text(values, "facility_type"));
         facility.setDescription(text(values, "description"));
+        facility.setAddress(text(values, "address"));
+        facility.setTel(text(values, "tel"));
+        facility.setCoverUrl(text(values, "cover_url"));
         facility.setLng(decimal(values, "lng"));
         facility.setLat(decimal(values, "lat"));
         facility.setStatus(intOrDefault(values, "status", ENABLED_STATUS));
@@ -293,6 +304,8 @@ public class ImportServiceImpl implements ImportService {
         food.setRatingScore(decimalOrZero(values, "rating_score"));
         food.setAvgPrice(decimal(values, "avg_price"));
         food.setCoverUrl(text(values, "cover_url"));
+        food.setLng(decimal(values, "lng"));
+        food.setLat(decimal(values, "lat"));
         foodMapper.insert(food);
     }
 
@@ -333,6 +346,15 @@ public class ImportServiceImpl implements ImportService {
         edge.setEdgeType(text(values, "edge_type"));
         edge.setBidirectionalFlag(intOrDefault(values, "bidirectional_flag", 0));
         mapEdgeMapper.insert(edge);
+    }
+
+    private void invalidateImportedIndexes(String targetTable) {
+        if ("destination".equals(targetTable)) {
+            indexMaintenanceService.invalidate(IndexNamespace.DESTINATION_NAME);
+        } else if ("food".equals(targetTable)) {
+            indexMaintenanceService.invalidate(IndexNamespace.FOOD_NAME);
+            indexMaintenanceService.invalidate(IndexNamespace.FOOD_SHOP_NAME);
+        }
     }
 
     private List<ImportRow> parseRows(ImportRequest request, Reader reader) {

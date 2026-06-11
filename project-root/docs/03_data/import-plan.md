@@ -293,6 +293,9 @@ scripts/
 - `name`
 - `place_type`
 - `description`
+- `address`
+- `tel`
+- `cover_url`
 - `lng`
 - `lat`
 - `floor_info`
@@ -429,6 +432,8 @@ scripts/
 - `rating_score`
 - `avg_price`
 - `cover_url`
+- `lng`
+- `lat`
 
 ---
 
@@ -606,12 +611,16 @@ scripts/
 9. `diary`
 10. `diary_media`
 11. `diary_rating`
-12. `route_history`
+12. `destination_comment`、`food_comment`、`diary_comment` 顶级评论
+13. 三类评论回复
+14. `route_history`
 
 ### 第五批：导入记录
 
 13. `import_batch`
 14. `import_failure`
+
+评论导入必须先导入顶级评论，再根据自然键解析父评论实际 ID 后导入回复。直接数据库导入不会触发索引和压缩维护，完成后必须执行日记压缩回填并重启应用重建索引。
 
 ---
 

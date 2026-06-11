@@ -107,6 +107,9 @@ erDiagram
         varchar name
         varchar facility_type
         text description
+        varchar address
+        varchar tel
+        varchar cover_url
         decimal lng
         decimal lat
         tinyint status
@@ -148,6 +151,50 @@ erDiagram
         decimal rating_score
         decimal avg_price
         varchar cover_url
+        decimal lng
+        decimal lat
+    }
+
+    DESTINATION_COMMENT {
+        bigint id PK
+        bigint destination_id FK
+        bigint user_id FK
+        bigint parent_comment_id FK
+        text content_text
+        varchar media_url
+        int like_count
+        int reply_count
+        tinyint status
+        datetime created_at
+        datetime updated_at
+    }
+
+    FOOD_COMMENT {
+        bigint id PK
+        bigint food_id FK
+        bigint user_id FK
+        bigint parent_comment_id FK
+        text content_text
+        varchar media_url
+        int like_count
+        int reply_count
+        tinyint status
+        datetime created_at
+        datetime updated_at
+    }
+
+    DIARY_COMMENT {
+        bigint id PK
+        bigint diary_id FK
+        bigint user_id FK
+        bigint parent_comment_id FK
+        text content_text
+        varchar media_url
+        int like_count
+        int reply_count
+        tinyint status
+        datetime created_at
+        datetime updated_at
     }
 
     DIARY {
@@ -303,6 +350,9 @@ erDiagram
     USER ||--o| USER_PREFERENCE : has
     USER ||--o{ DIARY : writes
     USER ||--o{ DIARY_RATING : gives
+    USER ||--o{ DESTINATION_COMMENT : writes
+    USER ||--o{ FOOD_COMMENT : writes
+    USER ||--o{ DIARY_COMMENT : writes
     USER ||--o{ ROUTE_HISTORY : owns
     USER ||--o{ TRAVEL_JOURNAL : owns
     USER ||--o{ GROUP_PLAN_SESSION : creates
@@ -314,6 +364,7 @@ erDiagram
     DESTINATION ||--o{ MAP_NODE : has
     DESTINATION ||--o{ MAP_EDGE : has
     DESTINATION ||--o{ FOOD : has
+    DESTINATION ||--o{ DESTINATION_COMMENT : receives
     DESTINATION ||--o{ DIARY : relates_to
     DESTINATION ||--o{ ROUTE_HISTORY : records
     DESTINATION ||--o{ TRAVEL_JOURNAL : relates_to
@@ -325,10 +376,12 @@ erDiagram
     PLACE ||--o{ TRAVEL_JOURNAL_ENTRY : appears_in
 
     FACILITY ||--o{ FOOD : provides
+    FOOD ||--o{ FOOD_COMMENT : receives
     FACILITY ||--o{ MAP_NODE : maps_to
 
     DIARY ||--o{ DIARY_MEDIA : contains
     DIARY ||--o{ DIARY_RATING : receives
+    DIARY ||--o{ DIARY_COMMENT : receives
     DIARY ||--o{ TRAVEL_JOURNAL_ENTRY : reuses
 
     ROUTE_HISTORY ||--o{ DIARY : supports
@@ -627,6 +680,8 @@ erDiagram
 
 - 一个 `USER` 可对多篇 `DIARY` 评分
 - 一篇 `DIARY` 可收到多个评分
+- `(diary_id, user_id)` 唯一约束保证每名用户每篇日记只有一条评分
+- `DIARY.rating_score` 和 `DIARY.rating_count` 保存评分聚合结果
 
 ---
 

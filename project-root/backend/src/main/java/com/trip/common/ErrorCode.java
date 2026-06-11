@@ -34,7 +34,11 @@ public enum ErrorCode {
     IMPORT_002("IMPORT_002", "导入文件格式不正确"),
     IMPORT_003("IMPORT_003", "导入字段缺失或字段名不匹配"),
     IMPORT_004("IMPORT_004", "数据校验失败，无法导入"),
-    IMPORT_008("IMPORT_008", "导入服务异常");
+    IMPORT_008("IMPORT_008", "导入服务异常"),
+    DIARY_003("DIARY_003", "日记不存在"),
+    DIARY_006("DIARY_006", "日记评分失败"),
+    DIARY_008("DIARY_008", "评分值不合法"),
+    DIARY_011("DIARY_011", "当前日记不可访问");
 
     private final String code;
     private final String message;

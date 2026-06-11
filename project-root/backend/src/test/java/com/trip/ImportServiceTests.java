@@ -5,7 +5,10 @@ import com.trip.common.ErrorCode;
 import com.trip.dto.imports.ImportPreviewResult;
 import com.trip.dto.imports.ImportRequest;
 import com.trip.dto.imports.ImportResult;
+import com.trip.engine.index.IndexNamespace;
 import com.trip.entity.Destination;
+import com.trip.entity.Facility;
+import com.trip.entity.Food;
 import com.trip.entity.ImportBatch;
 import com.trip.exception.BusinessException;
 import com.trip.mapper.DestinationMapper;
@@ -16,6 +19,7 @@ import com.trip.mapper.ImportFailureMapper;
 import com.trip.mapper.MapEdgeMapper;
 import com.trip.mapper.MapNodeMapper;
 import com.trip.mapper.PlaceMapper;
+import com.trip.service.IndexMaintenanceService;
 import com.trip.service.impl.ImportServiceImpl;
 import java.io.StringReader;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,19 +38,23 @@ import static org.mockito.Mockito.when;
 class ImportServiceTests {
 
     private DestinationMapper destinationMapper;
+    private FacilityMapper facilityMapper;
+    private FoodMapper foodMapper;
     private ImportBatchMapper importBatchMapper;
+    private IndexMaintenanceService indexMaintenanceService;
     private ImportServiceImpl importService;
 
     @BeforeEach
     void setUp() {
         destinationMapper = mock(DestinationMapper.class);
         PlaceMapper placeMapper = mock(PlaceMapper.class);
-        FacilityMapper facilityMapper = mock(FacilityMapper.class);
-        FoodMapper foodMapper = mock(FoodMapper.class);
+        facilityMapper = mock(FacilityMapper.class);
+        foodMapper = mock(FoodMapper.class);
         MapNodeMapper mapNodeMapper = mock(MapNodeMapper.class);
         MapEdgeMapper mapEdgeMapper = mock(MapEdgeMapper.class);
         importBatchMapper = mock(ImportBatchMapper.class);
         ImportFailureMapper importFailureMapper = mock(ImportFailureMapper.class);
+        indexMaintenanceService = mock(IndexMaintenanceService.class);
         when(importBatchMapper.insert(any(ImportBatch.class))).thenAnswer(invocation -> {
             ImportBatch batch = invocation.getArgument(0);
             batch.setId(1L);
@@ -61,7 +69,8 @@ class ImportServiceTests {
                 mapNodeMapper,
                 mapEdgeMapper,
                 importBatchMapper,
-                importFailureMapper);
+                importFailureMapper,
+                indexMaintenanceService);
     }
 
     @Test
@@ -197,6 +206,41 @@ class ImportServiceTests {
         verify(destinationMapper).insert(any(Destination.class));
         verify(importBatchMapper).insert(any(ImportBatch.class));
         verify(importBatchMapper).updateById(any(ImportBatch.class));
+        verify(indexMaintenanceService).invalidate(IndexNamespace.DESTINATION_NAME);
+    }
+
+    @Test
+    void runImportShouldMapOptionalFacilityPresentationFields() {
+        when(destinationMapper.selectById(1L)).thenReturn(new Destination());
+
+        ImportResult result = importService.runImport(
+                request("facility", "csv", "facilities.csv", 1024L),
+                reader("destination_id,name,facility_type,address,tel,cover_url,lng,lat\n"
+                        + "1,图书馆卫生间,toilet,图书馆一层,010-12345678,/files/facility/a.jpg,116.123456,40.123456\n"));
+
+        assertEquals("SUCCESS", result.getStatus());
+        org.mockito.ArgumentCaptor<Facility> captor = org.mockito.ArgumentCaptor.forClass(Facility.class);
+        verify(facilityMapper).insert(captor.capture());
+        assertEquals("图书馆一层", captor.getValue().getAddress());
+        assertEquals("010-12345678", captor.getValue().getTel());
+        assertEquals("/files/facility/a.jpg", captor.getValue().getCoverUrl());
+    }
+
+    @Test
+    void runImportShouldMapOptionalFoodCoordinates() {
+        when(destinationMapper.selectById(1L)).thenReturn(new Destination());
+
+        ImportResult result = importService.runImport(
+                request("food", "json", "foods.json", 1024L),
+                reader("[{\"destination_id\":1,\"name\":\"牛肉面\",\"lng\":116.123456,\"lat\":40.123456}]"));
+
+        assertEquals("SUCCESS", result.getStatus());
+        org.mockito.ArgumentCaptor<Food> captor = org.mockito.ArgumentCaptor.forClass(Food.class);
+        verify(foodMapper).insert(captor.capture());
+        assertEquals(new java.math.BigDecimal("116.123456"), captor.getValue().getLng());
+        assertEquals(new java.math.BigDecimal("40.123456"), captor.getValue().getLat());
+        verify(indexMaintenanceService).invalidate(IndexNamespace.FOOD_NAME);
+        verify(indexMaintenanceService).invalidate(IndexNamespace.FOOD_SHOP_NAME);
     }
 
     private StringReader reader(String value) {

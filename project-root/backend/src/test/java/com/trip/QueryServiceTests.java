@@ -7,6 +7,9 @@ import com.trip.dto.query.DestinationQuery;
 import com.trip.dto.query.FacilityQuery;
 import com.trip.dto.query.FoodQuery;
 import com.trip.dto.query.PlaceQuery;
+import com.trip.engine.index.IndexEngine;
+import com.trip.engine.index.IndexSearchResult;
+import com.trip.engine.index.IndexNamespace;
 import com.trip.entity.Destination;
 import com.trip.entity.Facility;
 import com.trip.entity.Food;
@@ -36,6 +39,7 @@ class QueryServiceTests {
     private final FacilityMapper facilityMapper = mock(FacilityMapper.class);
     private final FoodMapper foodMapper = mock(FoodMapper.class);
     private final QueryServiceImpl queryService = new QueryServiceImpl(
+            new IndexEngine(),
             destinationMapper,
             placeMapper,
             facilityMapper,
@@ -66,6 +70,30 @@ class QueryServiceTests {
         verify(destinationMapper).selectPage(pageCaptor.capture(), any(Wrapper.class));
         assertEquals(2, pageCaptor.getValue().getCurrent());
         assertEquals(100, pageCaptor.getValue().getSize());
+    }
+
+    @Test
+    void queryDestinationsShouldTryNameIndexAndKeepMapperPagination() {
+        IndexEngine mockedIndexEngine = mock(IndexEngine.class);
+        when(mockedIndexEngine.findExact(IndexNamespace.DESTINATION_NAME, "西湖"))
+                .thenReturn(IndexSearchResult.available(List.of(1L)));
+        when(mockedIndexEngine.findByPrefix(IndexNamespace.DESTINATION_NAME, "西湖", 1000))
+                .thenReturn(IndexSearchResult.available(List.of(1L, 2L)));
+        when(destinationMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(new Page<Destination>());
+        QueryServiceImpl indexedQueryService = new QueryServiceImpl(
+                mockedIndexEngine,
+                destinationMapper,
+                placeMapper,
+                facilityMapper,
+                foodMapper);
+        DestinationQuery query = new DestinationQuery();
+        query.setKeyword("西湖");
+
+        indexedQueryService.queryDestinations(query);
+
+        verify(mockedIndexEngine).findExact(IndexNamespace.DESTINATION_NAME, "西湖");
+        verify(mockedIndexEngine).findByPrefix(IndexNamespace.DESTINATION_NAME, "西湖", 1000);
+        verify(destinationMapper).selectPage(any(Page.class), any(Wrapper.class));
     }
 
     @Test

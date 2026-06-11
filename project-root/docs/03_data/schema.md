@@ -42,7 +42,7 @@
 当前数据库建议分为两层：
 
 ### 3.1 当前主线核心表（优先落地）
-当前主线围绕以下 13 张核心表组织：
+当前主线围绕以下 17 张核心表组织：
 
 1. `user`
 2. `user_preference`
@@ -58,6 +58,9 @@
 12. `route_history`
 13. `import_batch`
 14. `import_failure`
+15. `destination_comment`
+16. `food_comment`
+17. `diary_comment`
 
 ### 3.2 创新需求预留扩展表（后续落地）
 为手账式旅行记录、多人协同决策和轨迹回顾预留以下扩展表：
@@ -224,6 +227,9 @@
 - `name`
 - `place_type`
 - `description`
+- `address`
+- `tel`
+- `cover_url`
 - `lng`
 - `lat`
 - `floor_info`
@@ -354,12 +360,41 @@
 - `rating_score`
 - `avg_price`
 - `cover_url`
+- `lng`
+- `lat`
 
 ### 设计要点
 1. `food` 可以归属到某个 `facility`；
 2. 同时保留 `destination_id`，方便直接做目的地下的查询；
 3. `heat_score` 和 `rating_score` 用于美食推荐排序；
 4. `avg_price` 为后续预算维度扩展留接口。
+5. `lng`、`lat` 表示店铺或窗口自身位置；为空时不自动继承设施坐标。
+
+---
+
+## 5.8A 评论表 `destination_comment`、`food_comment`、`diary_comment`
+
+### 表定位
+分别保存目的地、美食和日记下的评论及回复，用于后续评论展示、交流和后台内容管理。
+
+### 公共字段
+- `id`
+- 对象外键：`destination_id` / `food_id` / `diary_id`
+- `user_id`
+- `parent_comment_id`
+- `content_text`
+- `media_url`
+- `like_count`
+- `reply_count`
+- `status`
+- `created_at`
+- `updated_at`
+
+### 当前实现边界
+1. 当前只落地表结构和演示数据；
+2. 评论发布、回复、列表和审核 API 尚未实现；
+3. 评论数据暂不参与 `heat_score` 或 `rating_score` 聚合；
+4. 父评论通过同表自关联表达，顶级评论的 `parent_comment_id` 为空。
 
 ### 建议索引
 - `destination_id`
@@ -381,7 +416,7 @@
 - `route_history_id`（可空）
 - `title`
 - `content_text`
-- `content_compressed`（可扩展）
+- `content_compressed`（Huffman 压缩包，可空）
 - `heat_score`
 - `rating_score`
 - `visibility`
@@ -392,11 +427,12 @@
 ### 设计要点
 1. 一篇日记至少关联一个用户和一个目的地；
 2. `content_text` 保存正文；
-3. `content_compressed` 为压缩存储预留扩展；
+3. `content_compressed` 保存第一阶段自描述 Huffman 压缩包；压缩失败或历史数据未回填时可为空；
 4. `heat_score` 和 `rating_score` 支撑排序和推荐；
-5. `visibility` 用于区分公开 / 私有；
-6. `route_history_id` 用于后续路线回顾和 AI 日记生成联动；
-7. `status` 用于日记状态控制。
+5. `rating_count` 保存有效评分人数，与 `diary_rating` 聚合结果保持一致；
+6. `visibility` 用于区分公开 / 私有；
+7. `route_history_id` 用于后续路线回顾和 AI 日记生成联动；
+8. `status` 用于日记状态控制。
 
 ### 建议索引
 - `user_id`
@@ -442,10 +478,13 @@
 - `user_id`
 - `score`
 - `created_at`
+- `updated_at`
 
 ### 设计要点
-1. 一个用户对同一篇日记通常只允许保留一条评分记录；
-2. 该表既可支撑展示评分，也可反哺日记排序。
+1. 一个用户对同一篇日记只保留一条评分记录，重复评分更新原记录；
+2. `score` 范围固定为 1～5；
+3. 评分后在同一事务中重新计算 `diary.rating_score` 和 `diary.rating_count`；
+4. 只允许评分公开且启用的日记，当前允许作者自评。
 
 ### 建议索引
 - `(diary_id, user_id)` 唯一索引

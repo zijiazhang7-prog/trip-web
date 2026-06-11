@@ -34,6 +34,21 @@
 
 建议按“版本号 + 日期 + 变更摘要”的方式记录。
 
+## 4. 2026-06-10 Diary 评分闭环
+
+- 实现既有 `POST /api/v1/diaries/{id}/ratings`，响应继续为 Boolean，不破坏已生成前端契约。
+- 新增 `GET /api/v1/diaries/{id}/ratings/me`，返回 `diaryId/userScore/ratingScore/ratingCount`。
+- `DiaryVO` 和管理端日记响应增加 `ratingCount`。
+- 两个评分接口均要求 JWT；评分范围 1～5，重复评分覆盖更新。
+- 数据库新增 `diary_rating` 明细表及 `diary.rating_count` 聚合字段。
+
+## 4. 2026-06-08 Facility / Food 展示字段补充
+
+- Facility 管理端请求、管理端响应和附近设施响应增加可选字段 `address`、`tel`、`coverUrl`。
+- Food 管理端请求和 FoodVO 增加可选字段 `lng`、`lat`。
+- API 路径、HTTP 方法、分页、鉴权和排序语义均未变化。
+- 三类评论表本轮仅完成数据结构，不新增评论 API。
+
 ### 3.1 版本格式建议
 可采用以下格式之一：
 

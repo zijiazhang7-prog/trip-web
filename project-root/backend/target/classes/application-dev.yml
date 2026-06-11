@@ -6,7 +6,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${DB_URL:jdbc:mysql://localhost:3306/tour_system?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD:root127dream}
   servlet:
     multipart:
       max-file-size: ${FILE_MAX_SIZE:5MB}
@@ -17,6 +17,10 @@ trip:
     upload-dir: ${FILE_UPLOAD_DIR:uploads}
     access-prefix: /files
     max-size: ${FILE_MAX_SIZE:5MB}
+  compression:
+    backfill-enabled: ${DIARY_COMPRESSION_BACKFILL_ENABLED:false}
+    batch-size: ${DIARY_COMPRESSION_BATCH_SIZE:100}
+    verify-existing: ${DIARY_COMPRESSION_VERIFY_EXISTING:false}
 
 mybatis-plus:
   configuration:

@@ -9,6 +9,9 @@ import com.trip.dto.request.DiaryFulltextSearchQuery;
 import com.trip.dto.request.DiaryListQuery;
 import com.trip.dto.request.DiaryMediaRequest;
 import com.trip.dto.request.DiaryTitleSearchQuery;
+import com.trip.engine.compression.CompressionEngine;
+import com.trip.engine.index.IndexDocument;
+import com.trip.engine.index.IndexNamespace;
 import com.trip.entity.Destination;
 import com.trip.entity.Diary;
 import com.trip.entity.DiaryMedia;
@@ -22,6 +25,7 @@ import com.trip.mapper.RouteHistoryMapper;
 import com.trip.mapper.UserMapper;
 import com.trip.security.JwtClaims;
 import com.trip.service.DiaryService;
+import com.trip.service.IndexMaintenanceService;
 import com.trip.service.SearchService;
 import com.trip.vo.response.DiaryCreateResponse;
 import com.trip.vo.response.DiaryMediaVO;
@@ -36,6 +40,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -48,6 +54,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class DiaryServiceImpl implements DiaryService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(DiaryServiceImpl.class);
     private static final int ENABLED_STATUS = 1;
     private static final int DEFAULT_PAGE_NUM = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
@@ -67,6 +74,8 @@ public class DiaryServiceImpl implements DiaryService {
     private final UserMapper userMapper;
     private final RouteHistoryMapper routeHistoryMapper;
     private final SearchService searchService;
+    private final IndexMaintenanceService indexMaintenanceService;
+    private final CompressionEngine compressionEngine;
 
     public DiaryServiceImpl(
             DiaryMapper diaryMapper,
@@ -74,13 +83,17 @@ public class DiaryServiceImpl implements DiaryService {
             DestinationMapper destinationMapper,
             UserMapper userMapper,
             RouteHistoryMapper routeHistoryMapper,
-            SearchService searchService) {
+            SearchService searchService,
+            IndexMaintenanceService indexMaintenanceService,
+            CompressionEngine compressionEngine) {
         this.diaryMapper = diaryMapper;
         this.diaryMediaMapper = diaryMediaMapper;
         this.destinationMapper = destinationMapper;
         this.userMapper = userMapper;
         this.routeHistoryMapper = routeHistoryMapper;
         this.searchService = searchService;
+        this.indexMaintenanceService = indexMaintenanceService;
+        this.compressionEngine = compressionEngine;
     }
 
     @Override
@@ -107,8 +120,10 @@ public class DiaryServiceImpl implements DiaryService {
         diary.setRouteHistoryId(request.getRouteHistoryId());
         diary.setTitle(title);
         diary.setContentText(contentText);
+        diary.setContentCompressed(compressSafely(contentText));
         diary.setHeatScore(BigDecimal.ZERO);
         diary.setRatingScore(BigDecimal.ZERO);
+        diary.setRatingCount(0);
         diary.setVisibility(visibility);
         diary.setStatus(ENABLED_STATUS);
 
@@ -127,7 +142,26 @@ public class DiaryServiceImpl implements DiaryService {
             diaryMediaMapper.insert(media);
         }
 
+        indexMaintenanceService.invalidateAfterCommit(IndexNamespace.DIARY_TITLE);
+        if (VISIBILITY_PUBLIC.equals(visibility)) {
+            indexMaintenanceService.upsertAfterCommit(
+                    IndexNamespace.DIARY_CONTENT,
+                    new IndexDocument(diary.getId(), contentText));
+        } else {
+            indexMaintenanceService.removeAfterCommit(IndexNamespace.DIARY_CONTENT, diary.getId());
+        }
         return new DiaryCreateResponse(diary.getId());
+    }
+
+    private byte[] compressSafely(String contentText) {
+        try {
+            return compressionEngine.compress(contentText).data();
+        } catch (RuntimeException exception) {
+            LOGGER.warn(
+                    "Diary content compression failed; original text will still be stored: {}",
+                    exception.getClass().getSimpleName());
+            return null;
+        }
     }
 
     @Override

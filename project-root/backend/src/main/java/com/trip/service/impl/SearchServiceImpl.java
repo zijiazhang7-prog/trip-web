@@ -6,16 +6,21 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.trip.common.ErrorCode;
 import com.trip.dto.request.DiaryFulltextSearchQuery;
 import com.trip.dto.request.DiaryTitleSearchQuery;
+import com.trip.engine.index.IndexEngine;
+import com.trip.engine.index.IndexNamespace;
+import com.trip.engine.index.IndexSearchResult;
 import com.trip.entity.Diary;
 import com.trip.exception.BusinessException;
 import com.trip.mapper.DiaryMapper;
 import com.trip.service.SearchService;
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * SearchService 基础版：基于 MySQL LIKE 实现小规模日记文本检索。
+ * 日记文本检索调度：优先使用内存索引，索引不可用时回退 MySQL LIKE。
  */
 @Service
 public class SearchServiceImpl implements SearchService {
@@ -26,14 +31,17 @@ public class SearchServiceImpl implements SearchService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_TITLE_LENGTH = 150;
     private static final int MAX_KEYWORD_LENGTH = 100;
+    private static final int MAX_INDEX_CANDIDATES = 1000;
     private static final String VISIBILITY_PUBLIC = "public";
     private static final String SORT_BY_LATEST = "latest";
     private static final String SORT_BY_HEAT = "heat";
     private static final String SORT_BY_RATING = "rating";
 
+    private final IndexEngine indexEngine;
     private final DiaryMapper diaryMapper;
 
-    public SearchServiceImpl(DiaryMapper diaryMapper) {
+    public SearchServiceImpl(IndexEngine indexEngine, DiaryMapper diaryMapper) {
+        this.indexEngine = indexEngine;
         this.diaryMapper = diaryMapper;
     }
 
@@ -54,17 +62,23 @@ public class SearchServiceImpl implements SearchService {
             throw new BusinessException(ErrorCode.COMMON_002);
         }
 
+        Set<Long> indexedIds = indexedTitleCandidates(title);
         LambdaQueryWrapper<Diary> wrapper = publicDiaryWrapper()
-                .like(Diary::getTitle, title);
+                .and(item -> {
+                    if (!indexedIds.isEmpty()) {
+                        item.in(Diary::getId, indexedIds).or();
+                    }
+                    item.like(Diary::getTitle, title);
+                });
         applySort(wrapper, normalizeSortBy(safeQuery.getSortBy()));
         return diaryMapper.selectPage(new Page<>(pageNum(safeQuery.getPageNum()), pageSize(safeQuery.getPageSize())), wrapper);
     }
 
     /**
-     * 数据结构：数据库文本字段和分页结果集。
-     * 算法：用正文关键词进行 LIKE 召回，可选目的地过滤，再按白名单排序字段排序。
-     * 复杂度：取决于 MySQL 执行计划；业务层只处理当前页，空间复杂度 O(pageSize)。
-     * 适用范围：适合 P1 基础全文检索演示，非大规模全文搜索最终方案。
+     * 数据结构：字符位置倒排索引保存词项出现位置，数据库负责过滤、排序和分页。
+     * 算法：索引命中时按候选 ID 查询；索引未命中返回空页；索引不可用时回退 LIKE。
+     * 复杂度：索引查询约 O(m + P)，m 为关键词长度，P 为相关位置扫描量。
+     * 适用范围：课程设计和中小规模日记数据，不替代大规模专业搜索引擎。
      */
     @Override
     public IPage<Diary> searchDiaryFulltext(DiaryFulltextSearchQuery query) {
@@ -80,13 +94,26 @@ public class SearchServiceImpl implements SearchService {
             throw new BusinessException(ErrorCode.COMMON_001);
         }
 
-        LambdaQueryWrapper<Diary> wrapper = publicDiaryWrapper()
-                .like(Diary::getContentText, keyword);
+        long currentPage = pageNum(safeQuery.getPageNum());
+        long currentPageSize = pageSize(safeQuery.getPageSize());
+        String sortBy = normalizeSortBy(safeQuery.getSortBy());
+        IndexSearchResult indexResult =
+                indexEngine.findByContent(IndexNamespace.DIARY_CONTENT, keyword);
+        if (indexResult.status() == IndexSearchResult.Status.MISS) {
+            return new Page<Diary>(currentPage, currentPageSize, 0).setRecords(java.util.List.of());
+        }
+
+        LambdaQueryWrapper<Diary> wrapper = publicDiaryWrapper();
+        if (indexResult.status() == IndexSearchResult.Status.HIT) {
+            wrapper.in(Diary::getId, indexResult.ids());
+        } else {
+            wrapper.like(Diary::getContentText, keyword);
+        }
         if (safeQuery.getDestinationId() != null) {
             wrapper.eq(Diary::getDestinationId, safeQuery.getDestinationId());
         }
-        applySort(wrapper, normalizeSortBy(safeQuery.getSortBy()));
-        return diaryMapper.selectPage(new Page<>(pageNum(safeQuery.getPageNum()), pageSize(safeQuery.getPageSize())), wrapper);
+        applySort(wrapper, sortBy);
+        return diaryMapper.selectPage(new Page<>(currentPage, currentPageSize), wrapper);
     }
 
     private LambdaQueryWrapper<Diary> publicDiaryWrapper() {
@@ -135,5 +162,19 @@ public class SearchServiceImpl implements SearchService {
 
     private String normalize(String value) {
         return value == null ? null : value.trim();
+    }
+
+    private Set<Long> indexedTitleCandidates(String title) {
+        Set<Long> ids = new LinkedHashSet<>();
+        IndexSearchResult exactResult = indexEngine.findExact(IndexNamespace.DIARY_TITLE, title);
+        if (exactResult.isAvailable()) {
+            ids.addAll(exactResult.ids());
+        }
+        IndexSearchResult prefixResult =
+                indexEngine.findByPrefix(IndexNamespace.DIARY_TITLE, title, MAX_INDEX_CANDIDATES);
+        if (prefixResult.isAvailable()) {
+            ids.addAll(prefixResult.ids());
+        }
+        return ids;
     }
 }

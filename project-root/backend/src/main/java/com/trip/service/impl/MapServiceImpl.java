@@ -6,6 +6,12 @@ import com.trip.dto.map.MultiPathResult;
 import com.trip.dto.map.PathEdgeResult;
 import com.trip.dto.map.PathNodeResult;
 import com.trip.dto.map.ShortestPathResult;
+import com.trip.engine.graph.GraphEngine;
+import com.trip.engine.graph.GraphEngine.Graph;
+import com.trip.engine.graph.GraphEngine.GraphEdge;
+import com.trip.engine.graph.GraphEngine.PreviousStep;
+import com.trip.engine.graph.GraphEngine.ShortestPathTree;
+import com.trip.engine.graph.GraphEngine.WeightDistance;
 import com.trip.entity.MapEdge;
 import com.trip.entity.MapNode;
 import com.trip.exception.BusinessException;
@@ -14,15 +20,12 @@ import com.trip.mapper.MapNodeMapper;
 import com.trip.service.MapService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -35,10 +38,17 @@ public class MapServiceImpl implements MapService {
 
     private final MapNodeMapper mapNodeMapper;
     private final MapEdgeMapper mapEdgeMapper;
+    private final GraphEngine graphEngine;
 
-    public MapServiceImpl(MapNodeMapper mapNodeMapper, MapEdgeMapper mapEdgeMapper) {
+    @Autowired
+    public MapServiceImpl(MapNodeMapper mapNodeMapper, MapEdgeMapper mapEdgeMapper, GraphEngine graphEngine) {
         this.mapNodeMapper = mapNodeMapper;
         this.mapEdgeMapper = mapEdgeMapper;
+        this.graphEngine = graphEngine;
+    }
+
+    public MapServiceImpl(MapNodeMapper mapNodeMapper, MapEdgeMapper mapEdgeMapper) {
+        this(mapNodeMapper, mapEdgeMapper, new GraphEngine());
     }
 
     /**
@@ -61,12 +71,12 @@ public class MapServiceImpl implements MapService {
         validateId(targetNodeId);
         String normalizedStrategyType = normalizeStrategyType(strategyType);
 
-        Graph graph = buildGraph(destinationId);
-        MapNode startNode = graph.nodeMap().get(startNodeId);
+        GraphContext graphContext = buildGraph(destinationId);
+        MapNode startNode = graphContext.nodeMap().get(startNodeId);
         if (startNode == null) {
             throw new BusinessException(ErrorCode.ROUTE_001);
         }
-        MapNode targetNode = graph.nodeMap().get(targetNodeId);
+        MapNode targetNode = graphContext.nodeMap().get(targetNodeId);
         if (targetNode == null) {
             throw new BusinessException(ErrorCode.ROUTE_002);
         }
@@ -74,9 +84,10 @@ public class MapServiceImpl implements MapService {
             throw new BusinessException(ErrorCode.ROUTE_009);
         }
 
-        DijkstraResult dijkstraResult = dijkstra(graph, startNodeId, normalizedStrategyType);
-        WeightDistance totalWeight = dijkstraResult.weights().get(targetNodeId);
-        BigDecimal totalDistance = dijkstraResult.distances().get(targetNodeId);
+        ShortestPathTree shortestPathTree = graphEngine.shortestPaths(
+                graphContext.graph(), startNodeId, normalizedStrategyType);
+        WeightDistance totalWeight = shortestPathTree.weights().get(targetNodeId);
+        BigDecimal totalDistance = shortestPathTree.distances().get(targetNodeId);
         if (totalDistance == null) {
             throw new BusinessException(ErrorCode.ROUTE_003);
         }
@@ -87,8 +98,8 @@ public class MapServiceImpl implements MapService {
         result.setTargetNodeId(targetNodeId);
         result.setTotalDistance(totalDistance);
         result.setEstimatedTime(totalWeight == null ? ZERO : totalWeight.time());
-        result.setPathNodes(buildPathNodes(graph, startNodeId, targetNodeId, dijkstraResult.previousMap()));
-        result.setPathEdges(buildPathEdges(startNodeId, targetNodeId, dijkstraResult.previousMap()));
+        result.setPathNodes(buildPathNodes(graphContext, startNodeId, targetNodeId, shortestPathTree.previousMap()));
+        result.setPathEdges(buildPathEdges(startNodeId, targetNodeId, shortestPathTree.previousMap()));
         return result;
     }
 
@@ -122,12 +133,12 @@ public class MapServiceImpl implements MapService {
         validateTargetNodeIds(targetNodeIds);
         String normalizedStrategyType = normalizeStrategyType(strategyType);
 
-        Graph graph = buildGraph(destinationId);
-        if (!graph.nodeMap().containsKey(startNodeId)) {
+        GraphContext graphContext = buildGraph(destinationId);
+        if (!graphContext.nodeMap().containsKey(startNodeId)) {
             throw new BusinessException(ErrorCode.ROUTE_001);
         }
         for (Long targetNodeId : targetNodeIds) {
-            MapNode targetNode = graph.nodeMap().get(targetNodeId);
+            MapNode targetNode = graphContext.nodeMap().get(targetNodeId);
             if (targetNode == null) {
                 throw new BusinessException(ErrorCode.ROUTE_002);
             }
@@ -145,12 +156,13 @@ public class MapServiceImpl implements MapService {
         Long currentNodeId = startNodeId;
 
         while (!unvisitedTargetIds.isEmpty()) {
-            DijkstraResult dijkstraResult = dijkstra(graph, currentNodeId, normalizedStrategyType);
-            Long nextTargetId = nearestTarget(unvisitedTargetIds, dijkstraResult.weights());
+            ShortestPathTree shortestPathTree = graphEngine.shortestPaths(
+                    graphContext.graph(), currentNodeId, normalizedStrategyType);
+            Long nextTargetId = graphEngine.nearestTarget(unvisitedTargetIds, shortestPathTree.weights());
             if (nextTargetId == null) {
                 throw new BusinessException(ErrorCode.ROUTE_003);
             }
-            ShortestPathResult segment = buildSegment(graph, currentNodeId, nextTargetId, dijkstraResult);
+            ShortestPathResult segment = buildSegment(graphContext, currentNodeId, nextTargetId, shortestPathTree);
             appendSegment(allPathNodes, allPathEdges, segment);
             totalDistance = totalDistance.add(segment.getTotalDistance());
             totalEstimatedTime = totalEstimatedTime.add(segment.getEstimatedTime() == null ? ZERO : segment.getEstimatedTime());
@@ -160,12 +172,13 @@ public class MapServiceImpl implements MapService {
         }
 
         if (returnToStart && !currentNodeId.equals(startNodeId)) {
-            DijkstraResult dijkstraResult = dijkstra(graph, currentNodeId, normalizedStrategyType);
-            BigDecimal returnDistance = dijkstraResult.distances().get(startNodeId);
+            ShortestPathTree shortestPathTree = graphEngine.shortestPaths(
+                    graphContext.graph(), currentNodeId, normalizedStrategyType);
+            BigDecimal returnDistance = shortestPathTree.distances().get(startNodeId);
             if (returnDistance == null) {
                 throw new BusinessException(ErrorCode.ROUTE_003);
             }
-            ShortestPathResult segment = buildSegment(graph, currentNodeId, startNodeId, dijkstraResult);
+            ShortestPathResult segment = buildSegment(graphContext, currentNodeId, startNodeId, shortestPathTree);
             appendSegment(allPathNodes, allPathEdges, segment);
             totalDistance = totalDistance.add(segment.getTotalDistance());
             totalEstimatedTime = totalEstimatedTime.add(segment.getEstimatedTime() == null ? ZERO : segment.getEstimatedTime());
@@ -194,14 +207,14 @@ public class MapServiceImpl implements MapService {
         validateId(destinationId);
         validateId(startNodeId);
 
-        Graph graph = buildGraph(destinationId);
-        if (!graph.nodeMap().containsKey(startNodeId)) {
+        GraphContext graphContext = buildGraph(destinationId);
+        if (!graphContext.nodeMap().containsKey(startNodeId)) {
             throw new BusinessException(ErrorCode.ROUTE_001);
         }
-        return dijkstra(graph, startNodeId, STRATEGY_SHORTEST_DISTANCE).distances();
+        return graphEngine.shortestPaths(graphContext.graph(), startNodeId, STRATEGY_SHORTEST_DISTANCE).distances();
     }
 
-    private Graph buildGraph(Long destinationId) {
+    private GraphContext buildGraph(Long destinationId) {
         List<MapNode> nodes = mapNodeMapper.selectList(new LambdaQueryWrapper<MapNode>()
                 .eq(MapNode::getDestinationId, destinationId));
         List<MapEdge> edges = mapEdgeMapper.selectList(new LambdaQueryWrapper<MapEdge>()
@@ -222,7 +235,7 @@ public class MapServiceImpl implements MapService {
             }
         }
 
-        return new Graph(nodeMap, adjacency);
+        return new GraphContext(nodeMap, new Graph(adjacency));
     }
 
     private void addDirectedEdge(
@@ -252,85 +265,25 @@ public class MapServiceImpl implements MapService {
                 .add(new GraphEdge(edge.getId(), fromNodeId, toNodeId, edge.getDistance(), timeCost));
     }
 
-    private DijkstraResult dijkstra(Graph graph, Long startNodeId, String strategyType) {
-        Map<Long, WeightDistance> weights = new LinkedHashMap<>();
-        Map<Long, BigDecimal> distances = new LinkedHashMap<>();
-        Map<Long, PreviousStep> previousMap = new HashMap<>();
-        PriorityQueue<NodeDistance> queue = new PriorityQueue<>(
-                Comparator.comparing(NodeDistance::weight).thenComparing(NodeDistance::nodeId));
-
-        weights.put(startNodeId, new WeightDistance(ZERO, ZERO));
-        distances.put(startNodeId, ZERO);
-        queue.add(new NodeDistance(startNodeId, ZERO));
-
-        while (!queue.isEmpty()) {
-            NodeDistance current = queue.poll();
-            WeightDistance knownWeight = weights.get(current.nodeId());
-            if (knownWeight == null || current.weight().compareTo(knownWeight.weight()) > 0) {
-                continue;
-            }
-
-            for (GraphEdge edge : graph.adjacency().getOrDefault(current.nodeId(), List.of())) {
-                if (STRATEGY_SHORTEST_TIME.equals(strategyType) && edge.timeCost() == null) {
-                    continue;
-                }
-                BigDecimal edgeWeight = STRATEGY_SHORTEST_TIME.equals(strategyType) ? edge.timeCost() : edge.distance();
-                BigDecimal nextWeight = current.weight().add(edgeWeight);
-                BigDecimal oldWeight = weights.containsKey(edge.toNodeId()) ? weights.get(edge.toNodeId()).weight() : null;
-                if (oldWeight == null || nextWeight.compareTo(oldWeight) < 0) {
-                    BigDecimal nextDistance = distances.get(current.nodeId()).add(edge.distance());
-                    BigDecimal nextTime = STRATEGY_SHORTEST_TIME.equals(strategyType)
-                            ? knownWeight.time().add(edge.timeCost())
-                            : nextDistance;
-                    weights.put(edge.toNodeId(), new WeightDistance(nextWeight, nextTime));
-                    distances.put(edge.toNodeId(), nextDistance);
-                    previousMap.put(edge.toNodeId(), new PreviousStep(current.nodeId(), edge));
-                    queue.add(new NodeDistance(edge.toNodeId(), nextWeight));
-                }
-            }
-        }
-
-        return new DijkstraResult(weights, distances, previousMap);
-    }
-
-    private Long nearestTarget(Set<Long> targetNodeIds, Map<Long, WeightDistance> weights) {
-        Long nearestNodeId = null;
-        BigDecimal nearestWeight = null;
-        for (Long targetNodeId : targetNodeIds) {
-            WeightDistance weightDistance = weights.get(targetNodeId);
-            if (weightDistance == null) {
-                continue;
-            }
-            BigDecimal weight = weightDistance.weight();
-            if (nearestWeight == null
-                    || weight.compareTo(nearestWeight) < 0
-                    || (weight.compareTo(nearestWeight) == 0 && targetNodeId < nearestNodeId)) {
-                nearestNodeId = targetNodeId;
-                nearestWeight = weight;
-            }
-        }
-        return nearestNodeId;
-    }
-
     private ShortestPathResult buildSegment(
-            Graph graph,
+            GraphContext graphContext,
             Long startNodeId,
             Long targetNodeId,
-            DijkstraResult dijkstraResult) {
-        BigDecimal totalDistance = dijkstraResult.distances().get(targetNodeId);
+            ShortestPathTree shortestPathTree) {
+        BigDecimal totalDistance = shortestPathTree.distances().get(targetNodeId);
         if (totalDistance == null) {
             throw new BusinessException(ErrorCode.ROUTE_003);
         }
 
         ShortestPathResult result = new ShortestPathResult();
-        result.setDestinationId(graph.nodeMap().get(startNodeId).getDestinationId());
+        result.setDestinationId(graphContext.nodeMap().get(startNodeId).getDestinationId());
         result.setStartNodeId(startNodeId);
         result.setTargetNodeId(targetNodeId);
         result.setTotalDistance(totalDistance);
-        WeightDistance totalWeight = dijkstraResult.weights().get(targetNodeId);
+        WeightDistance totalWeight = shortestPathTree.weights().get(targetNodeId);
         result.setEstimatedTime(totalWeight == null ? ZERO : totalWeight.time());
-        result.setPathNodes(buildPathNodes(graph, startNodeId, targetNodeId, dijkstraResult.previousMap()));
-        result.setPathEdges(buildPathEdges(startNodeId, targetNodeId, dijkstraResult.previousMap()));
+        result.setPathNodes(buildPathNodes(graphContext, startNodeId, targetNodeId, shortestPathTree.previousMap()));
+        result.setPathEdges(buildPathEdges(startNodeId, targetNodeId, shortestPathTree.previousMap()));
         return result;
     }
 
@@ -351,14 +304,17 @@ public class MapServiceImpl implements MapService {
     }
 
     private List<PathNodeResult> buildPathNodes(
-            Graph graph,
+            GraphContext graphContext,
             Long startNodeId,
             Long targetNodeId,
             Map<Long, PreviousStep> previousMap) {
-        List<Long> nodeIds = backtrackNodeIds(startNodeId, targetNodeId, previousMap);
+        List<Long> nodeIds = graphEngine.backtrackNodeIds(startNodeId, targetNodeId, previousMap);
+        if (nodeIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.ROUTE_003);
+        }
         List<PathNodeResult> pathNodes = new ArrayList<>();
         for (Long nodeId : nodeIds) {
-            MapNode node = graph.nodeMap().get(nodeId);
+            MapNode node = graphContext.nodeMap().get(nodeId);
             pathNodes.add(new PathNodeResult(nodeId, node == null ? null : node.getNodeName()));
         }
         return pathNodes;
@@ -373,37 +329,14 @@ public class MapServiceImpl implements MapService {
         }
 
         List<PathEdgeResult> pathEdges = new ArrayList<>();
-        Long currentNodeId = targetNodeId;
-        while (!startNodeId.equals(currentNodeId)) {
-            PreviousStep previousStep = previousMap.get(currentNodeId);
-            if (previousStep == null) {
-                throw new BusinessException(ErrorCode.ROUTE_003);
-            }
-            GraphEdge edge = previousStep.edge();
+        List<GraphEdge> graphEdges = graphEngine.backtrackEdges(startNodeId, targetNodeId, previousMap);
+        if (graphEdges.isEmpty()) {
+            throw new BusinessException(ErrorCode.ROUTE_003);
+        }
+        for (GraphEdge edge : graphEdges) {
             pathEdges.add(new PathEdgeResult(edge.edgeId(), edge.fromNodeId(), edge.toNodeId(), edge.distance()));
-            currentNodeId = previousStep.previousNodeId();
         }
-        Collections.reverse(pathEdges);
         return pathEdges;
-    }
-
-    private List<Long> backtrackNodeIds(
-            Long startNodeId,
-            Long targetNodeId,
-            Map<Long, PreviousStep> previousMap) {
-        List<Long> nodeIds = new ArrayList<>();
-        Long currentNodeId = targetNodeId;
-        nodeIds.add(currentNodeId);
-        while (!startNodeId.equals(currentNodeId)) {
-            PreviousStep previousStep = previousMap.get(currentNodeId);
-            if (previousStep == null) {
-                throw new BusinessException(ErrorCode.ROUTE_003);
-            }
-            currentNodeId = previousStep.previousNodeId();
-            nodeIds.add(currentNodeId);
-        }
-        Collections.reverse(nodeIds);
-        return nodeIds;
     }
 
     private void validateId(Long id) {
@@ -432,24 +365,6 @@ public class MapServiceImpl implements MapService {
         return STRATEGY_SHORTEST_DISTANCE;
     }
 
-    private record Graph(Map<Long, MapNode> nodeMap, Map<Long, List<GraphEdge>> adjacency) {
-    }
-
-    private record GraphEdge(Long edgeId, Long fromNodeId, Long toNodeId, BigDecimal distance, BigDecimal timeCost) {
-    }
-
-    private record PreviousStep(Long previousNodeId, GraphEdge edge) {
-    }
-
-    private record DijkstraResult(
-            Map<Long, WeightDistance> weights,
-            Map<Long, BigDecimal> distances,
-            Map<Long, PreviousStep> previousMap) {
-    }
-
-    private record WeightDistance(BigDecimal weight, BigDecimal time) {
-    }
-
-    private record NodeDistance(Long nodeId, BigDecimal weight) {
+    private record GraphContext(Map<Long, MapNode> nodeMap, Graph graph) {
     }
 }

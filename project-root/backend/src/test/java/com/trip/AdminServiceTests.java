@@ -11,6 +11,8 @@ import com.trip.dto.request.AdminMapNodeRequest;
 import com.trip.dto.request.AdminPageQuery;
 import com.trip.dto.request.AdminPlaceRequest;
 import com.trip.dto.request.AdminStatusRequest;
+import com.trip.engine.index.IndexDocument;
+import com.trip.engine.index.IndexNamespace;
 import com.trip.entity.Diary;
 import com.trip.entity.Destination;
 import com.trip.entity.Facility;
@@ -33,6 +35,7 @@ import com.trip.mapper.MapNodeMapper;
 import com.trip.mapper.PlaceMapper;
 import com.trip.mapper.UserMapper;
 import com.trip.service.ImportService;
+import com.trip.service.IndexMaintenanceService;
 import com.trip.service.impl.AdminServiceImpl;
 import com.trip.vo.response.AdminDiaryVO;
 import com.trip.vo.response.AdminDestinationVO;
@@ -68,6 +71,7 @@ class AdminServiceTests {
     private final ImportBatchMapper importBatchMapper = mock(ImportBatchMapper.class);
     private final ImportFailureMapper importFailureMapper = mock(ImportFailureMapper.class);
     private final ImportService importService = mock(ImportService.class);
+    private final IndexMaintenanceService indexMaintenanceService = mock(IndexMaintenanceService.class);
     private final AdminServiceImpl adminService = new AdminServiceImpl(
             destinationMapper,
             placeMapper,
@@ -79,7 +83,8 @@ class AdminServiceTests {
             diaryMapper,
             importBatchMapper,
             importFailureMapper,
-            importService);
+            importService,
+            indexMaintenanceService);
 
     @Test
     void listDestinationsShouldReturnPagedResults() {
@@ -110,6 +115,7 @@ class AdminServiceTests {
         assertEquals(1L, result.getId());
         assertEquals("P1后台目的地", result.getName());
         verify(destinationMapper).insert(any(Destination.class));
+        verify(indexMaintenanceService).invalidate(IndexNamespace.DESTINATION_NAME);
     }
 
     @Test
@@ -238,6 +244,9 @@ class AdminServiceTests {
 
         assertEquals(2L, result.getId());
         assertEquals("toilet", result.getFacilityType());
+        assertEquals("教学实验综合楼一层", result.getAddress());
+        assertEquals("010-12345678", result.getTel());
+        assertEquals("/files/facility/2.jpg", result.getCoverUrl());
     }
 
     @Test
@@ -254,6 +263,8 @@ class AdminServiceTests {
 
         assertEquals(3L, result.getId());
         assertEquals("P1后台牛肉面", result.getName());
+        assertEquals(new BigDecimal("116.123456"), result.getLng());
+        assertEquals(new BigDecimal("40.123456"), result.getLat());
     }
 
     @Test
@@ -347,6 +358,24 @@ class AdminServiceTests {
 
         assertEquals(0, result.getStatus());
         verify(diaryMapper).updateById(any(Diary.class));
+        verify(indexMaintenanceService).invalidateAfterCommit(IndexNamespace.DIARY_TITLE);
+        verify(indexMaintenanceService).removeAfterCommit(IndexNamespace.DIARY_CONTENT, 8L);
+    }
+
+    @Test
+    void enablingPublicDiaryShouldIncrementallyRestoreContent() {
+        Diary diary = diary(8L);
+        diary.setStatus(0);
+        when(diaryMapper.selectById(8L)).thenReturn(diary);
+
+        AdminStatusRequest request = new AdminStatusRequest();
+        request.setStatus(1);
+        adminService.updateDiaryStatus(8L, request);
+
+        verify(indexMaintenanceService).invalidateAfterCommit(IndexNamespace.DIARY_TITLE);
+        verify(indexMaintenanceService).upsertAfterCommit(
+                IndexNamespace.DIARY_CONTENT,
+                new IndexDocument(8L, "后台日记正文"));
     }
 
     @Test
@@ -411,6 +440,9 @@ class AdminServiceTests {
         request.setName("P1后台厕所");
         request.setFacilityType("toilet");
         request.setDescription("后台设施维护测试");
+        request.setAddress("教学实验综合楼一层");
+        request.setTel("010-12345678");
+        request.setCoverUrl("/files/facility/2.jpg");
         return request;
     }
 
@@ -441,6 +473,8 @@ class AdminServiceTests {
         request.setHeatScore(new BigDecimal("88.00"));
         request.setRatingScore(new BigDecimal("4.60"));
         request.setAvgPrice(new BigDecimal("18.00"));
+        request.setLng(new BigDecimal("116.123456"));
+        request.setLat(new BigDecimal("40.123456"));
         return request;
     }
 
@@ -489,6 +523,9 @@ class AdminServiceTests {
         facility.setName("P1后台厕所");
         facility.setFacilityType("toilet");
         facility.setDescription("测试设施");
+        facility.setAddress("教学实验综合楼一层");
+        facility.setTel("010-12345678");
+        facility.setCoverUrl("/files/facility/2.jpg");
         facility.setStatus(1);
         return facility;
     }
@@ -522,6 +559,8 @@ class AdminServiceTests {
         food.setHeatScore(new BigDecimal("88.00"));
         food.setRatingScore(new BigDecimal("4.60"));
         food.setAvgPrice(new BigDecimal("18.00"));
+        food.setLng(new BigDecimal("116.123456"));
+        food.setLat(new BigDecimal("40.123456"));
         return food;
     }
 
@@ -563,6 +602,7 @@ class AdminServiceTests {
         diary.setUserId(7L);
         diary.setDestinationId(1L);
         diary.setTitle("后台日记");
+        diary.setContentText("后台日记正文");
         diary.setVisibility("public");
         diary.setStatus(1);
         return diary;

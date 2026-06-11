@@ -683,6 +683,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseBoolean'
 
+  /diaries/{id}/ratings/me:
+    get:
+      tags: [Diary]
+      summary: 获取当前用户对日记的评分
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDiaryRatingVO'
+
   /files/upload:
     post:
       tags: [File]
@@ -1190,6 +1209,14 @@ components:
             data:
               $ref: '#/components/schemas/DiaryVO'
 
+    ApiResponseDiaryRatingVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DiaryRatingVO'
+
     ApiResponseCreateDiaryResult:
       allOf:
         - $ref: '#/components/schemas/ApiResponseBase'
@@ -1411,6 +1438,24 @@ components:
           minimum: 1
           maximum: 5
 
+    DiaryRatingVO:
+      type: object
+      properties:
+        diaryId:
+          type: integer
+          format: int64
+        userScore:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        ratingScore:
+          type: number
+          format: double
+        ratingCount:
+          type: integer
+          minimum: 0
+
     AdminDestinationUpsertRequest:
       type: object
       required: [name, type]
@@ -1483,6 +1528,15 @@ components:
           type: string
         description:
           type: string
+        address:
+          type: string
+          maxLength: 255
+        tel:
+          type: string
+          maxLength: 50
+        coverUrl:
+          type: string
+          maxLength: 255
         lng:
           type: number
           format: double
@@ -1519,6 +1573,17 @@ components:
           format: double
         coverUrl:
           type: string
+          maxLength: 255
+        lng:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
 
     AdminMapNodeCreateRequest:
       type: object
@@ -1778,6 +1843,12 @@ components:
           type: string
         description:
           type: string
+        address:
+          type: string
+        tel:
+          type: string
+        coverUrl:
+          type: string
         lng:
           type: number
           format: double
@@ -1827,6 +1898,12 @@ components:
           format: double
         coverUrl:
           type: string
+        lng:
+          type: number
+          format: double
+        lat:
+          type: number
+          format: double
 
     DiaryMediaVO:
       type: object
@@ -1870,6 +1947,9 @@ components:
         ratingScore:
           type: number
           format: double
+        ratingCount:
+          type: integer
+          minimum: 0
         visibility:
           type: string
           enum: [public, private]

@@ -75,7 +75,28 @@
 - 检索能力统一封装在 `SearchService`，Diary 模块只负责接口编排和 `DiaryVO` 组装。
 - 当前检索基于 MySQL `LIKE`，适合课程设计小规模样例数据和 P1 基础演示。
 
-以下仍属于 P1 / P2 后续范围：日记评分、我的日记列表、手账基础形态、AI 日记草稿、图片摘要、路线回顾，以及倒排索引 / FULLTEXT 等增强检索实现。
+以下仍属于 P1 / P2 后续范围：我的日记列表、手账基础形态、AI 日记草稿、图片摘要、路线回顾，以及更大规模专业检索能力。
+
+### 2.8 当前实现状态（2026-06-07）
+
+- `Diary.contentText` 已接入 `IndexEngine` 的 `DIARY_CONTENT` 字符位置倒排索引。
+- 支持中文、英文、数字连续子串查询，英文统一按小写匹配。
+- 索引命中后由 Mapper 按候选 ID 完成公开状态、目的地过滤、`latest/heat/rating` 排序和分页。
+- 索引已构建但未命中时返回空分页；索引未构建或失效时回退 MySQL `LIKE`。
+- 日记发布和后台状态修改在事务提交后增量新增、替换或删除正文索引记录，不再使整个 `DIARY_CONTENT` 失效。
+- 公开且启用的日记进入正文索引，私有或禁用日记从正文索引移除；事务回滚不修改索引。
+- 增量维护失败时使 `DIARY_CONTENT` 失效，下一次查询自动使用 MySQL `LIKE`。
+- `DIARY_TITLE` 仍采用事务提交后整 namespace 失效策略。
+- 已完成单元测试、MySQL 8 实库 HTTP 回归和 186 项后端全量测试。
+
+### 2.9 当前实现状态（2026-06-10）
+
+- 已实现 `POST /api/v1/diaries/{id}/ratings`，保持原 Boolean 响应契约。
+- 已实现 `GET /api/v1/diaries/{id}/ratings/me`，返回当前用户评分、平均分和评分人数。
+- 同一用户重复评分更新原记录；当前允许作者自评。
+- 只允许评分公开且启用的日记，评分范围固定为 1～5。
+- 评分明细写入和 `rating_score/rating_count` 聚合回写处于同一事务。
+- 日记行使用 `FOR UPDATE` 串行化同一日记的并发聚合更新。
 
 ---
 
@@ -297,6 +318,7 @@
 - `diary.content_compressed`
 - `diary.heat_score`
 - `diary.rating_score`
+- `diary.rating_count`
 - `diary.visibility`
 - `diary.status`
 - `diary_media.diary_id`
@@ -440,31 +462,59 @@ P1 基础版已实现：
 - `rating`：按 `rating_score` 倒序，再按创建时间倒序，适合评分排序展示。
 
 ### 可用实现方向
-1. 简化版：
+1. 兜底方案：
    - 数据库 `LIKE`
    - 适合小规模样例和 MVP 联调
-   - 当前已采用该方案
+   - 当前在正文索引不可用时采用
 
-2. 增强版：
-   - 倒排索引
-   - `SearchService` 统一封装
+2. 当前主方案：
+   - 字符位置倒排索引
+   - 数据结构为“Unicode 字符 -> 日记 ID -> 出现位置列表”
+   - 查询时对字符对应文档求交集，并校验位置连续性
+   - `SearchService` 统一调度，Mapper 负责候选对象过滤、排序和分页
+
+### 算法复杂度
+- 构建：正文总字符数为 `C` 时，时间和空间复杂度均为 `O(C)`。
+- 查询：当前对首字符候选位置逐一验证，并对后续字符位置执行二分查找；上界约为 `O(P1 * m * log L)`，其中 `P1` 为首字符候选位置数，`m` 为关键词长度，`L` 为单个位置列表长度。
+- 增量正文扫描：新增约 `O(Cnew)`、删除约 `O(Cold)`、替换约 `O(Cold + Cnew)`；实际还包含不可变快照、文档映射和受影响 posting 子表的复制开销。
+- 适用范围：课程设计和中小规模日记数据；不作为大规模专业搜索引擎替代方案。
 
 ---
 
 ## 8.5 压缩存储设计
 
 ### 目标
-日记模块后续应支持压缩存储，特别是长文本和多媒体关联内容的扩展。
+日记模块使用 Huffman 编码保存正文的无损压缩副本，同时保持现有正文接口稳定。
 
-### 当前建议
-P1 / P2 阶段可采用：
-- 文本压缩字段 `content_compressed`
+### 当前实现
+- `CompressionEngine` 基于 Unicode 码点频次、优先队列和 Huffman 树编码正文
+- `content_compressed` 保存自描述二进制包，包括版本、频次表、有效位数、原文长度和 CRC32
+- `content_text` 继续保存原文，列表、详情和全文检索语义不变
+- `content_compressed` 默认不参与 MyBatis 查询，避免普通查询读取 BLOB
+- 压缩异常时保存原文并将压缩字段留空，不阻塞日记发布
+- `CompressionMaintenanceService` 使用主键游标分批回填历史日记的压缩副本
+- 配置 `trip.compression.backfill-enabled=true` 时，应用启动后执行一次维护任务；默认关闭
+- `verify-existing=true` 时校验已有压缩包，损坏或与原文不一致的数据从 `content_text` 重新生成
+- 条件更新要求日记 ID 和正文仍一致，避免覆盖维护期间发生的正文变更
+- 维护日志只输出数量、字节数、压缩率和异常类型，不记录正文
 - 图片 / 视频文件本体继续走文件存储
-- 数据库中保留元数据与访问路径
 
-### 当前实现原则
-- P0 先保证功能闭环，不强行提前做复杂压缩
-- 但表结构和模块设计中预留入口
+### 数据结构与复杂度
+- 数据结构：频次 Map、`PriorityQueue<HuffmanNode>`、Huffman 二叉树、码点编码 Map、位流字节数组
+- 频次统计：`O(n)`
+- 构建 Huffman 树：`O(k log k)`
+- 编码：`O(n)`
+- 解码：`O(b)`
+- 历史回填采用主键游标分页，空间复杂度约为 `O(batchSize + k + b)`
+- 适用范围：课程设计和中小规模日记正文；短文本可能因元数据头部导致压缩包大于原文
+
+### 第二阶段配置
+
+| 配置项 | 默认值 | 作用 |
+| --- | --- | --- |
+| `trip.compression.backfill-enabled` | `false` | 是否在应用启动后执行一次历史压缩维护 |
+| `trip.compression.batch-size` | `100` | 单批读取数量，代码上限为 1000 |
+| `trip.compression.verify-existing` | `false` | 是否校验并修复已有压缩包 |
 
 ---
 
@@ -627,8 +677,11 @@ P1 阶段优先做：
 - `score`
 
 返回：
-- 最新平均评分
-- 当前用户评分状态
+- Boolean 成功标记，保持原接口兼容
+
+### `GET /api/v1/diaries/{id}/ratings/me`
+用途：
+- 查询当前用户评分和日记最新聚合结果
 
 ---
 
@@ -869,3 +922,9 @@ P1 阶段优先做：
 5. 推荐模块开始反向使用日记特征时
 6. 手账基础形态正式扩展为独立结构时
 7. 外部多模态模型 API 正式接入时
+
+## 19. 2026-06-08 评论数据与导入后处理
+
+- 新增 `diary_comment` 表结构和演示数据，用于后续日记交流能力。
+- 当前未实现评论 Controller、Service、Mapper、DTO/VO，评论接口仍不属于当前可联调范围。
+- 直接 SQL 导入的日记不会经过 `DiaryService`，因此 `content_compressed` 初始为空；导入后必须由 `CompressionMaintenanceService` 回填，并在应用启动时重建 `DIARY_TITLE`、`DIARY_CONTENT` 索引。

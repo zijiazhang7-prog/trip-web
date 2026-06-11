@@ -31,6 +31,15 @@ public class AdminFacilityRequest {
     @Size(max = 2000)
     private String description;
 
+    @Size(max = 255)
+    private String address;
+
+    @Size(max = 50)
+    private String tel;
+
+    @Size(max = 255)
+    private String coverUrl;
+
     @DecimalMin("-180.000000")
     @DecimalMax("180.000000")
     private BigDecimal lng;
@@ -77,6 +86,30 @@ public class AdminFacilityRequest {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public String getTel() {
+        return tel;
+    }
+
+    public void setTel(String tel) {
+        this.tel = tel;
+    }
+
+    public String getCoverUrl() {
+        return coverUrl;
+    }
+
+    public void setCoverUrl(String coverUrl) {
+        this.coverUrl = coverUrl;
     }
 
     public BigDecimal getLng() {
