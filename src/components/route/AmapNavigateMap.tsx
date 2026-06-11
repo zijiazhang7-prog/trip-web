@@ -29,10 +29,11 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
     setZoom: (zoom: number) => void
     resize?: () => void
   } | null>(null)
-  const routeOverlayRef = useRef<unknown | null>(null)
+  const routeServiceRef = useRef<{ clear?: () => void } | null>(null)
   const geoMarkerRef = useRef<unknown | null>(null)
-  const [mapReady, setMapReady] = useState(false)
-  const [mapError, setMapError] = useState<string | null>(null)
+  // 地图就绪信号：用 ref 而非 state，避免重渲染导致遮罩反复闪烁
+  const mapReadyRef = useRef(false)
+  const [initError, setInitError] = useState<string | null>(null)
 
   const legFrom = plan.waypoints[activeLegIndex] ?? plan.waypoints[0]
   const legTo = plan.waypoints[activeLegIndex + 1] ?? activeWaypoint ?? plan.waypoints[1]
@@ -42,132 +43,138 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
     if (!hasAmapJsKey() || !containerRef.current) return
     let destroyed = false
     const container = containerRef.current
+    mapReadyRef.current = false
 
     ;(async () => {
       try {
         const AMap = await loadAmap()
         if (destroyed || !containerRef.current) return
+
+        const sec = getAmapSecurityCode()
+        if (!sec) {
+          setInitError('地图瓦片需要配置 VITE_AMAP_SECURITY_CODE')
+        }
+
         const map = new AMap.Map(container, {
           zoom: 13,
-          center: [legFrom.lng, legFrom.lat],
+          center: [legFrom.lng, legFrom.lat] as [number, number],
           viewMode: '2D',
         })
         mapRef.current = map
+
         window.setTimeout(() => {
+          if (destroyed) return
           map.resize?.()
-          setMapReady(true)
-        }, 120)
-        if (!getAmapSecurityCode()) {
-          setMapError('未配置 VITE_AMAP_SECURITY_CODE，地图瓦片可能无法显示')
-        }
+          mapReadyRef.current = true
+          // 地图就绪后，立即触发路线绘制
+          drawRoute()
+        }, 200)
       } catch (err) {
-        setMapError(err instanceof Error ? err.message : '地图加载失败')
+        if (!destroyed) setInitError(err instanceof Error ? err.message : '地图加载失败')
       }
     })()
 
     return () => {
       destroyed = true
-      setMapReady(false)
-      try {
-        mapRef.current?.destroy()
-      } catch {
-        /* ignore */
-      }
+      mapReadyRef.current = false
+      try { routeServiceRef.current?.clear?.() } catch { /* ignore */ }
+      routeServiceRef.current = null
+      geoMarkerRef.current = null
+      try { mapRef.current?.destroy() } catch { /* ignore */ }
       mapRef.current = null
       if (container) container.innerHTML = ''
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅初始化一次，instanceId 保证组件级唯一
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instanceId])
 
-  // ── 绘制路线（地图就绪 + legFrom/legTo 变化时执行） ─────────────────────
-  useEffect(() => {
-    if (!mapReady) return
+  // ── 绘制贴合道路的路线（地图就绪后或 leg 变化时调用） ──────────────────
+  function drawRoute() {
     const map = mapRef.current
-    if (!map || !window.AMap || !legFrom || !legTo) return
+    if (!mapReadyRef.current || !map || !window.AMap || !legFrom || !legTo) return
 
     const AMap = window.AMap
 
-    // 清除旧路线覆盖物
-    if (routeOverlayRef.current) {
-      try {
-        ;(routeOverlayRef.current as { clear?: () => void }).clear?.()
-      } catch {
-        /* ignore */
-      }
-      routeOverlayRef.current = null
-    }
+    // 清除上一条路线
+    try { routeServiceRef.current?.clear?.() } catch { /* ignore */ }
+    routeServiceRef.current = null
 
     const plugin = modeToPlugin(plan.transportMode)
-    const policy = plan.transportMode === 'transit'
-      ? (AMap.TransferPolicy?.LEAST_TIME ?? 0)
-      : undefined
 
     AMap.plugin(`AMap.${plugin}`, () => {
-      const serviceOpts =
-        plugin === 'Transfer'
-          ? { map, city: '北京市', policy }
-          : { map, policy }
+      if (!mapRef.current) return
+      const m = mapRef.current
 
-      const service =
-        plugin === 'Transfer'
-          ? new AMap.Transfer(serviceOpts)
-          : plugin === 'Driving'
-            ? new AMap.Driving(serviceOpts)
-            : plugin === 'Riding'
-              ? new AMap.Riding(serviceOpts)
-              : new AMap.Walking(serviceOpts)
+      let service: { search: (s: unknown, e: unknown, cb: (status: string) => void) => void; clear?: () => void }
+      try {
+        if (plugin === 'Transfer') {
+          service = new AMap.Transfer({
+            map: m,
+            city: '北京市',
+            policy: AMap.TransferPolicy?.LEAST_TIME ?? 0,
+          })
+        } else if (plugin === 'Driving') {
+          service = new AMap.Driving({ map: m })
+        } else if (plugin === 'Riding') {
+          service = new AMap.Riding({ map: m })
+        } else {
+          service = new AMap.Walking({ map: m })
+        }
+      } catch {
+        return
+      }
+
+      routeServiceRef.current = service
 
       const start = new AMap.LngLat(legFrom.lng, legFrom.lat)
       const end = new AMap.LngLat(legTo.lng, legTo.lat)
 
       service.search(start, end, (status: string) => {
-        if (status !== 'complete') {
-          setMapError('路线规划失败，请检查网络或 Key 配置')
-          return
-        }
-        setMapError(null)
-        routeOverlayRef.current = service
-        // 自动适配视野，让整条路线都在屏幕内
+        if (status !== 'complete') return
+        // 路线规划成功后，自动适配视野
         window.setTimeout(() => {
           if (!mapRef.current) return
           try {
-            mapRef.current.setFitView(undefined, false, [80, 80, 80, 80], 17)
+            mapRef.current.setFitView(undefined, false, [72, 72, 72, 72], 17)
           } catch {
-            // setFitView 在极端情况下可能抛错，降级到居中
             const midLng = (legFrom.lng + legTo.lng) / 2
             const midLat = (legFrom.lat + legTo.lat) / 2
             mapRef.current.setCenter([midLng, midLat])
             mapRef.current.setZoom(14)
           }
-        }, 400)
+        }, 350)
       })
     })
 
-    // 获取用户当前位置并在地图上标记
+    // 当前定位蓝点
     AMap.plugin('AMap.Geolocation', () => {
-      const geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 })
-      geo.getCurrentPosition(
-        (pos: { position: { lng: number; lat: number } }) => {
-          if (!mapRef.current) return
-          if (geoMarkerRef.current) {
-            try {
-              mapRef.current.remove(geoMarkerRef.current)
-            } catch {
-              /* ignore */
+      if (!mapRef.current || !window.AMap) return
+      try {
+        const geo = new window.AMap.Geolocation({ enableHighAccuracy: true, timeout: 8000 })
+        geo.getCurrentPosition(
+          (pos: { position: { lng: number; lat: number } }) => {
+            if (!mapRef.current || !window.AMap) return
+            if (geoMarkerRef.current) {
+              try { mapRef.current.remove(geoMarkerRef.current) } catch { /* ignore */ }
             }
-          }
-          const m = new AMap.Marker({
-            position: new AMap.LngLat(pos.position.lng, pos.position.lat),
-            title: '我的位置',
-            icon: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
-          })
-          mapRef.current.add(m)
-          geoMarkerRef.current = m
-        },
-        () => {},
-      )
+            const m = new window.AMap.Marker({
+              position: new window.AMap.LngLat(pos.position.lng, pos.position.lat),
+              title: '我的位置',
+              icon: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
+            })
+            mapRef.current.add(m)
+            geoMarkerRef.current = m
+          },
+          () => {},
+        )
+      } catch { /* 定位不可用时不阻塞 */ }
     })
-  }, [mapReady, plan.transportMode, legFrom, legTo, activeLegIndex])
+  }
+
+  // ── 当 leg 变化时重新绘制路线 ──────────────────────────────────────────
+  useEffect(() => {
+    if (mapReadyRef.current) drawRoute()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.transportMode, legFrom?.lng, legFrom?.lat, legTo?.lng, legTo?.lat, activeLegIndex])
 
   if (!hasAmapJsKey()) {
     return (
@@ -179,15 +186,12 @@ export function AmapNavigateMap({ plan, activeWaypoint, activeLegIndex, classNam
 
   return (
     <div className={`relative overflow-hidden rounded-[2rem] border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] ${className}`}>
-      {!mapReady && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--ds-muted)] rounded-[2rem]">
-          <span className="font-body text-sm text-[var(--ds-muted-foreground)]">地图加载中…</span>
-        </div>
-      )}
+      {/* 地图容器：不加任何遮罩，让瓦片直接可见 */}
       <div ref={containerRef} className="h-full w-full min-h-[360px]" />
-      {mapError ? (
-        <div className="absolute bottom-3 left-3 right-3 rounded-xl bg-white/90 px-3 py-2 text-center text-xs text-[var(--ds-destructive)]">
-          {mapError}
+      {/* 错误提示：仅在底部小条显示，不遮挡地图 */}
+      {initError ? (
+        <div className="absolute bottom-3 left-3 right-3 z-10 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-center font-body text-xs text-amber-800 backdrop-blur-sm">
+          {initError}
         </div>
       ) : null}
     </div>

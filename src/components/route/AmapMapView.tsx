@@ -233,9 +233,11 @@ export function AmapMapView({
     <div
       className={`relative overflow-hidden rounded-[2rem] border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] ${className}`}
     >
+      {/* 地图容器：不加覆盖层，让瓦片保持可见 */}
       <div ref={containerRef} className="h-full w-full min-h-[320px]" />
+      {/* 错误/警告仅在底部小条展示，不遮挡瓦片 */}
       {mapError ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/80 p-4 text-center font-body text-sm text-[var(--ds-destructive)]">
+        <div className="absolute bottom-3 left-3 right-3 z-10 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-center font-body text-xs text-amber-800 backdrop-blur-sm">
           {mapError}
         </div>
       ) : null}
