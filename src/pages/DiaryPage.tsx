@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAiApi } from '../api/ai'
 import { getDiaryApi } from '../api/diary'
@@ -64,6 +64,12 @@ function mergePages(left: string, right: string): string {
   return `${left}${PAGE_SPLIT_MARK}${right}`
 }
 
+function autoResizeTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = '0px'
+  el.style.height = `${el.scrollHeight}px`
+}
+
 async function loadAssetsPage(
   loaders: AssetLoaders,
   pageSize: number,
@@ -112,6 +118,8 @@ export function DiaryPage() {
   const [activeMaterialTab, setActiveMaterialTab] = useState<MaterialTab>('cover')
   const spreadRef = useRef<HTMLDivElement | null>(null)
   const rightPageRef = useRef<HTMLDivElement | null>(null)
+  const leftPageTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const rightPageTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const stickerDragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null)
   const stickerResizeRef = useRef<{ id: string; startScale: number; startDist: number; cx: number; cy: number } | null>(null)
@@ -142,6 +150,17 @@ export function DiaryPage() {
   const [paperAssetError, setPaperAssetError] = useState<string | null>(null)
   const [stickerAssetError, setStickerAssetError] = useState<string | null>(null)
   const [selectedPaper, setSelectedPaper] = useState<string | null>(null)
+
+  useLayoutEffect(() => {
+    autoResizeTextarea(leftPageTextareaRef.current)
+    autoResizeTextarea(rightPageTextareaRef.current)
+  }, [leftPageText, rightPageText, bookOpened, currentEntryIndex])
+
+  useLayoutEffect(() => {
+    textLayers.forEach((layer) => {
+      autoResizeTextarea(document.getElementById(`text-layer-input-${layer.id}`) as HTMLTextAreaElement | null)
+    })
+  }, [textLayers])
 
   const applyEntryToEditor = (entry: DiaryEntry | null) => {
     setSelectedEntry(entry)
@@ -1007,10 +1026,15 @@ export function DiaryPage() {
                         >
                           <div className="pointer-events-none absolute right-0 top-0 h-10 w-10 bg-gradient-to-bl from-[#8db2c7]/22 to-transparent" />
                           <textarea
+                            ref={leftPageTextareaRef}
                             value={leftPageText}
-                            onChange={(e) => setLeftPageText(e.target.value)}
+                            onChange={(e) => {
+                              setLeftPageText(e.target.value)
+                              autoResizeTextarea(e.target)
+                            }}
                             onBlur={() => void saveCurrentEntry()}
-                            className="h-full w-full resize-none rounded-xl border border-white/55 bg-white/20 p-2.5 text-[14px] leading-6 text-[var(--ds-foreground)] outline-none"
+                            rows={4}
+                            className="min-h-[6rem] w-full resize-none overflow-hidden rounded-xl border border-white/55 bg-white/20 p-2.5 text-[14px] leading-6 text-[var(--ds-foreground)] outline-none"
                             placeholder="左页：可书写内容..."
                           />
                           <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-[var(--ds-muted-foreground)]/80">P.1</div>
@@ -1041,10 +1065,15 @@ export function DiaryPage() {
                             placeholder="Day 标题"
                           />
                           <textarea
+                            ref={rightPageTextareaRef}
                             value={rightPageText}
-                            onChange={(e) => setRightPageText(e.target.value)}
+                            onChange={(e) => {
+                              setRightPageText(e.target.value)
+                              autoResizeTextarea(e.target)
+                            }}
                             onBlur={() => void saveCurrentEntry()}
-                            className="mt-2 h-[58%] w-full resize-none rounded-xl border border-white/55 bg-white/20 p-2.5 text-[14px] leading-6 text-[var(--ds-foreground)] outline-none"
+                            rows={6}
+                            className="mt-2 min-h-[8rem] w-full resize-none overflow-hidden rounded-xl border border-white/55 bg-white/20 p-2.5 text-[14px] leading-6 text-[var(--ds-foreground)] outline-none"
                             placeholder="在透明文本框中写下旅行故事..."
                           />
                           {textLayers.map((layer) => {
@@ -1080,7 +1109,10 @@ export function DiaryPage() {
                                   <textarea
                                     id={`text-layer-input-${layer.id}`}
                                     value={layer.value}
-                                    onChange={(e) => updateTextLayer(layer.id, { value: e.target.value })}
+                                    onChange={(e) => {
+                                      updateTextLayer(layer.id, { value: e.target.value })
+                                      autoResizeTextarea(e.target)
+                                    }}
                                     onFocus={() => {
                                       setActiveTextLayerId(layer.id)
                                       setActiveStickerId(null)
@@ -1090,14 +1122,13 @@ export function DiaryPage() {
                                       if (next && e.currentTarget.closest('[data-text-layer]')?.contains(next)) return
                                       setActiveTextLayerId((cur) => (cur === layer.id ? null : cur))
                                     }}
-                                    rows={3}
-                                    className={`w-full resize-none leading-relaxed text-[var(--ds-foreground)] outline-none transition ${
+                                    rows={2}
+                                    className={`w-full resize-none overflow-hidden leading-relaxed text-[var(--ds-foreground)] outline-none transition ${
                                       active
                                         ? 'min-h-[3.5rem] rounded-md border border-white/45 bg-white/18 p-2 text-[13px]'
-                                        : 'cursor-text border-0 bg-transparent p-0 text-[14px] shadow-none'
+                                        : 'min-h-0 cursor-text border-0 bg-transparent p-0 text-[14px] shadow-none'
                                     }`}
                                     placeholder={active ? '写下这一刻…' : ''}
-                                    style={{ minHeight: active ? undefined : `${layer.height}%` }}
                                   />
                                   {active ? (
                                     <>

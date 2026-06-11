@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AmapMapView } from '../components/route/AmapMapView'
+import { AmapNavigateMap } from '../components/route/AmapNavigateMap'
 import { RouteTimelinePanel } from '../components/route/RouteTimelinePanel'
 import { GlassPanel } from '../components/ui/GlassPanel'
 import { InlineNotice } from '../components/ui/InlineNotice'
@@ -33,6 +33,10 @@ function NavigatePageContent() {
   const [facError, setFacError] = useState<string | null>(null)
 
   const focusWaypoint = activeWaypoint ?? macroPlan?.waypoints?.[0] ?? null
+  const activeLegIndex = Math.max(
+    0,
+    (macroPlan?.waypoints?.findIndex((wp) => String(wp.id) === String(focusWaypoint?.id)) ?? 1) - 1,
+  )
 
   const loadFacilities = useCallback(
     async (wp: NonNullable<typeof focusWaypoint>) => {
@@ -96,19 +100,12 @@ function NavigatePageContent() {
     [macroPlan, setActiveWaypoint],
   )
 
-  const handleMapSelect = useCallback(
-    (wp: NonNullable<typeof focusWaypoint>) => {
-      setActiveWaypoint(wp)
-    },
-    [setActiveWaypoint],
-  )
-
   return (
     <div className="mx-auto max-w-[1320px] animate-fade-rise px-5 py-8 md:px-10">
       <PageHeader
         eyebrow="Travel Navigate"
         title="旅行导航 · 北京市内"
-        description="上方为具体路线时间轴；点击站点查看周边设施，地图支持实时定位。"
+        description="高德导航时间轴含步行/地铁分段；地图根据当前站点与定位显示路线。"
       />
 
       {!macroPlan ? (
@@ -173,14 +170,12 @@ function NavigatePageContent() {
         </GlassPanel>
 
         {macroPlan ? (
-          <AmapMapView
-            key="navigate-map"
+          <AmapNavigateMap
+            key={`nav-${activeLegIndex}-${focusWaypoint?.id}`}
             className="min-h-[360px]"
-            waypoints={macroPlan.waypoints}
-            polyline={macroPlan.polyline}
-            activeId={focusWaypoint?.id}
-            showGeolocation
-            onSelectWaypoint={handleMapSelect}
+            plan={macroPlan}
+            activeWaypoint={focusWaypoint}
+            activeLegIndex={activeLegIndex}
           />
         ) : (
           <div className="flex min-h-[360px] items-center justify-center rounded-[2rem] border border-dashed border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] bg-white/60 font-body text-sm text-[var(--ds-muted-foreground)]">

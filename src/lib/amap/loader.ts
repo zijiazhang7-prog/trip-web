@@ -21,7 +21,7 @@ export function loadAmap(): Promise<AMapNS> {
 
     loadPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script')
-      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key)}&plugin=AMap.Driving,AMap.Walking,AMap.Riding,AMap.Geocoder,AMap.PlaceSearch,AMap.Geolocation`
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key)}&plugin=AMap.Driving,AMap.Walking,AMap.Riding,AMap.Transfer,AMap.Geocoder,AMap.PlaceSearch,AMap.Geolocation`
       script.async = true
       script.onload = () => {
         if (window.AMap) resolve(window.AMap)

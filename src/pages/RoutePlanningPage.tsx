@@ -16,7 +16,7 @@ export function RoutePlanningPage() {
   const navigate = useNavigate()
   const { setMacroPlan, setActiveWaypoint } = useRoutePlan()
   const [selected, setSelected] = useState<RouteWaypoint[]>([])
-  const [transportMode, setTransportMode] = useState<TransportMode>('driving')
+  const [transportMode, setTransportMode] = useState<TransportMode>('transit')
   const [planning, setPlanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [localPlan, setLocalPlan] = useState<Awaited<ReturnType<typeof planMacroRoute>> | null>(null)

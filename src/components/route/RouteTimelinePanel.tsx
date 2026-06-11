@@ -1,4 +1,4 @@
-import type { MacroRoutePlan } from '../../types/macroRoute'
+import type { MacroRoutePlan, NavStep } from '../../types/macroRoute'
 import { TRANSPORT_OPTIONS } from '../../types/macroRoute'
 
 type RouteTimelinePanelProps = {
@@ -25,6 +25,34 @@ function etaFromNow(seconds: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} 到达`
 }
 
+function stepIcon(step: NavStep): string {
+  if (step.type === 'subway' || step.type === 'railway') return '🚇'
+  if (step.type === 'bus') return '🚌'
+  if (step.type === 'walking') return '🚶'
+  if (step.type === 'driving') return '🚗'
+  if (step.type === 'bicycling') return '🚴'
+  return '→'
+}
+
+function StepList({ steps }: { steps: NavStep[] }) {
+  return (
+    <ul className="mt-2 space-y-1.5 border-l border-[color-mix(in_srgb,var(--ds-primary)_20%,transparent)] pl-3">
+      {steps.map((step, idx) => (
+        <li key={`${step.instruction}-${idx}`} className="font-body text-xs text-[var(--ds-foreground)]">
+          <span className="mr-1">{stepIcon(step)}</span>
+          {step.instruction}
+          {step.departure && step.arrival ? (
+            <span className="mt-0.5 block text-[10px] text-[var(--ds-muted-foreground)]">
+              {step.departure} → {step.arrival}
+              {step.lineName ? ` · ${step.lineName}` : ''}
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function RouteTimelinePanel({ plan, activeId, onSelectWaypoint }: RouteTimelinePanelProps) {
   if (!plan) {
     return (
@@ -41,7 +69,7 @@ export function RouteTimelinePanel({ plan, activeId, onSelectWaypoint }: RouteTi
   const modeLabel = mode?.label ?? '出行'
 
   return (
-    <div className="flex h-full max-h-[min(52vh,520px)] flex-col overflow-hidden rounded-[2rem] border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white shadow-[var(--ds-shadow-soft)]">
+    <div className="flex h-full max-h-[min(58vh,560px)] flex-col overflow-hidden rounded-[2rem] border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white shadow-[var(--ds-shadow-soft)]">
       <div className="border-b border-[color-mix(in_srgb,var(--ds-border)_35%,transparent)] bg-[color-mix(in_srgb,var(--ds-muted)_40%,white)] px-5 py-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -59,25 +87,13 @@ export function RouteTimelinePanel({ plan, activeId, onSelectWaypoint }: RouteTi
             <span className="rounded-lg bg-[color-mix(in_srgb,var(--ds-secondary)_15%,white)] px-2.5 py-1 text-xs font-semibold text-[var(--ds-secondary)]">
               北京市
             </span>
-            {(plan.waypoints ?? []).map((wp) => (
-              <span
-                key={String(wp.id)}
-                className="rounded-lg border border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] bg-white px-2 py-1 text-[11px] text-[var(--ds-muted-foreground)]"
-              >
-                {wp.name}
-              </span>
-            ))}
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
         <div className="relative ml-3 border-l-2 border-[color-mix(in_srgb,var(--ds-primary)_25%,transparent)] pl-6">
-          <button
-            type="button"
-            className="relative mb-6 w-full text-left"
-            onClick={() => onSelectWaypoint?.(0)}
-          >
+          <button type="button" className="relative mb-6 w-full text-left" onClick={() => onSelectWaypoint?.(0)}>
             <span className="absolute -left-[1.65rem] top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ds-primary)] text-[10px] font-bold text-white">
               起
             </span>
@@ -88,16 +104,22 @@ export function RouteTimelinePanel({ plan, activeId, onSelectWaypoint }: RouteTi
           {(plan.segments ?? []).map((seg, i) => {
             const toWp = plan.waypoints[i + 1]
             const isActive = toWp && String(activeId) === String(toWp.id)
+            const steps = seg.steps?.length
+              ? seg.steps
+              : seg.instruction
+                ? [{ type: 'walking' as const, instruction: seg.instruction }]
+                : []
+
             return (
               <div key={`${seg.fromName}-${seg.toName}`} className="mb-6">
                 <div className="mb-3 rounded-xl border border-dashed border-[color-mix(in_srgb,var(--ds-primary)_25%,transparent)] bg-[color-mix(in_srgb,var(--ds-muted)_35%,white)] px-3 py-2">
-                  <p className="font-body text-sm text-[var(--ds-foreground)]">
-                    <span className="mr-1">{mode?.icon}</span>
-                    {modeLabel} {formatDistance(seg.distance)}（{formatDuration(seg.duration)}）
+                  <p className="font-body text-sm font-semibold text-[var(--ds-foreground)]">
+                    {seg.fromName} → {seg.toName}
                   </p>
-                  {seg.instruction ? (
-                    <p className="font-body mt-1 text-xs text-[var(--ds-muted-foreground)]">{seg.instruction}</p>
-                  ) : null}
+                  <p className="font-body mt-1 text-xs text-[var(--ds-muted-foreground)]">
+                    {modeLabel} · {formatDistance(seg.distance)}（{formatDuration(seg.duration)}）
+                  </p>
+                  {steps.length ? <StepList steps={steps} /> : null}
                 </div>
                 <button
                   type="button"
@@ -114,7 +136,7 @@ export function RouteTimelinePanel({ plan, activeId, onSelectWaypoint }: RouteTi
                     }`}
                   />
                   <p className="font-display font-semibold text-[var(--ds-foreground)]">{seg.toName}</p>
-                  <p className="font-body text-xs text-[var(--ds-muted-foreground)]">第 {i + 2} 站 · 点击查看周边设施</p>
+                  <p className="font-body text-xs text-[var(--ds-muted-foreground)]">第 {i + 2} 站 · 地图同步此段导航</p>
                 </button>
               </div>
             )
@@ -123,8 +145,8 @@ export function RouteTimelinePanel({ plan, activeId, onSelectWaypoint }: RouteTi
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-[color-mix(in_srgb,var(--ds-border)_35%,transparent)] px-5 py-3">
-        <span className="font-body text-xs text-[var(--ds-muted-foreground)]">景区步行时间轴 · 可扩展地铁/打车分段</span>
-        <span className="rounded-full bg-[color-mix(in_srgb,var(--ds-primary)_90%,#2c2c24)] px-4 py-1.5 text-xs font-semibold text-white">
+        <span className="font-body text-xs text-[var(--ds-muted-foreground)]">高德导航 · 含步行/地铁/公交分段</span>
+        <span className="rounded-full bg-[color-mix(in_srgb,var(--ds-primary)_90%,#12372a)] px-4 py-1.5 text-xs font-semibold text-white">
           导航中
         </span>
       </div>

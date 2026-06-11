@@ -28,9 +28,15 @@ const TRAVELERS = [
 
 const MAX_TRAVELERS = 3
 
+export type PreferenceSavedPayload = {
+  themes: string[]
+  customText: string
+  tags: string[]
+}
+
 type TravelPreferencesProps = {
   className?: string
-  onSaved?: (themeList: string[]) => void
+  onSaved?: (payload: PreferenceSavedPayload) => void
   /** 从首页 CTA 跳入时自动展开偏好面板 */
   openPanel?: boolean
 }
@@ -68,6 +74,7 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loadingPrefs, setLoadingPrefs] = useState(false)
+  const [customAiText, setCustomAiText] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -83,6 +90,10 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
         if (tags.length) {
           setNested('single')
           setSingleSelected(tags)
+        }
+        if (prefs.customPreferenceText?.trim()) {
+          const firstLine = prefs.customPreferenceText.split('\n')[0]?.trim() ?? ''
+          setCustomAiText(firstLine)
         }
       } catch (err) {
         if (!cancelled) setSaveError(err instanceof Error ? err.message : '偏好加载失败')
@@ -120,25 +131,41 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
     try {
       const tags = nested === 'single' ? singleSelected : [...new Set(multiSelected.flat())]
       const themeList = tagsToThemeList(tags)
-      const customText =
+      const multiSummary =
         nested === 'multi'
           ? TRAVELERS.map((p, i) => `${p.label}: ${multiSelected[i].join('、')}`).join('；')
-          : undefined
+          : ''
+      const customText = [customAiText.trim(), multiSummary].filter(Boolean).join('\n')
       await saveMyPreferences({
         preferThemeList: themeList,
         travelStyle: nested === 'multi' ? '多人' : '单人',
-        customPreferenceText: customText,
+        customPreferenceText: customText || undefined,
         preferHotLevel: 3,
         preferCrowdLevel: 2,
       })
       setSaveMsg('偏好已同步到云端')
-      onSaved?.(themeList)
+      onSaved?.({ themes: themeList, customText: customAiText.trim(), tags })
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : '保存失败')
     } finally {
       setSaving(false)
     }
-  }, [nested, singleSelected, multiSelected, snapshotValid, onSaved])
+  }, [nested, singleSelected, multiSelected, snapshotValid, onSaved, customAiText])
+
+  const aiPreferenceField = (
+    <div className="mt-4 rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--ds-primary)_18%,transparent)] bg-[color-mix(in_srgb,var(--ds-background)_75%,white)] p-4">
+      <p className="mb-2 font-body text-xs font-medium text-[var(--ds-muted-foreground)]">
+        用一句话描述你想怎么玩（DeepSeek 智能匹配推荐）
+      </p>
+      <textarea
+        value={customAiText}
+        onChange={(e) => setCustomAiText(e.target.value)}
+        rows={3}
+        placeholder="例如：想带孩子去有文化底蕴又不太累的地方，周末两天，喜欢美食和古镇…"
+        className="w-full resize-none rounded-xl border border-[color-mix(in_srgb,var(--ds-border)_55%,transparent)] bg-white/90 px-3 py-2.5 font-body text-sm leading-relaxed text-[var(--ds-foreground)] outline-none focus:border-[var(--ds-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--ds-primary)_25%,transparent)]"
+      />
+    </div>
+  )
 
   const toggleSingleTag = (tag: string) => setSingleSelected((prev) => toggleInList(prev, tag))
 
@@ -259,6 +286,7 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
                           )
                         })}
                       </motion.div>
+                      {aiPreferenceField}
                     </div>
                   </motion.div>
                 ) : null}
@@ -302,6 +330,7 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
                         </div>
                       ))}
                     </div>
+                    {aiPreferenceField}
                   </motion.div>
                 ) : null}
               </AnimatePresence>

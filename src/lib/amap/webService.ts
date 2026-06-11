@@ -1,3 +1,4 @@
+import type { NavStep } from '../../types/macroRoute'
 import { getAmapWebKey } from './config'
 import { decodeAmapPolyline } from './polyline'
 
@@ -78,6 +79,16 @@ export type LegResult = {
   duration: number
   polyline: [number, number][]
   instruction?: string
+  steps?: NavStep[]
+}
+
+function stepsFromPath(path: RawDirectionPath, mode: DirectionMode): NavStep[] {
+  return (path.steps ?? []).map((step) => ({
+    type: mode,
+    instruction: step.instruction?.replace(/<[^>]+>/g, '') || '继续前行',
+    distance: Number(step.distance) || undefined,
+    duration: Number(step.duration) || undefined,
+  }))
 }
 
 export async function fetchDirectionLeg(
@@ -99,11 +110,126 @@ export async function fetchDirectionLeg(
     if (step.polyline) polyline.push(...decodeAmapPolyline(step.polyline))
   }
 
+  const steps = stepsFromPath(path, mode)
+
   return {
     distance: Number(path.distance) || 0,
     duration: Number(path.duration) || 0,
     polyline,
-    instruction: path.steps?.[0]?.instruction,
+    instruction: steps[0]?.instruction,
+    steps,
+  }
+}
+
+type RawTransitSegment = {
+  walking?: {
+    distance?: string | number
+    duration?: string | number
+    steps?: Array<{ instruction?: string; distance?: string | number; duration?: string | number }>
+  }
+  bus?: {
+    buslines?: Array<{
+      name?: string
+      departure_stop?: { name?: string }
+      arrival_stop?: { name?: string }
+      distance?: string | number
+      duration?: string | number
+    }>
+  }
+  railway?: {
+    name?: string
+    trip?: string
+    distance?: string | number
+    time?: string | number
+    departure_stop?: { name?: string }
+    arrival_stop?: { name?: string }
+  }
+}
+
+type RawTransitResponse = {
+  route?: {
+    transits?: Array<{
+      distance?: string | number
+      duration?: string | number
+      segments?: RawTransitSegment[]
+    }>
+  }
+}
+
+export async function fetchTransitLeg(
+  origin: { lng: number; lat: number },
+  destination: { lng: number; lat: number },
+  city = '北京',
+): Promise<LegResult> {
+  const data = await amapGet<RawTransitResponse>('/v3/direction/transit/integrated', {
+    origin: `${origin.lng},${origin.lat}`,
+    destination: `${destination.lng},${destination.lat}`,
+    city,
+    cityd: city,
+    strategy: '0',
+    nightflag: '0',
+  })
+
+  const transit = data.route?.transits?.[0]
+  if (!transit) throw new Error('未获取到公交地铁路线')
+
+  const steps: NavStep[] = []
+  const polyline: [number, number][] = []
+
+  for (const seg of transit.segments ?? []) {
+    if (seg.walking?.steps?.length) {
+      for (const w of seg.walking.steps) {
+        steps.push({
+          type: 'walking',
+          instruction: w.instruction?.replace(/<[^>]+>/g, '') || '步行',
+          distance: Number(w.distance) || undefined,
+          duration: Number(w.duration) || undefined,
+        })
+      }
+    } else if (seg.walking) {
+      steps.push({
+        type: 'walking',
+        instruction: `步行 ${Math.round(Number(seg.walking.distance) || 0)} 米`,
+        distance: Number(seg.walking.distance) || undefined,
+        duration: Number(seg.walking.duration) || undefined,
+      })
+    }
+
+    const line = seg.bus?.buslines?.[0]
+    if (line) {
+      const isSubway = /地铁|轨道|号线/.test(line.name ?? '')
+      steps.push({
+        type: isSubway ? 'subway' : 'bus',
+        instruction: `乘坐 ${line.name ?? '公交'}`,
+        lineName: line.name,
+        departure: line.departure_stop?.name,
+        arrival: line.arrival_stop?.name,
+        distance: Number(line.distance) || undefined,
+        duration: Number(line.duration) || undefined,
+      })
+    }
+
+    if (seg.railway) {
+      steps.push({
+        type: 'subway',
+        instruction: `乘坐 ${seg.railway.name ?? seg.railway.trip ?? '地铁'}`,
+        lineName: seg.railway.name ?? seg.railway.trip,
+        departure: seg.railway.departure_stop?.name,
+        arrival: seg.railway.arrival_stop?.name,
+        distance: Number(seg.railway.distance) || undefined,
+        duration: Number(seg.railway.time) || undefined,
+      })
+    }
+  }
+
+  polyline.push([origin.lng, origin.lat], [destination.lng, destination.lat])
+
+  return {
+    distance: Number(transit.distance) || 0,
+    duration: Number(transit.duration) || 0,
+    polyline,
+    instruction: steps[0]?.instruction,
+    steps,
   }
 }
 

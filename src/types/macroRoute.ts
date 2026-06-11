@@ -1,4 +1,14 @@
-export type TransportMode = 'driving' | 'walking' | 'bicycling'
+export type TransportMode = 'driving' | 'walking' | 'bicycling' | 'transit'
+
+export type NavStep = {
+  type: 'walking' | 'driving' | 'bicycling' | 'bus' | 'subway' | 'railway'
+  instruction: string
+  distance?: number
+  duration?: number
+  lineName?: string
+  departure?: string
+  arrival?: string
+}
 
 export type RouteWaypoint = {
   id: number | string
@@ -21,6 +31,7 @@ export type RouteSegment = {
   duration: number
   transportMode: TransportMode
   instruction?: string
+  steps?: NavStep[]
 }
 
 export type MacroRoutePlan = {
@@ -35,6 +46,7 @@ export type MacroRoutePlan = {
 }
 
 export const TRANSPORT_OPTIONS: { value: TransportMode; label: string; icon: string }[] = [
+  { value: 'transit', label: '公交地铁', icon: '🚇' },
   { value: 'driving', label: '驾车', icon: '🚗' },
   { value: 'walking', label: '步行', icon: '🚶' },
   { value: 'bicycling', label: '骑行', icon: '🚴' },

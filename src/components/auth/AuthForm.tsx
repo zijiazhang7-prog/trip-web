@@ -6,6 +6,12 @@ import type { AuthMode } from './authArt'
 const inputClass =
   'w-full rounded-2xl border border-[color-mix(in_srgb,var(--ds-border)_65%,transparent)] bg-[color-mix(in_srgb,white_58%,var(--ds-muted))] px-4 py-3 text-[var(--ds-foreground)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.88)] outline-none ring-[var(--ds-primary)] transition placeholder:text-[color-mix(in_srgb,var(--ds-muted-foreground)_50%,transparent)] focus:border-[color-mix(in_srgb,var(--ds-primary)_40%,var(--ds-border))] focus:ring-2'
 
+const PHONE_RE = /^1\d{10}$/
+
+function isValidPhone(value: string): boolean {
+  return PHONE_RE.test(value.trim())
+}
+
 export type AuthFormProps = {
   mode: AuthMode
   onModeChange: (mode: AuthMode) => void
@@ -29,7 +35,11 @@ export function AuthForm({ mode, onModeChange, titleId, firstFieldRef, onAuthSuc
     setError(null)
     setSuccess(null)
     if (!username.trim() || !password.trim()) {
-      setError('请填写账号和密码')
+      setError('请填写手机号和密码')
+      return
+    }
+    if (!isValidPhone(username)) {
+      setError('请输入 11 位有效手机号')
       return
     }
     if (!isLogin) {
@@ -92,15 +102,17 @@ export function AuthForm({ mode, onModeChange, titleId, firstFieldRef, onAuthSuc
             {isLogin ? (
               <>
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold text-[var(--ds-muted-foreground)]">邮箱或手机号</span>
+                  <span className="mb-1.5 block text-xs font-semibold text-[var(--ds-muted-foreground)]">手机号</span>
                   <input
                     ref={firstFieldRef}
-                    type="text"
-                    autoComplete="username"
-                    placeholder="hello@example.com"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    maxLength={11}
+                    placeholder="请输入 11 位手机号"
                     className={inputClass}
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => setUsername(e.target.value.replace(/\D/g, '').slice(0, 11))}
                   />
                 </label>
                 <label className="block">
@@ -159,14 +171,16 @@ export function AuthForm({ mode, onModeChange, titleId, firstFieldRef, onAuthSuc
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold text-[var(--ds-muted-foreground)]">邮箱或手机号</span>
+                  <span className="mb-1.5 block text-xs font-semibold text-[var(--ds-muted-foreground)]">手机号</span>
                   <input
-                    type="text"
-                    autoComplete="email"
-                    placeholder="用于登录与找回"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    maxLength={11}
+                    placeholder="请输入 11 位手机号"
                     className={inputClass}
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => setUsername(e.target.value.replace(/\D/g, '').slice(0, 11))}
                   />
                 </label>
                 <label className="block">

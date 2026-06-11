@@ -23,7 +23,35 @@ declare global {
       LngLat: new (lng: number, lat: number) => unknown
       plugin: (names: string | string[], cb: () => void) => void
       event?: { addListener: (target: unknown, type: string, cb: () => void) => void }
-      Driving: new (opts: Record<string, unknown>) => unknown
+      Driving: new (opts: Record<string, unknown>) => {
+        search: (
+          start: unknown,
+          end: unknown,
+          callback: (status: string, result?: unknown) => void,
+        ) => void
+      }
+      Walking: new (opts: Record<string, unknown>) => {
+        search: (
+          start: unknown,
+          end: unknown,
+          callback: (status: string, result?: unknown) => void,
+        ) => void
+      }
+      Riding: new (opts: Record<string, unknown>) => {
+        search: (
+          start: unknown,
+          end: unknown,
+          callback: (status: string, result?: unknown) => void,
+        ) => void
+      }
+      Transfer: new (opts: Record<string, unknown>) => {
+        search: (
+          start: unknown,
+          end: unknown,
+          callback: (status: string, result?: unknown) => void,
+        ) => void
+      }
+      TransferPolicy: { LEAST_TIME: number }
       Geolocation: new (opts: Record<string, unknown>) => {
         getCurrentPosition: (
           onSuccess: (pos: { position: { lng: number; lat: number } }) => void,

@@ -9,7 +9,8 @@ import { inferTotalPages } from '../api/pagination'
 import { useTripContext } from '../context/tripContext'
 import { TravelPreferences } from '../components/travel/TravelPreferences'
 import { PrimaryButton } from '../components/ui/PrimaryButton'
-import { explainRecommendation, hasDeepSeekKey } from '../api/llm'
+import { explainRecommendation, hasDeepSeekKey, rankDestinationsByPreference } from '../api/llm'
+import type { PreferenceSavedPayload } from '../components/travel/TravelPreferences'
 import {
   destTypes,
   destinations as destinationsFallback,
@@ -125,9 +126,10 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   const [preferThemes, setPreferThemes] = useState<string[]>([])
   const [aiSearchText, setAiSearchText] = useState('')
   const [selectedDestType, setSelectedDestType] = useState('')
-  const [travelTime, setTravelTime] = useState('')
-  const [budget, setBudget] = useState('')
   const [selectedInterests, setSelectedInterests] = useState<string[]>([])
+  const [aiRankedIds, setAiRankedIds] = useState<number[]>([])
+  const [rankingDestinations, setRankingDestinations] = useState(false)
+  const pendingRankRef = useRef<{ customText: string; tags: string[] } | null>(null)
   const [items, setItems] = useState<Destination[]>([])
   const [listMode, setListMode] = useState<'recommend' | 'search'>('recommend')
   const [activeSearchKeyword, setActiveSearchKeyword] = useState('')
@@ -151,7 +153,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   }, [items])
 
   const filteredDestinations = useMemo(() => {
-    return items.filter((d) => {
+    const filtered = items.filter((d) => {
       const haystack = `${d.type} ${d.badge} ${d.reason}`.toLowerCase()
       if (selectedDestType) {
         const rx = destTypeMatchers[selectedDestType]
@@ -160,7 +162,49 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       if (selectedInterests.length === 0) return true
       return selectedInterests.some((tag) => haystack.includes(tag.toLowerCase()))
     })
-  }, [items, selectedDestType, selectedInterests])
+    if (!aiRankedIds.length) return filtered
+    const order = new Map(aiRankedIds.map((id, i) => [id, i]))
+    return [...filtered].sort((a, b) => {
+      const ai = order.get(a.id ?? -1) ?? 9999
+      const bi = order.get(b.id ?? -1) ?? 9999
+      return ai - bi
+    })
+  }, [items, selectedDestType, selectedInterests, aiRankedIds])
+
+  const runDestinationRanking = useCallback(async (customText: string, tags: string[]) => {
+    if (!customText.trim() || !hasDeepSeekKey()) {
+      setAiRankedIds([])
+      return
+    }
+    const candidates = itemsRef.current.filter((d) => d.id != null)
+    if (!candidates.length) return
+    setRankingDestinations(true)
+    try {
+      const rankedIds = await rankDestinationsByPreference({
+        userText: customText,
+        selectedTags: tags,
+        destinations: candidates.map((d) => ({
+          id: d.id!,
+          name: d.name,
+          type: d.type,
+          badge: d.badge,
+          reason: d.reason,
+        })),
+      })
+      setAiRankedIds(rankedIds)
+    } catch {
+      setAiRankedIds([])
+    } finally {
+      setRankingDestinations(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (loadingInitial || !pendingRankRef.current) return
+    const pending = pendingRankRef.current
+    pendingRankRef.current = null
+    void runDestinationRanking(pending.customText, pending.tags)
+  }, [items, loadingInitial, runDestinationRanking])
 
   const resetRecommendFirstPage = useCallback(async () => {
     setLoadingInitial(true)
@@ -401,8 +445,14 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
             key={openPreferences ? 'prefs-open' : 'prefs-default'}
             className="w-full max-w-full shrink-0 lg:w-auto lg:max-w-[min(100%,380px)]"
             openPanel={openPreferences}
-            onSaved={(themes) => {
-              setPreferThemes(themes)
+            onSaved={(payload: PreferenceSavedPayload) => {
+              setPreferThemes(payload.themes)
+              if (payload.customText.trim() && hasDeepSeekKey()) {
+                pendingRankRef.current = { customText: payload.customText, tags: payload.tags }
+              } else {
+                pendingRankRef.current = null
+                setAiRankedIds([])
+              }
               void resetRecommendFirstPage()
             }}
           />
@@ -467,34 +517,6 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
               ))}
             </div>
           </div>
-          <div className={`p-7 ${glass}`} style={{ borderRadius: '2rem 2.35rem 2rem 2.2rem' }}>
-            <h3 className={sidebarTitle}>出行时间</h3>
-            <select
-              value={travelTime}
-              onChange={(e) => setTravelTime(e.target.value)}
-              className="h-12 w-full rounded-full border border-[color-mix(in_srgb,var(--ds-border)_70%,transparent)] bg-[color-mix(in_srgb,white_50%,transparent)] px-5 font-body text-sm text-[var(--ds-foreground)] outline-none transition focus-visible:border-[var(--ds-primary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--ds-primary)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ds-background)]"
-            >
-              <option value="">不限</option>
-              <option>3天以内</option>
-              <option>4-7天</option>
-              <option>7-14天</option>
-              <option>14天以上</option>
-            </select>
-          </div>
-          <div className={`p-7 ${glass}`} style={{ borderRadius: '2.15rem 2rem 2.4rem 2rem' }}>
-            <h3 className={sidebarTitle}>预算范围</h3>
-            <select
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              className="h-12 w-full rounded-full border border-[color-mix(in_srgb,var(--ds-border)_70%,transparent)] bg-[color-mix(in_srgb,white_50%,transparent)] px-5 font-body text-sm text-[var(--ds-foreground)] outline-none transition focus-visible:border-[var(--ds-primary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--ds-primary)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ds-background)]"
-            >
-              <option value="">不限</option>
-              <option>1000 以下</option>
-              <option>1000 - 3000</option>
-              <option>3000 - 8000</option>
-              <option>8000 以上</option>
-            </select>
-          </div>
         </aside>
 
         <div className="min-w-0">
@@ -505,6 +527,9 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
           ) : null}
           {loadingInitial ? (
             <p className="mb-6 font-body text-sm text-[var(--ds-muted-foreground)]">正在加载目的地...</p>
+          ) : null}
+          {rankingDestinations ? (
+            <p className="mb-4 font-body text-sm text-[var(--ds-primary)]">DeepSeek 正在根据你的描述智能排序推荐…</p>
           ) : null}
 
           <div className="mb-9 flex flex-wrap items-center gap-3">
@@ -627,8 +652,6 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
                           destinationName: detailDest.name,
                           destinationType: detailDest.type,
                           travelerThemes: [...preferThemes, ...selectedInterests],
-                          budget,
-                          travelTime,
                         })
                         setAiReason(reason)
                       } catch (err) {

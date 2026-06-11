@@ -1,7 +1,7 @@
 import type { MacroRoutePlan, RouteSegment, RouteWaypoint, TransportMode } from '../../types/macroRoute'
 import { BEIJING_ATTRACTIONS } from '../../data/beijingDestinations'
 import { hasAmapWebKey } from './config'
-import { fetchDirectionLeg, geocodeBeijingSpot } from './webService'
+import { fetchDirectionLeg, fetchTransitLeg, geocodeBeijingSpot } from './webService'
 import { optimizeWaypointOrder } from './optimizeOrder'
 
 async function resolveCoordinates(wp: RouteWaypoint): Promise<RouteWaypoint> {
@@ -57,16 +57,26 @@ export async function planMacroRoute(
     const from = waypoints[i]
     const to = waypoints[i + 1]
 
-    let leg: { distance: number; duration: number; polyline: [number, number][]; instruction?: string }
+    let leg: {
+      distance: number
+      duration: number
+      polyline: [number, number][]
+      instruction?: string
+      steps?: import('../../types/macroRoute').NavStep[]
+    }
 
     if (hasAmapWebKey()) {
       try {
-        leg = await fetchDirectionLeg(transportMode, from, to)
+        if (transportMode === 'transit') {
+          leg = await fetchTransitLeg(from, to)
+        } else {
+          leg = await fetchDirectionLeg(transportMode, from, to)
+        }
       } catch {
-        leg = mockLeg(from, to, transportMode)
+        leg = mockLeg(from, to, transportMode === 'transit' ? 'walking' : transportMode)
       }
     } else {
-      leg = mockLeg(from, to, transportMode)
+      leg = mockLeg(from, to, transportMode === 'transit' ? 'walking' : transportMode)
     }
 
     segments.push({
@@ -78,6 +88,7 @@ export async function planMacroRoute(
       toLat: to.lat,
       distance: leg.distance,
       duration: leg.duration,
+      steps: leg.steps,
       transportMode,
       instruction: leg.instruction,
     })
@@ -88,7 +99,14 @@ export async function planMacroRoute(
     else polyline.push(...leg.polyline)
   }
 
-  const modeLabel = transportMode === 'driving' ? '驾车' : transportMode === 'bicycling' ? '骑行' : '步行'
+  const modeLabel =
+    transportMode === 'driving'
+      ? '驾车'
+      : transportMode === 'bicycling'
+        ? '骑行'
+        : transportMode === 'transit'
+          ? '公交地铁'
+          : '步行'
 
   return {
     transportMode,
