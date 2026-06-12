@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
+import { fetchNonDemoDestinationIds } from '../api/destinationAnchors'
 import { fetchRecommendedDestinationsPage, type PageResult } from '../api/destination'
 import { inferTotalPages } from '../api/pagination'
 import type { FoodVO } from '../api/food'
@@ -37,27 +38,30 @@ const BROWSE_PUMP_MAX_ITERATIONS = 24
 /** 探测哪些 destinationId 上挂了美食（缩小范围减请求） */
 const FOOD_ANCHOR_PROBE_MAX = 120
 const FOOD_ANCHOR_CHUNK = 10
-const PROBE_CACHE_KEY = 'trip_food_anchor_ids_v1'
+const PROBE_CACHE_KEY = 'trip_food_anchor_ids_v2'
+const DESTINATION_ID_SCAN_PAGES = 12
 const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 /** 首屏预取页数（与后端 pageSize 联调） */
-const INITIAL_ANCHOR_PREFETCH_PAGES = 2
+const INITIAL_ANCHOR_PREFETCH_PAGES = 3
 /** 后台为锚点连续预取的上限页数 */
 const BACKGROUND_ANCHOR_PREFETCH_PAGES = 8
 /** 单次「加载更多」只为锚点目的地连续请求几页 */
 const ANCHOR_PAGES_PER_LOAD_MORE = 6
 
-async function probeFoodAnchoredDestinationIds(): Promise<number[]> {
+async function probeFoodAnchoredDestinationIds(candidateIds: number[]): Promise<number[]> {
   const found: number[] = []
-  for (let start = 1; start <= FOOD_ANCHOR_PROBE_MAX; start += FOOD_ANCHOR_CHUNK) {
-    const ids: number[] = []
-    for (let i = 0; i < FOOD_ANCHOR_CHUNK && start + i <= FOOD_ANCHOR_PROBE_MAX; i++) ids.push(start + i)
+  const unique = [...new Set(candidateIds)].filter((id) => id > 0)
+  for (let start = 0; start < unique.length; start += FOOD_ANCHOR_CHUNK) {
+    const ids = unique.slice(start, start + FOOD_ANCHOR_CHUNK)
     const rows = await Promise.all(
       ids.map((destinationId) =>
-        fetchRecommendedFoods(destinationId, {
+        fetchRecommendedFoodsPage(destinationId, {
           pageNum: 1,
           pageSize: 1,
           sortBy: 'heat',
-        }).catch(() => [] as FoodVO[]),
+        })
+          .then((res) => res.list)
+          .catch(() => [] as FoodVO[]),
       ),
     )
     ids.forEach((id, idx) => {
@@ -70,7 +74,11 @@ async function probeFoodAnchoredDestinationIds(): Promise<number[]> {
 async function resolveFoodAnchorIds(): Promise<number[]> {
   const cached = readSessionCache<number[]>(PROBE_CACHE_KEY, PROBE_CACHE_TTL_MS)
   if (cached?.length) return cached
-  const anchored = await probeFoodAnchoredDestinationIds()
+  const destinationIds = await fetchNonDemoDestinationIds(DESTINATION_ID_SCAN_PAGES, 50)
+  const fallbackIds = destinationIds.length
+    ? destinationIds
+    : Array.from({ length: FOOD_ANCHOR_PROBE_MAX }, (_, i) => i + 1)
+  const anchored = await probeFoodAnchoredDestinationIds(fallbackIds)
   if (anchored.length) writeSessionCache(PROBE_CACHE_KEY, anchored)
   return anchored
 }
@@ -122,11 +130,10 @@ function FoodCardSkeleton() {
 }
 
 function foodVODedupeKey(vo: FoodVO): string {
+  if (vo.id != null) return `id:${vo.id}`
   const shop = (vo.shopName?.trim() || vo.name?.trim() || '').toLowerCase()
-  if (shop) return `shop:${shop}`
-  return vo.id != null
-    ? `id:${vo.id}`
-    : `k:${vo.destinationId}:${vo.foodType ?? ''}`
+  if (shop) return `shop:${shop}:${vo.destinationId ?? 0}`
+  return `k:${vo.destinationId}:${vo.foodType ?? ''}`
 }
 
 function foodKey(f: Food) {

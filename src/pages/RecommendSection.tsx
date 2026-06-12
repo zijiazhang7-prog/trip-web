@@ -23,6 +23,7 @@ import {
   interestTags,
   type Destination,
 } from '../data/siteData'
+import { isDemoDestination } from '../lib/destination/isDemoDestination'
 
 const glass =
   'ds-glass-panel rounded-[2rem] transition duration-500 hover:-translate-y-0.5 hover:shadow-[var(--ds-shadow-lift)]'
@@ -35,14 +36,20 @@ const sidebarTitle =
 
 const PAGE_SIZE = 32
 
+function isRealDestination(d: Destination): boolean {
+  return !isDemoDestination(d.name, d.reason)
+}
+
 function mergeDestinationLists(prev: Destination[], chunk: Destination[]): Destination[] {
   const seen = new Set<number>()
   const out: Destination[] = []
   for (const d of prev) {
+    if (!isRealDestination(d)) continue
     if (d.id != null) seen.add(d.id)
     out.push(d)
   }
   for (const d of chunk) {
+    if (!isRealDestination(d)) continue
     if (d.id != null) {
       if (seen.has(d.id)) continue
       seen.add(d.id)
@@ -204,7 +211,13 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     setLoadingTop10(true)
     void fetchRecommendedDestinations({ topK: 10, sortBy: 'heat', pageSize: 10 })
       .then((rows) => {
-        if (!cancelled) setHeatTop10(rows.map(destinationVOToDestination))
+        if (!cancelled) {
+          setHeatTop10(
+            rows
+              .map(destinationVOToDestination)
+              .filter(isRealDestination),
+          )
+        }
       })
       .catch(() => {
         if (!cancelled) setHeatTop10([])
