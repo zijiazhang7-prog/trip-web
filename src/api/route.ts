@@ -21,6 +21,7 @@ export type RoutePlanVO = {
   pathEdges?: RoutePathEdgeVO[]
   routeSummary?: string
   historyId?: number
+  orderedTargetNodeIds?: number[]
 }
 
 export type RouteStrategyType = 'shortest_distance' | 'shortest_time'

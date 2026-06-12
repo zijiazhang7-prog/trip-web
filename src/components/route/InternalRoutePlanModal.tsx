@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchDestinationMapNodes, type MapNodeOption } from '../../api/mapNode'
+import {
+  ensureNodeGpsCoords,
+  fetchDestinationMapNodes,
+  quickDisplayGpsCoords,
+  type MapNodeOption,
+} from '../../api/mapNode'
 import {
   planMultiRoute,
   planSingleRoute,
@@ -11,15 +16,21 @@ import {
 } from '../../api/route'
 import { hasStoredToken } from '../../api/http'
 import { macroPlanFromRoutePlanVO } from '../../lib/route/backendRoutePlan'
-import { enrichInternalRoutePolyline } from '../../lib/route/internalRoutePolyline'
+import { isBeijingAreaCoord } from '../../lib/geo/beijingCoord'
+import { resolveDestinationCoords } from '../../lib/geo/resolveCoords'
+import {
+  buildInternalWalkingPolyline,
+  filterBeijingPolyline,
+} from '../../lib/route/internalRoutePolyline'
 import { AmapMapView } from './AmapMapView'
-import { RoutePathSvg } from './RoutePathSvg'
 import type { MacroRoutePlan, RouteWaypoint } from '../../types/macroRoute'
 
 const STRATEGIES: { value: RouteStrategyType; label: string }[] = [
   { value: 'shortest_distance', label: '最短距离' },
   { value: 'shortest_time', label: '最短时间' },
 ]
+
+const UNIVERSAL_STUDIOS_CENTER: [number, number] = [116.681128, 39.852226]
 
 const TRANSPORTS: { value: RouteTransportType; label: string }[] = [
   { value: 'walk', label: '步行' },
@@ -35,13 +46,64 @@ type InternalRoutePlanModalProps = {
   onApplyPlan: (plan: MacroRoutePlan) => void
 }
 
+function isTechnicalNodeName(name: string | undefined | null): boolean {
+  if (!name?.trim()) return true
+  return /^OSM/i.test(name.trim())
+}
+
+function buildVisitSequence(
+  vo: RoutePlanVO | null,
+  startNodeId: number | null,
+  targetNodeIds: number[],
+  returnToStart: boolean,
+): number[] {
+  if (vo?.pathNodes?.length) {
+    const scenicPath = vo.pathNodes
+      .filter((n) => !isTechnicalNodeName(n.nodeName))
+      .map((n) => n.nodeId)
+    if (scenicPath.length >= 2) return scenicPath
+  }
+
+  const ordered: number[] = []
+  if (startNodeId != null) ordered.push(startNodeId)
+  const targets = vo?.orderedTargetNodeIds?.length ? vo.orderedTargetNodeIds : targetNodeIds
+  for (const id of targets) {
+    if (!ordered.includes(id)) ordered.push(id)
+  }
+  if (returnToStart && targetNodeIds.length > 1 && startNodeId != null && !ordered.includes(startNodeId)) {
+    ordered.push(startNodeId)
+  }
+  return ordered
+}
+
+function buildDisplayPathNodes(
+  visitIds: number[],
+  nodeById: Map<number, MapNodeOption>,
+  vo: RoutePlanVO | null,
+): PathNodeResult[] {
+  return visitIds.map((id) => {
+    const fromVo = vo?.pathNodes?.find((n) => n.nodeId === id)
+    const catalog = nodeById.get(id)
+    const name =
+      fromVo?.nodeName && !isTechnicalNodeName(fromVo.nodeName)
+        ? fromVo.nodeName
+        : (catalog?.nodeName ?? `节点 ${id}`)
+    return { nodeId: id, nodeName: name }
+  })
+}
+
 function buildPreviewPathNodes(
   nodes: MapNodeOption[],
   startNodeId: number | null,
   targetNodeIds: number[],
   result: RoutePlanVO | null,
+  returnToStart: boolean,
+  nodeById: Map<number, MapNodeOption>,
 ): PathNodeResult[] {
-  if (result?.pathNodes?.length) return result.pathNodes
+  if (result) {
+    const visitIds = buildVisitSequence(result, startNodeId, targetNodeIds, returnToStart)
+    if (visitIds.length >= 2) return buildDisplayPathNodes(visitIds, nodeById, result)
+  }
 
   const ordered: number[] = []
   if (startNodeId != null) ordered.push(startNodeId)
@@ -50,7 +112,9 @@ function buildPreviewPathNodes(
   }
 
   if (ordered.length === 0) {
-    return nodes.map((n) => ({ nodeId: n.nodeId, nodeName: n.nodeName }))
+    return nodes
+      .filter((n) => !isTechnicalNodeName(n.nodeName))
+      .map((n) => ({ nodeId: n.nodeId, nodeName: n.nodeName }))
   }
 
   return ordered.map((id) => {
@@ -63,7 +127,7 @@ export function InternalRoutePlanModal({
   open,
   onClose,
   selectedWaypoints,
-  onApplyPlan,
+  onApplyPlan: _onApplyPlan,
 }: InternalRoutePlanModalProps) {
   const destinationOptions = useMemo(
     () =>
@@ -86,6 +150,18 @@ export function InternalRoutePlanModal({
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<RoutePlanVO | null>(null)
   const [previewPlan, setPreviewPlan] = useState<MacroRoutePlan | null>(null)
+  const [scenicCenter, setScenicCenter] = useState<[number, number]>(UNIVERSAL_STUDIOS_CENTER)
+  const [mapMounted, setMapMounted] = useState(false)
+
+  const activeDestination = useMemo(
+    () => destinationOptions.find((wp) => wp.destinationId === destinationId) ?? null,
+    [destinationOptions, destinationId],
+  )
+
+  const scenicNodes = useMemo(
+    () => nodes.filter((n) => !isTechnicalNodeName(n.nodeName)),
+    [nodes],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -97,6 +173,36 @@ export function InternalRoutePlanModal({
   }, [open, destinationOptions])
 
   useEffect(() => {
+    if (!open) {
+      setMapMounted(false)
+      return undefined
+    }
+    const timer = window.setTimeout(() => setMapMounted(true), 120)
+    return () => {
+      window.clearTimeout(timer)
+      setMapMounted(false)
+    }
+  }, [open])
+
+  useEffect(() => {
+    let cancelled = false
+    const wp = activeDestination
+    void (async () => {
+      if (wp && isBeijingAreaCoord(wp.lng, wp.lat)) {
+        if (!cancelled) setScenicCenter([wp.lng, wp.lat])
+        return
+      }
+      const geo = await resolveDestinationCoords(wp?.name ?? '北京环球度假区', '北京')
+      if (!cancelled && geo && isBeijingAreaCoord(geo.lng, geo.lat)) {
+        setScenicCenter([geo.lng, geo.lat])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [activeDestination])
+
+  useEffect(() => {
     if (!open || destinationId == null) return
     let cancelled = false
     setLoadingNodes(true)
@@ -105,10 +211,13 @@ export function InternalRoutePlanModal({
       try {
         const res = await fetchDestinationMapNodes(destinationId)
         if (cancelled) return
-        setNodes(res.nodes)
+        const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
+        const displayNodes = quickDisplayGpsCoords(res.nodes, center)
+        setNodes(displayNodes)
         setUsedPlaceFallback(res.usedPlaceFallback)
-        setStartNodeId(res.nodes[0]?.nodeId ?? null)
-        setTargetNodeIds(res.nodes.length > 1 ? [res.nodes[1].nodeId] : [])
+        const pick = displayNodes.filter((n) => !isTechnicalNodeName(n.nodeName))
+        setStartNodeId(pick[0]?.nodeId ?? displayNodes[0]?.nodeId ?? null)
+        setTargetNodeIds(pick.length > 1 ? [pick[1].nodeId] : [])
       } catch (err) {
         if (!cancelled) {
           setNodes([])
@@ -121,35 +230,48 @@ export function InternalRoutePlanModal({
     return () => {
       cancelled = true
     }
-  }, [open, destinationId])
+  }, [open, destinationId, scenicCenter])
 
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.nodeId, n])), [nodes])
 
   const mapPathNodes = useMemo(
-    () => buildPreviewPathNodes(nodes, startNodeId, targetNodeIds, result),
-    [nodes, startNodeId, targetNodeIds, result],
+    () => buildPreviewPathNodes(nodes, startNodeId, targetNodeIds, result, returnToStart, nodeById),
+    [nodes, startNodeId, targetNodeIds, result, returnToStart, nodeById],
   )
 
   const mapWaypoints = useMemo((): RouteWaypoint[] => {
     if (previewPlan?.waypoints.length) return previewPlan.waypoints
 
-    const highlight = new Set<number>()
-    if (startNodeId != null) highlight.add(startNodeId)
-    targetNodeIds.forEach((id) => highlight.add(id))
-    const showAll = highlight.size === 0
+    const visitIds = buildVisitSequence(null, startNodeId, targetNodeIds, returnToStart)
+    if (visitIds.length) {
+      const markers: RouteWaypoint[] = []
+      for (const id of visitIds) {
+        const n = nodeById.get(id)
+        if (!n) continue
+        markers.push({
+          id: n.nodeId,
+          name: n.nodeName,
+          lng: n.lng,
+          lat: n.lat,
+          destinationId: destinationId ?? undefined,
+        })
+      }
+      return markers
+    }
 
-    return nodes
-      .filter((n) => showAll || highlight.has(n.nodeId))
-      .map((n) => ({
-        id: n.nodeId,
-        name: n.nodeName,
-        lng: n.lng,
-        lat: n.lat,
-        destinationId: destinationId ?? undefined,
-      }))
-  }, [previewPlan, nodes, startNodeId, targetNodeIds, destinationId])
+    return scenicNodes.map((n) => ({
+      id: n.nodeId,
+      name: n.nodeName,
+      lng: n.lng,
+      lat: n.lat,
+      destinationId: destinationId ?? undefined,
+    }))
+  }, [previewPlan, scenicNodes, nodeById, startNodeId, targetNodeIds, returnToStart, destinationId])
 
-  const mapPolyline = previewPlan?.polyline ?? []
+  const mapPolyline = useMemo(
+    () => filterBeijingPolyline(previewPlan?.polyline ?? []),
+    [previewPlan?.polyline],
+  )
   const hasPlannedRoute = Boolean(previewPlan?.waypoints.length)
 
   const toggleTarget = (id: number) => {
@@ -190,8 +312,49 @@ export function InternalRoutePlanModal({
         })
       }
       setResult(vo)
-      let macro = macroPlanFromRoutePlanVO({ ...vo, transportType: backendTransport }, nodeById)
-      macro = await enrichInternalRoutePolyline(macro)
+      const visitIds = buildVisitSequence(vo, startNodeId, targetNodeIds, returnToStart)
+      const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
+      const routeWaypoints: RouteWaypoint[] = []
+      for (let i = 0; i < visitIds.length; i++) {
+        const id = visitIds[i]
+        const raw = nodeById.get(id)
+        if (!raw) continue
+        const resolved = await ensureNodeGpsCoords(
+          raw,
+          activeDestination?.name,
+          center,
+          i,
+          visitIds.length,
+        )
+        routeWaypoints.push({
+          id: resolved.nodeId,
+          name: resolved.nodeName,
+          lng: resolved.lng,
+          lat: resolved.lat,
+          destinationId,
+        })
+      }
+
+      const macroBase = macroPlanFromRoutePlanVO({ ...vo, transportType: backendTransport }, nodeById)
+      const mergedPolyline: [number, number][] = []
+      for (let i = 0; i < routeWaypoints.length - 1; i++) {
+        const seg = await buildInternalWalkingPolyline(
+          routeWaypoints[i],
+          routeWaypoints[i + 1],
+          macroBase.transportMode,
+        )
+        if (seg.length >= 2) {
+          if (mergedPolyline.length) mergedPolyline.push(...seg.slice(1))
+          else mergedPolyline.push(...seg)
+        }
+      }
+
+      const macro: MacroRoutePlan = {
+        ...macroBase,
+        waypoints: routeWaypoints,
+        polyline: filterBeijingPolyline(mergedPolyline),
+        summary: `景区内部 · ${visitIds.length} 站 · 约 ${vo.estimatedTime} 分钟`,
+      }
       setPreviewPlan(macro)
     } catch (err) {
       setError(err instanceof Error ? err.message : '内部路线规划失败')
@@ -273,7 +436,7 @@ export function InternalRoutePlanModal({
                   disabled={loadingNodes}
                   className="w-full rounded-xl border border-[var(--ds-border)] px-3 py-2 text-sm"
                 >
-                  {nodes.map((n) => (
+                  {scenicNodes.map((n) => (
                     <option key={n.nodeId} value={n.nodeId}>
                       {n.nodeName}
                     </option>
@@ -288,7 +451,7 @@ export function InternalRoutePlanModal({
                   {loadingNodes ? (
                     <p className="text-xs text-[var(--ds-muted-foreground)]">加载节点…</p>
                   ) : (
-                    nodes.map((n) => (
+                    scenicNodes.map((n) => (
                       <label
                         key={n.nodeId}
                         className="flex cursor-pointer items-center gap-2 py-1 text-xs"
@@ -374,30 +537,16 @@ export function InternalRoutePlanModal({
               >
                 {planning ? '规划中…' : '生成内部路线'}
               </button>
-              {previewPlan ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onApplyPlan(previewPlan)
-                    onClose()
-                  }}
-                  className="rounded-full border border-[var(--ds-primary)] px-5 py-2.5 text-sm font-semibold text-[var(--ds-primary)]"
-                >
-                  显示在主地图
-                </button>
-              ) : null}
             </div>
 
             {result ? (
               <div className="rounded-xl border border-[var(--ds-primary)]/15 bg-[var(--ds-muted)]/40 p-3">
-                <p className="font-body text-sm font-semibold text-[var(--ds-foreground)]">
-                  {result.routeSummary ?? '路线已生成'}
-                </p>
+                <p className="font-body text-sm font-semibold text-[var(--ds-foreground)]">路线已生成</p>
                 <p className="mt-1 font-body text-xs text-[var(--ds-muted-foreground)]">
                   总距离 {Number(result.totalDistance).toFixed(0)} m · 约 {result.estimatedTime} 分钟
                 </p>
                 <ol className="mt-2 max-h-28 list-decimal space-y-1 overflow-y-auto pl-5 font-body text-xs text-[var(--ds-foreground)]">
-                  {(result.pathNodes ?? []).map((n) => (
+                  {mapPathNodes.map((n) => (
                     <li key={n.nodeId}>{n.nodeName}</li>
                   ))}
                 </ol>
@@ -430,24 +579,24 @@ export function InternalRoutePlanModal({
               <div className="flex h-full min-h-[240px] items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--ds-border)] bg-white/80 px-6 text-center font-body text-sm text-[var(--ds-muted-foreground)]">
                 请先选择带编号的目的地，地图将展示景区内节点位置
               </div>
-            ) : usedPlaceFallback ? (
-              <div className="h-full min-h-[240px] overflow-hidden rounded-[1.5rem] border border-[var(--ds-border)]/50 bg-white">
-                <RoutePathSvg
-                  pathNodes={mapPathNodes}
-                  nodeCatalog={nodes}
-                  className="h-full min-h-[240px] p-4"
-                />
-              </div>
-            ) : (
+            ) : mapMounted ? (
               <AmapMapView
                 key={`internal-map-${destinationId ?? 'none'}`}
-                className="h-full min-h-[240px]"
+                className="h-full min-h-[240px] rounded-[1.5rem]"
                 waypoints={mapWaypoints}
                 polyline={mapPolyline}
                 activeId={startNodeId}
-                maxFitZoom={17}
+                defaultCenter={scenicCenter}
+                defaultZoom={17}
+                maxFitZoom={18}
                 singlePointZoom={17}
+                routeStrokeColor="#2f7fd4"
+                endpointMarkers={hasPlannedRoute}
               />
+            ) : (
+              <div className="flex h-full min-h-[240px] items-center justify-center rounded-[1.5rem] border border-[var(--ds-border)]/50 bg-white font-body text-sm text-[var(--ds-muted-foreground)]">
+                正在加载景区地图…
+              </div>
             )}
           </div>
 

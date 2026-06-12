@@ -23,7 +23,6 @@ import {
 } from '../api/llm'
 import {
   emptyTagSelection,
-  interestTagsToLegacyThemes,
   isTagSelectionEmpty,
   mergeTagSelections,
   sortDestinationsByTagMatch,
@@ -37,6 +36,7 @@ import {
   type Destination,
 } from '../data/siteData'
 import { isDemoDestination } from '../lib/destination/isDemoDestination'
+import { fetchAllDestinationsCatalog } from '../lib/catalog/fetchFullCatalog'
 
 const glass =
   'ds-glass-panel rounded-[2rem] transition duration-500 hover:-translate-y-0.5 hover:shadow-[var(--ds-shadow-lift)]'
@@ -204,6 +204,9 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   const [relatedDiaries, setRelatedDiaries] = useState<CommunityFeedItem[]>([])
   const [loadingRelatedDiaries, setLoadingRelatedDiaries] = useState(false)
   const [relatedDiariesOpen, setRelatedDiariesOpen] = useState(false)
+  const [catalogDestinations, setCatalogDestinations] = useState<Destination[] | null>(null)
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
+  const [catalogHint, setCatalogHint] = useState('')
 
   useEffect(() => {
     itemsRef.current = items
@@ -257,11 +260,46 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     [selectedDestType, selectedInterests, aiTagSelection],
   )
 
+  const tagFilterActive = !isTagSelectionEmpty(activeTagSelection) || aiRankedIds.length > 0
+
+  useEffect(() => {
+    if (!tagFilterActive) {
+      setCatalogDestinations(null)
+      setCatalogHint('')
+      return undefined
+    }
+    let cancelled = false
+    setLoadingCatalog(true)
+    setCatalogHint('正在从全库加载目的地…')
+    void fetchAllDestinationsCatalog((p) => {
+      if (!cancelled) setCatalogHint(p.phase ?? `已加载 ${p.loaded} 条`)
+    })
+      .then((rows) => {
+        if (!cancelled) {
+          setCatalogDestinations(rows.filter(isRealDestination))
+          setCatalogHint(`全库共 ${rows.length} 条，已按标签优先排序`)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCatalogDestinations(null)
+          setCatalogHint('')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCatalog(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [tagFilterActive, selectedDestType, selectedInterests, aiTagSelection])
+
   const sortedDestinations = useMemo(() => {
-    const filtered = items.filter((d) => matchesVenueKind(d, venueKind))
-    if (isTagSelectionEmpty(activeTagSelection) && !aiRankedIds.length) return filtered
+    const pool = tagFilterActive && catalogDestinations ? catalogDestinations : items
+    const filtered = pool.filter((d) => matchesVenueKind(d, venueKind))
+    if (!tagFilterActive) return filtered
     return sortDestinationsByTagMatch(filtered, activeTagSelection, aiRankedIds)
-  }, [items, venueKind, activeTagSelection, aiRankedIds])
+  }, [items, catalogDestinations, venueKind, activeTagSelection, aiRankedIds, tagFilterActive])
 
   const runDestinationRanking = useCallback(async (customText: string, tags: string[]) => {
     const text = customText.trim()
@@ -312,26 +350,14 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     void runDestinationRanking(pending.customText, pending.tags)
   }, [items, loadingInitial, runDestinationRanking])
 
-  const buildRecommendParams = useCallback(
-    (page: number) => {
-      const sel = mergeTagSelections(
-        {
-          destTypes: selectedDestType ? [selectedDestType] : [],
-          interestTags: selectedInterests,
-          cuisineTags: [],
-        },
-        aiTagSelection,
-      )
-      return {
-        sortBy: isTagSelectionEmpty(sel) ? 'recommend' : 'recommend',
-        theme: preferThemes[0] ?? interestTagsToLegacyThemes(sel.interestTags)[0],
-        destType: sel.destTypes[0],
-        interestTags: sel.interestTags.length ? sel.interestTags : undefined,
-        pageNum: page,
-        pageSize: PAGE_SIZE,
-      }
-    },
-    [selectedDestType, selectedInterests, aiTagSelection, preferThemes],
+  /** 宽召回分页：标签仅用于前端排序，不作为 API 过滤条件 */
+  const buildFetchParams = useCallback(
+    (page: number) => ({
+      sortBy: 'heat' as const,
+      pageNum: page,
+      pageSize: PAGE_SIZE,
+    }),
+    [],
   )
 
   const resetRecommendFirstPage = useCallback(async () => {
@@ -341,7 +367,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     setActiveSearchKeyword('')
     setPageNum(1)
     try {
-      const res = await fetchRecommendedDestinationsPage(buildRecommendParams(1))
+      const res = await fetchRecommendedDestinationsPage(buildFetchParams(1))
       setItems(mergeDestinationLists([], res.list.map(destinationVOToDestination)))
       setTotalPages(inferTotalPages(res, PAGE_SIZE, 1))
       setUsingFallback(false)
@@ -353,7 +379,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     } finally {
       setLoadingInitial(false)
     }
-  }, [buildRecommendParams])
+  }, [buildFetchParams])
 
   useEffect(() => {
     let cancelled = false
@@ -363,7 +389,9 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     return () => {
       cancelled = true
     }
-  }, [resetRecommendFirstPage])
+    // 仅首屏拉取；兴趣/目的地类型变更只做本地排序，避免 API 过滤导致空列表
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!detailOpen) return
@@ -388,7 +416,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       const res =
         listMode === 'search'
           ? await searchDestinationsPage(activeSearchKeyword, { pageNum: next, pageSize: PAGE_SIZE })
-          : await fetchRecommendedDestinationsPage(buildRecommendParams(next))
+          : await fetchRecommendedDestinationsPage(buildFetchParams(next))
 
       const mapped = res.list.map(destinationVOToDestination)
       const prev = itemsRef.current
@@ -410,7 +438,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       loadMoreInFlightRef.current = false
       setLoadingMore(false)
     }
-  }, [usingFallback, loadingInitial, pageNum, totalPages, listMode, activeSearchKeyword, buildRecommendParams])
+  }, [usingFallback, loadingInitial, pageNum, totalPages, listMode, activeSearchKeyword, buildFetchParams])
 
   useEffect(() => {
     loadNextPageRef.current = loadNextPage
@@ -632,6 +660,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
               ))}
             </div>
             <h3 className={sidebarTitle}>目的地类型</h3>
+            <div className="max-h-[min(52vh,440px)] overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
             <div className="flex flex-col gap-2">
               {destTypes.map((type) => (
                 <label
@@ -652,6 +681,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
                   <span>{type.label}</span>
                 </label>
               ))}
+            </div>
             </div>
           </div>
         </aside>
@@ -702,10 +732,10 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {loadingInitial
+            {loadingInitial || (tagFilterActive && loadingCatalog)
               ? Array.from({ length: 6 }).map((_, i) => <DestCardSkeleton key={`sk-${i}`} />)
               : null}
-            {!loadingInitial && items.length === 0 ? (
+            {!loadingInitial && !(tagFilterActive && loadingCatalog) && items.length === 0 && !catalogDestinations?.length ? (
               <p className="break-inside-avoid py-12 text-center font-body text-sm text-[var(--ds-muted-foreground)]">
                 暂无目的地数据。
               </p>
@@ -715,9 +745,11 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
                 当前景区/校园筛选下没有结果，试试切换「全部」。
               </p>
             ) : null}
-            {!isTagSelectionEmpty(activeTagSelection) ? (
+            {tagFilterActive ? (
               <p className="mb-4 font-body text-xs text-[var(--ds-muted-foreground)]">
-                已按标签优先排序：匹配项在前，其余在后（不隐藏）。
+                {loadingCatalog
+                  ? catalogHint || '正在从全库筛选目的地…'
+                  : catalogHint || '已按标签从全库优先排序：匹配项在前，其余在后（不隐藏）。'}
               </p>
             ) : null}
             {sortedDestinations.map((dest) => (
@@ -725,14 +757,14 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
             ))}
           </div>
 
-          {!usingFallback && !loadingInitial && pageNum < totalPages ? (
+          {!tagFilterActive && !usingFallback && !loadingInitial && pageNum < totalPages ? (
             <div ref={loadMoreRef} className="mt-8 flex h-16 items-center justify-center">
               <span className="font-body text-xs text-[var(--ds-muted-foreground)]">
                 {loadingMore ? '加载更多...' : '下滑自动加载更多'}
               </span>
             </div>
           ) : null}
-          {!usingFallback && !loadingInitial && pageNum >= totalPages && items.length > 0 ? (
+          {!tagFilterActive && !usingFallback && !loadingInitial && pageNum >= totalPages && items.length > 0 ? (
             <p className="mt-6 text-center font-body text-xs text-[color-mix(in_srgb,var(--ds-muted-foreground)_85%,transparent)]">
               已加载全部目的地
             </p>

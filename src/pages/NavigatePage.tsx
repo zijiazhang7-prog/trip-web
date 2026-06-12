@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { fetchNearbyFacilities, searchFacilities, type NearbyFacilityVO } from '../api/facility'
-import { fetchRouteHistories, type RouteHistoryVO } from '../api/route'
-import { hasStoredToken } from '../api/http'
 import { AmapNavigateMap } from '../components/route/AmapNavigateMap'
 import { RouteTimelinePanel } from '../components/route/RouteTimelinePanel'
 import { GlassPanel } from '../components/ui/GlassPanel'
@@ -75,8 +73,6 @@ function NavigatePageContent() {
   const [facilities, setFacilities] = useState<FacilityRow[]>([])
   const [loadingFac, setLoadingFac] = useState(false)
   const [facError, setFacError] = useState<string | null>(null)
-  const [routeHistories, setRouteHistories] = useState<RouteHistoryVO[]>([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
 
   const focusWaypoint = activeWaypoint ?? macroPlan?.waypoints?.[0] ?? null
 
@@ -156,28 +152,6 @@ function NavigatePageContent() {
     },
     [facilityType, facilityKeyword],
   )
-
-  useEffect(() => {
-    if (!hasStoredToken()) {
-      setRouteHistories([])
-      return
-    }
-    let cancelled = false
-    setLoadingHistory(true)
-    void fetchRouteHistories({ pageNum: 1, pageSize: 5 })
-      .then((page) => {
-        if (!cancelled) setRouteHistories(page.list ?? [])
-      })
-      .catch(() => {
-        if (!cancelled) setRouteHistories([])
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingHistory(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -291,26 +265,6 @@ function NavigatePageContent() {
           <p className="mt-1 font-body text-[10px] text-[var(--ds-muted-foreground)]">
             有关键字或类型筛选时优先走后端 facilities/search；否则使用图上 nearby
           </p>
-
-          {hasStoredToken() ? (
-            <div className="mt-4 rounded-xl border border-[var(--ds-primary)]/12 bg-[var(--ds-muted)]/30 p-3">
-              <p className="font-body text-xs font-semibold text-[var(--ds-foreground)]">我的路线历史</p>
-              {loadingHistory ? (
-                <p className="mt-1 text-[10px] text-[var(--ds-muted-foreground)]">加载中…</p>
-              ) : routeHistories.length === 0 ? (
-                <p className="mt-1 text-[10px] text-[var(--ds-muted-foreground)]">暂无已保存路线</p>
-              ) : (
-                <ul className="mt-2 space-y-1">
-                  {routeHistories.map((h) => (
-                    <li key={h.id} className="text-[10px] text-[var(--ds-muted-foreground)]">
-                      #{h.id} · {h.destinationName ?? `景区 ${h.destinationId}`}
-                      {h.estimatedTime ? ` · 约 ${h.estimatedTime} 分钟` : ''}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ) : null}
 
           {facError && !loadingFac ? (
             <p className="mt-3 font-body text-xs text-[var(--ds-destructive)]">{facError}</p>

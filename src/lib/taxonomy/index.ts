@@ -136,9 +136,56 @@ export function scoreDestination(tags: ResolvedDestinationTags, sel: UserTagSele
   return score
 }
 
+export function resolveFoodCuisineTag(food: {
+  cuisineTag?: string | null
+  tags: string[]
+}): string | null {
+  if (food.cuisineTag?.trim()) return food.cuisineTag.trim()
+  for (const t of food.tags) {
+    const mapped = resolveCuisine(t)
+    if (mapped) return mapped
+  }
+  for (const t of food.tags) {
+    for (const [cuisine, dbTypes] of Object.entries(TAXONOMY.foodTypeByCuisine)) {
+      if ((dbTypes as string[]).includes(t)) return cuisine
+    }
+  }
+  return null
+}
+
 export function scoreFood(cuisineTag: string | null | undefined, sel: UserTagSelection): number {
   if (!cuisineTag || sel.cuisineTags.length === 0) return 0
-  return sel.cuisineTags.includes(cuisineTag) ? TAXONOMY.scoringWeights.cuisineMatch : 0
+  if (sel.cuisineTags.includes(cuisineTag)) return TAXONOMY.scoringWeights.cuisineMatch
+  for (const selected of sel.cuisineTags) {
+    const dbTypes =
+      TAXONOMY.foodTypeByCuisine[selected as keyof typeof TAXONOMY.foodTypeByCuisine] ?? []
+    if (dbTypes.includes(cuisineTag)) return Math.floor(TAXONOMY.scoringWeights.cuisineMatch * 0.85)
+  }
+  return 0
+}
+
+export type FoodSortable = {
+  id?: number
+  tags: string[]
+  cuisineTag?: string | null
+  heatScore?: number
+  ratingScore?: number
+  rating?: string
+}
+
+export function scoreFoodItem(food: FoodSortable, sel: UserTagSelection): number {
+  const cuisine = resolveFoodCuisineTag(food)
+  if (!cuisine) {
+    for (const selected of sel.cuisineTags) {
+      const dbTypes =
+        TAXONOMY.foodTypeByCuisine[selected as keyof typeof TAXONOMY.foodTypeByCuisine] ?? []
+      if (food.tags.some((t) => dbTypes.includes(t))) {
+        return TAXONOMY.scoringWeights.cuisineMatch
+      }
+    }
+    return 0
+  }
+  return scoreFood(cuisine, sel)
 }
 
 export function sortDestinationsByTagMatch<T extends Destination>(
@@ -162,24 +209,14 @@ export function sortDestinationsByTagMatch<T extends Destination>(
   })
 }
 
-export type FoodSortable = {
-  id?: number
-  tags: string[]
-  heatScore?: number
-  ratingScore?: number
-  rating?: string
-}
-
 export function sortFoodsByTagMatch<T extends FoodSortable>(
   list: T[],
   sel: UserTagSelection,
   listSort: 'heat' | 'rating' | 'distance' = 'heat',
 ): T[] {
   return [...list].sort((a, b) => {
-    const ca = a.tags[0] ? resolveCuisine(a.tags[0]) ?? a.tags[0] : null
-    const cb = b.tags[0] ? resolveCuisine(b.tags[0]) ?? b.tags[0] : null
-    const sa = scoreFood(ca, sel)
-    const sb = scoreFood(cb, sel)
+    const sa = scoreFoodItem(a, sel)
+    const sb = scoreFoodItem(b, sel)
     if (sb !== sa) return sb - sa
     if (listSort === 'rating') {
       return (b.ratingScore ?? Number(b.rating) ?? 0) - (a.ratingScore ?? Number(a.rating) ?? 0)

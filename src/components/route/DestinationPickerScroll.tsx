@@ -1,16 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchRecommendedDestinationsPage,
   searchDestinationsPage,
   type DestinationVO,
 } from '../../api/destination'
+import { inferTotalPages, shouldStopRecommendPagination } from '../../api/pagination'
 import { fetchRecommendedFoodsPage } from '../../api/food'
 import { BEIJING_ATTRACTIONS, type BeijingAttraction } from '../../data/beijingDestinations'
+import {
+  isDemoDestination,
+  sanitizeDestinationDisplayName,
+} from '../../lib/destination/isDemoDestination'
+import { fetchAllDestinationsCatalog } from '../../lib/catalog/fetchFullCatalog'
 import { resolveCoordsFromLocal, resolveDestinationCoords } from '../../lib/geo/resolveCoords'
 import type { RouteWaypoint } from '../../types/macroRoute'
 import { InlineNotice } from '../ui/InlineNotice'
 
 export type PickerItem = BeijingAttraction & { destinationId: number }
+
+const PAGE_SIZE = 32
 
 function isBeijingRow(city?: string, name?: string): boolean {
   const hay = `${city ?? ''}${name ?? ''}`
@@ -24,13 +32,15 @@ function resolveCoords(vo: DestinationVO): { lng: number; lat: number } | null {
 function voToPickerItem(vo: DestinationVO): PickerItem | null {
   const id = vo.id
   if (typeof id !== 'number' || id <= 0) return null
-  if (!isBeijingRow(vo.city, vo.name)) return null
-  const coords = resolveCoords(vo)
-  const fb = BEIJING_ATTRACTIONS.find((a) => a.name === vo.name)
+  if (isDemoDestination(vo.name, vo.description)) return null
+  const displayName = sanitizeDestinationDisplayName(vo.name)
+  if (!isBeijingRow(vo.city, vo.name) && !isBeijingRow(vo.city, displayName)) return null
+  const coords = resolveCoords({ ...vo, name: vo.name })
+  const fb = BEIJING_ATTRACTIONS.find((a) => a.name === vo.name || a.name === displayName)
   return {
     id,
     destinationId: id,
-    name: vo.name,
+    name: displayName,
     city: vo.city ?? '北京',
     lng: coords?.lng ?? 0,
     lat: coords?.lat ?? 0,
@@ -42,6 +52,19 @@ function voToPickerItem(vo: DestinationVO): PickerItem | null {
       ? vo.coverUrl
       : fb?.image ?? '/images/recommend-hero-new.png',
   }
+}
+
+function mergePickerItems(prev: PickerItem[], next: PickerItem[]): { merged: PickerItem[]; added: number } {
+  const seen = new Set(prev.map((p) => p.destinationId))
+  const merged = [...prev]
+  let added = 0
+  for (const row of next) {
+    if (seen.has(row.destinationId)) continue
+    seen.add(row.destinationId)
+    merged.push(row)
+    added += 1
+  }
+  return { merged, added }
 }
 
 export function toRouteWaypoint(item: PickerItem): RouteWaypoint {
@@ -70,30 +93,48 @@ export function DestinationPickerScroll({
   const [keyword, setKeyword] = useState('')
   const [category, setCategory] = useState('')
   const [items, setItems] = useState<PickerItem[]>([])
-  const [categories, setCategories] = useState<string[]>([])
+  const [pageNum, setPageNum] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const [foodTypes, setFoodTypes] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [usingFallback, setUsingFallback] = useState(false)
+  const [catalogItems, setCatalogItems] = useState<PickerItem[] | null>(null)
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
   const geocodeAttemptedRef = useRef<Set<number>>(new Set())
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const loadMoreInFlightRef = useRef(false)
+  const itemsRef = useRef<PickerItem[]>([])
+
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
+
+  const fetchPage = useCallback(async (page: number, kw: string) => {
+    const res = kw.trim()
+      ? await searchDestinationsPage(kw.trim(), { pageNum: page, pageSize: PAGE_SIZE })
+      : await fetchRecommendedDestinationsPage({ sortBy: 'heat', pageNum: page, pageSize: PAGE_SIZE })
+    const rows = (res.list ?? [])
+      .map((vo) => voToPickerItem(vo))
+      .filter((x): x is PickerItem => x != null)
+    return { rows, res }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
     const timer = window.setTimeout(() => {
       void (async () => {
         setLoading(true)
+        setPageNum(1)
+        setTotalPages(1)
         try {
-          const page = keyword.trim()
-            ? await searchDestinationsPage(keyword.trim(), { pageSize: 40 })
-            : await fetchRecommendedDestinationsPage({ sortBy: 'heat', pageSize: 40 })
+          const { rows, res } = await fetchPage(1, keyword)
           if (cancelled) return
-          const rows = (page.list ?? [])
-            .map((vo) => voToPickerItem(vo))
-            .filter((x): x is PickerItem => x != null)
           if (rows.length) {
             setItems(rows)
             setUsingFallback(false)
-            const cats = [...new Set(rows.map((r) => r.type).filter(Boolean))].slice(0, 8)
-            setCategories(cats)
+            setTotalPages(inferTotalPages(res, PAGE_SIZE, 1))
           } else {
             const fb = BEIJING_ATTRACTIONS.map((a, i) => ({
               ...a,
@@ -102,7 +143,7 @@ export function DestinationPickerScroll({
             }))
             setItems(fb)
             setUsingFallback(true)
-            setCategories([...new Set(fb.map((f) => f.type))])
+            setTotalPages(1)
           }
         } catch {
           if (!cancelled) {
@@ -113,6 +154,7 @@ export function DestinationPickerScroll({
             }))
             setItems(fb)
             setUsingFallback(true)
+            setTotalPages(1)
           }
         } finally {
           if (!cancelled) setLoading(false)
@@ -123,7 +165,48 @@ export function DestinationPickerScroll({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [keyword])
+  }, [keyword, fetchPage])
+
+  const loadMore = useCallback(async () => {
+    if (usingFallback || loading || loadingMore || loadMoreInFlightRef.current) return
+    if (pageNum >= totalPages) return
+
+    loadMoreInFlightRef.current = true
+    setLoadingMore(true)
+    const next = pageNum + 1
+    try {
+      const { rows, res } = await fetchPage(next, keyword)
+      const { merged, added } = mergePickerItems(itemsRef.current, rows)
+      setItems(merged)
+      if (shouldStopRecommendPagination(added, rows.length)) {
+        setTotalPages(pageNum)
+        return
+      }
+      setPageNum(next)
+      setTotalPages(inferTotalPages(res, PAGE_SIZE, next))
+    } catch {
+      /* 保留已加载 */
+    } finally {
+      loadMoreInFlightRef.current = false
+      setLoadingMore(false)
+    }
+  }, [usingFallback, loading, loadingMore, pageNum, totalPages, keyword, fetchPage])
+
+  useEffect(() => {
+    if (usingFallback || loading || pageNum >= totalPages) return undefined
+    const root = scrollRef.current
+    const sentinel = sentinelRef.current
+    if (!root || !sentinel) return undefined
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMore()
+      },
+      { root, rootMargin: '80px', threshold: 0 },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [usingFallback, loading, pageNum, totalPages, loadMore, items.length])
 
   useEffect(() => {
     if (!items.length) return undefined
@@ -172,10 +255,59 @@ export function DestinationPickerScroll({
     }
   }, [])
 
+  const categories = useMemo(() => {
+    const cats = [...new Set(items.map((r) => r.type).filter(Boolean))]
+    return cats.filter((c) => c !== '联调测试').slice(0, 12)
+  }, [items])
+
+  useEffect(() => {
+    if (!category) {
+      setCatalogItems(null)
+      return undefined
+    }
+    let cancelled = false
+    setLoadingCatalog(true)
+    void fetchAllDestinationsCatalog()
+      .then((rows) => {
+        if (cancelled) return
+        const mapped: PickerItem[] = []
+        for (const d of rows) {
+          const id = d.id
+          if (typeof id !== 'number' || id <= 0) continue
+          const fb = BEIJING_ATTRACTIONS.find((a) => a.name === d.name)
+          const coords = resolveCoordsFromLocal(d.name)
+          mapped.push({
+            id,
+            destinationId: id,
+            name: d.name,
+            city: '北京',
+            lng: coords?.lng ?? 0,
+            lat: coords?.lat ?? 0,
+            reason: d.reason,
+            rating: d.rating,
+            badge: d.badge,
+            type: d.type,
+            image: d.image || fb?.image || '/images/recommend-hero-new.png',
+          })
+        }
+        setCatalogItems(mapped)
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogItems(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCatalog(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [category])
+
   const filtered = useMemo(() => {
-    if (!category) return items
-    return items.filter((it) => it.type === category || it.badge === category)
-  }, [items, category])
+    const pool = category && catalogItems ? catalogItems : items
+    if (!category) return pool
+    return pool.filter((it) => it.type === category || it.badge === category)
+  }, [items, catalogItems, category])
 
   const allTags = useMemo(() => {
     const merged = [...categories, ...foodTypes.filter((t) => !categories.includes(t))]
@@ -188,7 +320,7 @@ export function DestinationPickerScroll({
         <div>
           <h2 className="font-display text-lg font-semibold text-[var(--ds-foreground)]">目的地搜索</h2>
           <p className="font-body text-xs text-[var(--ds-muted-foreground)]">
-            横向滑动浏览 · 点击卡片加入路线（已选列表在下方固定显示）
+            横向滑动浏览 · 滑到右侧自动加载更多 · 点击卡片加入路线
           </p>
         </div>
         <input
@@ -202,6 +334,18 @@ export function DestinationPickerScroll({
 
       {usingFallback ? (
         <InlineNotice variant="offline">后端未返回北京目的地，使用离线经典景点（含坐标）</InlineNotice>
+      ) : null}
+
+      {category && loadingCatalog ? (
+        <p className="font-body text-[10px] text-[var(--ds-muted-foreground)]">正在从全库筛选「{category}」…</p>
+      ) : null}
+      {!usingFallback && items.length > 0 ? (
+        <p className="font-body text-[10px] text-[var(--ds-muted-foreground)]">
+          {category && catalogItems
+            ? `全库筛选「${category}」共 ${filtered.length} 个`
+            : `已加载 ${items.length} 个目的地${pageNum < totalPages ? ' · 继续右滑加载更多' : ' · 已全部加载'}`}
+          {loadingMore ? ' · 加载中…' : ''}
+        </p>
       ) : null}
 
       {allTags.length > 0 ? (
@@ -233,6 +377,7 @@ export function DestinationPickerScroll({
       ) : null}
 
       <div
+        ref={scrollRef}
         className={`flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:thin] ${
           loading ? 'opacity-60' : ''
         }`}
@@ -270,6 +415,16 @@ export function DestinationPickerScroll({
             </button>
           )
         })}
+        {!category && !usingFallback && pageNum < totalPages ? (
+          <div
+            ref={sentinelRef}
+            className="flex w-16 shrink-0 items-center justify-center font-body text-[10px] text-[var(--ds-muted-foreground)]"
+          >
+            {loadingMore ? '…' : '更多'}
+          </div>
+        ) : (
+          <div ref={sentinelRef} className="h-px w-px shrink-0" aria-hidden />
+        )}
       </div>
     </div>
   )

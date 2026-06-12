@@ -12,7 +12,8 @@ import {
   searchFoodsAcrossDestinations,
 } from '../api/food'
 import { foodTags, foods as foodsFallback, type Food } from '../data/siteData'
-import { resolveCuisine, sortFoodsByTagMatch } from '../lib/taxonomy'
+import { fetchAllFoodsCatalog } from '../lib/catalog/fetchFullCatalog'
+import { resolveCuisine, resolveFoodCuisineTag, sortFoodsByTagMatch } from '../lib/taxonomy'
 import { useTripContext } from '../context/tripContext'
 import { CommentSection } from '../components/ui/CommentSection'
 import { DetailOverlay } from '../components/ui/DetailOverlay'
@@ -120,6 +121,9 @@ export function FoodPage() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailIndex, setDetailIndex] = useState(0)
   const [moreAvailable, setMoreAvailable] = useState(true)
+  const [tagCatalogFoods, setTagCatalogFoods] = useState<Food[] | null>(null)
+  const [loadingTagCatalog, setLoadingTagCatalog] = useState(false)
+  const [tagCatalogHint, setTagCatalogHint] = useState('')
 
   const seenFoodKeysRef = useRef<Set<string>>(new Set())
   const seenDestinationIdsRef = useRef<Set<number>>(new Set())
@@ -454,10 +458,13 @@ export function FoodPage() {
     /** 不依赖 foods.length：避免因每条追加都断开 IO 导致「已在视区内却不回调」 */
   }, [usingFallback, loadingInitial, mode, moreAvailable])
 
-  const activeFoodTags = useMemo(
-    () => (dynamicFoodTags.length > 0 ? dynamicFoodTags : foodTags),
-    [dynamicFoodTags],
-  )
+  const activeFoodTags = useMemo(() => {
+    const merged = [...foodTags]
+    for (const t of dynamicFoodTags) {
+      if (!merged.includes(t)) merged.push(t)
+    }
+    return merged
+  }, [dynamicFoodTags])
 
   const anchorCoords = useMemo(() => {
     if (!scopeDestinationId) return null
@@ -466,8 +473,43 @@ export function FoodPage() {
     return null
   }, [scopeDestinationId])
 
+  useEffect(() => {
+    if (!selectedFoodTag) {
+      setTagCatalogFoods(null)
+      setTagCatalogHint('')
+      return undefined
+    }
+    let cancelled = false
+    setLoadingTagCatalog(true)
+    setTagCatalogHint('正在从全库加载美食…')
+    void fetchAllFoodsCatalog((p) => {
+      if (!cancelled) setTagCatalogHint(p.phase ?? `已加载 ${p.loaded} 条`)
+    })
+      .then((vos) => {
+        if (!cancelled) {
+          const mapped = vos.map(foodVOToFood)
+          setTagCatalogFoods(mapped)
+          const matched = mapped.filter((f) => resolveFoodCuisineTag(f) === selectedFoodTag).length
+          setTagCatalogHint(`全库 ${mapped.length} 条 · 菜系「${selectedFoodTag}」匹配 ${matched} 条`)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTagCatalogFoods(null)
+          setTagCatalogHint('')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTagCatalog(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedFoodTag])
+
   const filteredFoods = useMemo(() => {
-    const filtered = foods.filter((f) => {
+    const pool = selectedFoodTag && tagCatalogFoods ? tagCatalogFoods : foods
+    const filtered = pool.filter((f) => {
       const matchSearch =
         !foodSearch.trim() ||
         f.name.includes(foodSearch) ||
@@ -505,7 +547,7 @@ export function FoodPage() {
       const m = haversineMeters(anchorCoords.lng, anchorCoords.lat, f.lng, f.lat)
       return { ...f, distance: formatDistanceMeters(m) }
     })
-  }, [foods, foodSearch, selectedFoodTag, listSort, anchorCoords])
+  }, [foods, tagCatalogFoods, foodSearch, selectedFoodTag, listSort, anchorCoords])
 
   useEffect(() => {
     let cancelled = false
@@ -646,7 +688,7 @@ export function FoodPage() {
 
   const detailFood = filteredFoods[detailIndex] ?? null
 
-  const showLoadSentinel = !usingFallback && !loadingInitial && moreAvailable
+  const showLoadSentinel = !usingFallback && !loadingInitial && moreAvailable && !selectedFoodTag
 
   return (
     <div className="mx-auto max-w-[1400px] animate-fade-rise px-5 py-10 md:px-8">
@@ -658,7 +700,7 @@ export function FoodPage() {
           美食推荐
         </h1>
         <p className="mt-3 font-body text-[15.5px] text-[#6B8076]">
-          瀑布流懒加载：首屏约 32 条，滑到底部再分批加载；菜系标签匹配项优先展示。
+          默认瀑布流懒加载；选择菜系标签时从全库扫描并优先展示匹配项。
         </p>
         {!scopeAll && scopeDestinationId ? (
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -739,6 +781,7 @@ export function FoodPage() {
               />
             ) : null}
             <h3 className={sidebarTitle}>菜系标签</h3>
+            <div className="max-h-[min(52vh,440px)] overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
             <div className="flex flex-col gap-2.5">
               {activeFoodTags.map((t) => {
                 const on = selectedFoodTag === t
@@ -758,6 +801,14 @@ export function FoodPage() {
                 )
               })}
             </div>
+            </div>
+            {selectedFoodTag ? (
+              <p className="mt-3 font-body text-[11px] text-[var(--ds-muted-foreground)]">
+                {loadingTagCatalog
+                  ? tagCatalogHint || '正在从全库筛选美食…'
+                  : tagCatalogHint || '已按菜系从全库优先排序：匹配项在前，其余在后（不隐藏）。'}
+              </p>
+            ) : null}
           </div>
         </aside>
 
