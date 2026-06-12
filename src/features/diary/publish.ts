@@ -1,5 +1,11 @@
-import { publishCommunityDiary, uploadCommunityMedia } from '../../api/community'
-import type { DiaryBook, DiaryEntry, DiaryContentBlock } from './types'
+import { fetchRecommendedDestinationsPage } from '../../api/destination'
+import { publishCommunityDiary } from '../../api/community'
+import {
+  buildPublishMediaList,
+  clampDiaryContent,
+  clampDiaryTitle,
+} from './publishMedia'
+import type { DiaryBook, DiaryEntry } from './types'
 
 export type HandAccountPayloadMeta = {
   handAccount: true
@@ -29,7 +35,7 @@ export function buildHandAccountContent(
   const plain = [leftText, rightText].filter(Boolean).join('\n\n')
   const jsonLine = `${META_PREFIX}${JSON.stringify(meta)}`
   return {
-    contentText: `${jsonLine}\n\n${plain}`,
+    contentText: `${jsonLine}\n\n${plain || '（图文手账）'}`,
     meta,
   }
 }
@@ -53,37 +59,22 @@ export function excerptFromContent(contentText: string | undefined, title?: stri
   return body.slice(0, 120) || title || '这位旅行者还没有留下更多文字。'
 }
 
-async function resolveMediaUrls(blocks: DiaryContentBlock[]): Promise<Array<{ mediaType: 'image' | 'video'; fileUrl: string }>> {
-  const out: Array<{ mediaType: 'image' | 'video'; fileUrl: string }> = []
-  for (const block of blocks) {
-    if (block.type === 'image' && block.assetUrl) {
-      if (block.assetUrl.startsWith('blob:')) continue
-      out.push({ mediaType: 'image', fileUrl: block.assetUrl.startsWith('/') ? block.assetUrl : `/${block.assetUrl}` })
-    }
-    if (block.type === 'video' && block.assetUrl) {
-      if (block.assetUrl.startsWith('blob:')) continue
-      out.push({ mediaType: 'video', fileUrl: block.assetUrl })
-    }
-    if (block.type === 'routeSketch' && block.imageUrl) {
-      out.push({ mediaType: 'image', fileUrl: block.imageUrl })
-    }
-  }
-  return out
-}
-
 export function entryPlainText(entry: DiaryEntry): string {
   const textBlock = entry.blocks.find((b) => b.type === 'text')
   if (!textBlock || textBlock.type !== 'text') return ''
   return textBlock.text.replace(/\n\n---PAGE_BREAK---\n\n/g, '\n\n').trim()
 }
 
-async function buildMediaListForBook(book: DiaryBook, entry: DiaryEntry) {
-  const mediaList = await resolveMediaUrls(entry.blocks)
-  const cover = book.coverAssetUrl
-  if (cover && !cover.startsWith('blob:') && !mediaList.some((m) => m.fileUrl === cover)) {
-    mediaList.unshift({ mediaType: 'image', fileUrl: cover.startsWith('/') ? cover : `/${cover}` })
+async function resolvePublishDestinationId(preferred: number | null | undefined): Promise<number> {
+  if (typeof preferred === 'number' && preferred > 0) return preferred
+  try {
+    const page = await fetchRecommendedDestinationsPage({ pageSize: 5, sortBy: 'heat' })
+    const hit = page.list.find((d) => typeof d.id === 'number' && d.id > 0)
+    if (hit?.id) return hit.id
+  } catch {
+    /* 使用兜底 */
   }
-  return mediaList
+  return 1
 }
 
 export async function publishHandAccountEntry(params: {
@@ -93,6 +84,7 @@ export async function publishHandAccountEntry(params: {
   rightText: string
   destinationId: number
   visibility: 'public' | 'private'
+  fileCache?: Map<string, File>
 }): Promise<number> {
   const { contentText } = buildHandAccountContent(
     params.book,
@@ -100,11 +92,14 @@ export async function publishHandAccountEntry(params: {
     params.leftText,
     params.rightText,
   )
-  const mediaList = await buildMediaListForBook(params.book, params.entry)
+  const plain = [params.leftText, params.rightText].filter(Boolean).join('\n\n')
+  const mediaList = await buildPublishMediaList(params.book, params.entry, params.fileCache)
+  const destId = await resolvePublishDestinationId(params.destinationId)
+
   return publishCommunityDiary({
-    destinationId: params.destinationId,
-    title: `${params.book.title} · ${params.entry.title}`,
-    contentText,
+    destinationId: destId,
+    title: clampDiaryTitle(`${params.book.title} · ${params.entry.title}`),
+    contentText: clampDiaryContent(contentText, plain || '（图文手账）'),
     visibility: params.visibility,
     mediaList,
   })
@@ -117,18 +112,22 @@ export async function publishHandAccountWithCustomText(params: {
   title: string
   bodyText: string
   destinationId: number
+  fileCache?: Map<string, File>
 }): Promise<number> {
   const { contentText } = buildHandAccountContent(params.book, params.entry, params.bodyText, '')
-  const mediaList = await buildMediaListForBook(params.book, params.entry)
+  const mediaList = await buildPublishMediaList(params.book, params.entry, params.fileCache)
+  const destId = await resolvePublishDestinationId(params.destinationId)
+
   return publishCommunityDiary({
-    destinationId: params.destinationId,
-    title: params.title.trim(),
-    contentText,
+    destinationId: destId,
+    title: clampDiaryTitle(params.title.trim() || params.book.title),
+    contentText: clampDiaryContent(contentText, params.bodyText.trim() || '（图文手账）'),
     visibility: 'public',
     mediaList,
   })
 }
 
 export async function uploadDiaryFile(file: File): Promise<string> {
+  const { uploadCommunityMedia } = await import('../../api/community')
   return uploadCommunityMedia(file)
 }

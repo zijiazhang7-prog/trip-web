@@ -14,6 +14,9 @@ type AmapMapViewProps = {
   /** 景区/校园等局部场景可放大至更高层级 */
   maxFitZoom?: number
   singlePointZoom?: number
+  /** 启用高德室内地图图层（zoom≥17 自动展示商场/场馆室内图） */
+  showIndoorMap?: boolean
+  indoorZoom?: number
   className?: string
 }
 
@@ -94,6 +97,8 @@ export function AmapMapView({
   showGeolocation = false,
   maxFitZoom = ROUTE_MAX_ZOOM,
   singlePointZoom = SINGLE_POINT_ZOOM,
+  showIndoorMap = false,
+  indoorZoom = 18,
   className = '',
 }: AmapMapViewProps) {
   const minZoomAfterFit = maxFitZoom >= 16 ? 14 : 11
@@ -138,12 +143,31 @@ export function AmapMapView({
           setMapError('未配置 VITE_AMAP_SECURITY_CODE，地图瓦片可能无法显示（与后端无关）')
         }
 
+        const initialCenter: [number, number] =
+          waypoints.length && isValidCoord(waypoints[0].lng, waypoints[0].lat)
+            ? [waypoints[0].lng, waypoints[0].lat]
+            : BEIJING_CENTER
+
         const map = new AMap.Map(container, {
-          zoom: BEIJING_DEFAULT_ZOOM,
-          center: BEIJING_CENTER,
+          zoom: showIndoorMap ? indoorZoom : BEIJING_DEFAULT_ZOOM,
+          center: initialCenter,
           viewMode: '2D',
-          zooms: [10, 18],
+          zooms: [10, 20],
+          showIndoorMap,
         })
+        if (showIndoorMap) {
+          const mapWithEvents = map as {
+            on?: (event: string, cb: () => void) => void
+            indoorMap?: { showFloorBar?: () => void }
+          }
+          mapWithEvents.on?.('indoor_create', () => {
+            try {
+              mapWithEvents.indoorMap?.showFloorBar?.()
+            } catch {
+              /* 室内图层不可用时忽略 */
+            }
+          })
+        }
         mapRef.current = map
         window.setTimeout(() => map.resize?.(), 120)
         setMapReady(true)
@@ -169,7 +193,7 @@ export function AmapMapView({
       geoMarkerRef.current = null
       if (container) container.innerHTML = ''
     }
-  }, [instanceId])
+  }, [instanceId, showIndoorMap, indoorZoom])
 
   useEffect(() => {
     const map = mapRef.current

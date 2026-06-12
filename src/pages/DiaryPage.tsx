@@ -1599,7 +1599,14 @@ export function DiaryPage() {
                       onClick={async () => {
                         if (!selectedBook || !selectedEntry) return
                         await saveCurrentEntry()
-                        const id = await publish(selectedBook, selectedEntry, leftPageText, rightPageText, 'public')
+                        const id = await publish(
+                          selectedBook,
+                          selectedEntry,
+                          leftPageText,
+                          rightPageText,
+                          'public',
+                          uploadFileCacheRef.current,
+                        )
                         if (id) navigate('/community')
                       }}
                     >
@@ -1612,7 +1619,14 @@ export function DiaryPage() {
                       onClick={async () => {
                         if (!selectedBook || !selectedEntry) return
                         await saveCurrentEntry()
-                        await publish(selectedBook, selectedEntry, leftPageText, rightPageText, 'private')
+                        await publish(
+                          selectedBook,
+                          selectedEntry,
+                          leftPageText,
+                          rightPageText,
+                          'private',
+                          uploadFileCacheRef.current,
+                        )
                       }}
                     >
                       保存私密草稿

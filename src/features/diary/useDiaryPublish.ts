@@ -17,12 +17,13 @@ export function useDiaryPublish() {
       leftText: string,
       rightText: string,
       visibility: 'public' | 'private',
+      fileCache?: Map<string, File>,
     ) => {
       if (!hasStoredToken()) {
         setPublishError('请先登录后再发布手账')
         return null
       }
-      const destId = destinationId ?? 101
+      const destId = destinationId ?? 0
       setPublishing(true)
       setPublishError(null)
       setPublishMsg(null)
@@ -34,6 +35,7 @@ export function useDiaryPublish() {
           rightText,
           destinationId: destId,
           visibility,
+          fileCache,
         })
         setPublishMsg(
           visibility === 'public'

@@ -1,38 +1,76 @@
-import type { MacroRoutePlan } from '../../types/macroRoute'
+import { useState } from 'react'
+import type { MacroRoutePlan, RouteWaypoint } from '../../types/macroRoute'
 import { TRANSPORT_OPTIONS } from '../../types/macroRoute'
+import { WaypointInternalNavPanel } from './WaypointInternalNavPanel'
 
 type RouteSequenceSidebarProps = {
   plan: MacroRoutePlan | null
+  selected?: RouteWaypoint[]
   planning?: boolean
+  onRemoveSelected?: (id: string | number) => void
+  onApplyInternalPlan?: (plan: MacroRoutePlan) => void
 }
 
-export function RouteSequenceSidebar({ plan, planning }: RouteSequenceSidebarProps) {
+export function RouteSequenceSidebar({
+  plan,
+  selected = [],
+  planning,
+  onRemoveSelected,
+  onApplyInternalPlan,
+}: RouteSequenceSidebarProps) {
+  const [expandedId, setExpandedId] = useState<string | number | null>(null)
   const modeLabel = TRANSPORT_OPTIONS.find((t) => t.value === plan?.transportMode)?.label ?? '路线'
+  const list = plan?.waypoints ?? selected
+
+  const toggleExpand = (id: string | number) => {
+    setExpandedId((prev) => (String(prev) === String(id) ? null : id))
+  }
 
   return (
-    <div className="flex h-full max-h-[min(58vh,560px)] flex-col overflow-hidden rounded-[2rem] border border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] bg-[color-mix(in_srgb,white_90%,var(--ds-background))] p-5 shadow-[var(--ds-shadow-soft)]">
-      <div className="mb-4 inline-flex w-fit items-center rounded-full border border-[color-mix(in_srgb,var(--ds-primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--ds-primary)_10%,white)] px-4 py-1.5 font-display text-sm font-semibold text-[var(--ds-primary)]">
-        路线 A
+    <div className="flex h-full min-h-[360px] max-h-[min(62vh,600px)] flex-col overflow-hidden rounded-[2rem] border border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] bg-[color-mix(in_srgb,white_90%,var(--ds-background))] shadow-[var(--ds-shadow-soft)]">
+      <div className="shrink-0 border-b border-[var(--ds-border)]/40 p-4">
+        <div className="inline-flex w-fit items-center rounded-full border border-[color-mix(in_srgb,var(--ds-primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--ds-primary)_10%,white)] px-4 py-1.5 font-display text-sm font-semibold text-[var(--ds-primary)]">
+          我的路线
+        </div>
+        <p className="font-body mt-2 text-xs text-[var(--ds-muted-foreground)]">
+          {plan ? `${modeLabel} · 已生成 ${list.length} 站` : `已选 ${selected.length} 站 · 点击站点展开内部导航`}
+        </p>
+
+        {selected.length > 0 ? (
+          <div className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
+            {selected.map((wp, i) => (
+              <button
+                key={String(wp.id)}
+                type="button"
+                onClick={() => toggleExpand(wp.id)}
+                className={`shrink-0 snap-start rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  String(expandedId) === String(wp.id)
+                    ? 'border-[var(--ds-primary)] bg-[var(--ds-primary)] text-white'
+                    : 'border-[var(--ds-primary)]/25 bg-white text-[var(--ds-primary)]'
+                }`}
+              >
+                {i + 1}. {wp.name.length > 8 ? `${wp.name.slice(0, 8)}…` : wp.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
-      <p className="font-body mb-4 text-xs text-[var(--ds-muted-foreground)]">
-        {plan ? `${modeLabel} · 优化顺序` : '勾选景点后点击「生成路线」'}
-      </p>
 
       {planning ? (
         <p className="py-6 text-center font-body text-sm text-[var(--ds-muted-foreground)]">正在优化顺序并规划…</p>
       ) : null}
 
-      {!planning && !plan ? (
+      {!planning && list.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
-          <div className="h-16 w-px border-l-2 border-dashed border-[color-mix(in_srgb,var(--ds-primary)_30%,transparent)]" />
-          <p className="font-body text-sm text-[var(--ds-muted-foreground)]">暂无站点</p>
+          <p className="font-body text-sm text-[var(--ds-muted-foreground)]">在上方滑动选择目的地后加入此处</p>
         </div>
       ) : null}
 
-      {plan ? (
-        <ol className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto py-2 pr-1">
-          {plan.waypoints.map((wp, i) => {
-            const seg = plan.segments?.[i - 1]
+      {!planning && list.length > 0 ? (
+        <ol className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4 pt-2">
+          {list.map((wp, i) => {
+            const seg = plan?.segments?.[i - 1]
+            const expanded = String(expandedId) === String(wp.id)
             return (
               <li key={String(wp.id)} className="flex w-full flex-col">
                 {seg ? (
@@ -40,25 +78,41 @@ export function RouteSequenceSidebar({ plan, planning }: RouteSequenceSidebarPro
                     <p className="font-body text-[11px] font-semibold text-[var(--ds-foreground)]">
                       {seg.fromName} → {seg.toName}
                     </p>
-                    {seg.steps?.length ? (
-                      <ul className="mt-1.5 space-y-1 border-l border-[color-mix(in_srgb,var(--ds-primary)_18%,transparent)] pl-2">
-                        {seg.steps.slice(0, 4).map((step, idx) => (
-                          <li key={`${step.instruction}-${idx}`} className="font-body text-[10px] text-[var(--ds-muted-foreground)]">
-                            {step.instruction}
-                          </li>
-                        ))}
-                        {(seg.steps?.length ?? 0) > 4 ? (
-                          <li className="font-body text-[10px] text-[var(--ds-primary)]">…共 {seg.steps?.length} 段</li>
-                        ) : null}
-                      </ul>
-                    ) : null}
                   </div>
                 ) : null}
-                <div className="w-full rounded-2xl border border-[color-mix(in_srgb,var(--ds-primary)_18%,transparent)] bg-white px-4 py-3 text-center shadow-sm">
-                  <span className="font-body text-[10px] font-bold uppercase tracking-wider text-[var(--ds-muted-foreground)]">
-                    第 {i + 1} 站
-                  </span>
-                  <p className="font-display mt-1 text-sm font-semibold text-[var(--ds-foreground)]">{wp.name}</p>
+                <div className="w-full rounded-2xl border border-[color-mix(in_srgb,var(--ds-primary)_18%,transparent)] bg-white shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(wp.id)}
+                    className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
+                  >
+                    <div>
+                      <span className="font-body text-[10px] font-bold uppercase tracking-wider text-[var(--ds-muted-foreground)]">
+                        第 {i + 1} 站
+                      </span>
+                      <p className="font-display text-sm font-semibold text-[var(--ds-foreground)]">{wp.name}</p>
+                    </div>
+                    <span className="text-xs text-[var(--ds-primary)]">{expanded ? '收起 ▲' : '内部导航 ▼'}</span>
+                  </button>
+                  {!plan && onRemoveSelected ? (
+                    <div className="border-t border-[var(--ds-border)]/30 px-4 py-2">
+                      <button
+                        type="button"
+                        onClick={() => onRemoveSelected(wp.id)}
+                        className="font-body text-[10px] text-[var(--ds-destructive)]"
+                      >
+                        移出路线
+                      </button>
+                    </div>
+                  ) : null}
+                  {expanded ? (
+                    <div className="border-t border-[var(--ds-border)]/30 px-2 pb-2">
+                      <WaypointInternalNavPanel
+                        waypoint={wp}
+                        onApplyPlan={onApplyInternalPlan}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </li>
             )

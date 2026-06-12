@@ -144,6 +144,7 @@ export function FoodPage() {
   const [loadingFoodTop10, setLoadingFoodTop10] = useState(false)
   const [foodSearch, setFoodSearch] = useState('')
   const [selectedFoodTag, setSelectedFoodTag] = useState('')
+  const [dynamicFoodTags, setDynamicFoodTags] = useState<string[]>([])
   const [listSort, setListSort] = useState<'heat' | 'rating' | 'distance'>('heat')
   const [mode, setMode] = useState<'browse' | 'search'>('browse')
   const [loadingInitial, setLoadingInitial] = useState(true)
@@ -440,6 +441,11 @@ export function FoodPage() {
     /** 不依赖 foods.length：避免因每条追加都断开 IO 导致「已在视区内却不回调」 */
   }, [usingFallback, loadingInitial, mode, moreAvailable])
 
+  const activeFoodTags = useMemo(
+    () => (dynamicFoodTags.length > 0 ? dynamicFoodTags : foodTags),
+    [dynamicFoodTags],
+  )
+
   const anchorCoords = useMemo(() => {
     if (!scopeDestinationId) return null
     const hit = BEIJING_ATTRACTIONS.find((a) => a.destinationId === scopeDestinationId)
@@ -475,6 +481,24 @@ export function FoodPage() {
       return { ...f, distance: formatDistanceMeters(m) }
     })
   }, [foods, foodSearch, selectedFoodTag, listSort, anchorCoords])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const destId = scopeDestinationId ?? ctxDestinationId ?? 1
+        const page = await fetchRecommendedFoodsPage(destId, { pageSize: 40, sortBy: 'heat' })
+        if (cancelled) return
+        const types = [...new Set((page.list ?? []).map((f) => f.foodType).filter(Boolean))] as string[]
+        if (types.length) setDynamicFoodTags(types.slice(0, 12))
+      } catch {
+        /* 保留静态标签 */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [scopeDestinationId, ctxDestinationId])
 
   useEffect(() => {
     if (ctxDestinationId) {
@@ -722,7 +746,7 @@ export function FoodPage() {
             ) : null}
             <h3 className={sidebarTitle}>菜系标签</h3>
             <div className="flex flex-col gap-2.5">
-              {foodTags.map((t) => {
+              {activeFoodTags.map((t) => {
                 const on = selectedFoodTag === t
                 return (
                   <button

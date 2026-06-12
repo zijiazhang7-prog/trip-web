@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AmapMapView } from '../components/route/AmapMapView'
-import { DestinationSearchGrid } from '../components/route/DestinationSearchGrid'
-import { InternalRoutePlanModal } from '../components/route/InternalRoutePlanModal'
+import { DestinationPickerScroll } from '../components/route/DestinationPickerScroll'
 import { RouteSequenceSidebar } from '../components/route/RouteSequenceSidebar'
 import { InlineNotice } from '../components/ui/InlineNotice'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -19,20 +18,18 @@ export function RoutePlanningPage() {
   const [planning, setPlanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [localPlan, setLocalPlan] = useState(macroPlan)
-  const [internalModalOpen, setInternalModalOpen] = useState(false)
   const [transportMode, setTransportMode] = useState<TransportMode>('transit')
 
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected])
   const displayPlan = localPlan ?? macroPlan
 
-  const toggleWaypoint = (wp: RouteWaypoint, checked: boolean) => {
-    setSelected((prev) => {
-      if (checked) {
-        if (prev.some((p) => p.id === wp.id)) return prev
-        return [...prev, wp]
-      }
-      return prev.filter((p) => p.id !== wp.id)
-    })
+  const addWaypoint = (wp: RouteWaypoint) => {
+    setSelected((prev) => (prev.some((p) => p.id === wp.id) ? prev : [...prev, wp]))
+    setLocalPlan(null)
+  }
+
+  const removeWaypoint = (id: string | number) => {
+    setSelected((prev) => prev.filter((p) => p.id !== id))
     setLocalPlan(null)
   }
 
@@ -66,7 +63,7 @@ export function RoutePlanningPage() {
       <PageHeader
         eyebrow="Beijing Route"
         title="北京市内 · 多景点路径规划"
-        description="搜索并勾选北京市内景点，系统将按优化顺序生成路线，并在地图上展示。"
+        description="横向滑动选点加入路线；在左侧路线列表点击站点可展开景区内部 / 高德室内导航。"
       />
 
       {!hasFullAmapSetup() ? (
@@ -88,38 +85,54 @@ export function RoutePlanningPage() {
         </InlineNotice>
       ) : null}
 
-      <section className="mb-6 max-h-[min(52vh,520px)] min-h-[280px]">
-        <DestinationSearchGrid selectedIds={selectedIds} onToggle={toggleWaypoint} />
+      <section className="mb-4 rounded-[2rem] border border-[var(--ds-border)]/50 bg-white/80 p-4 shadow-sm">
+        <DestinationPickerScroll
+          selectedIds={selectedIds}
+          onAdd={addWaypoint}
+          onRemove={removeWaypoint}
+        />
       </section>
 
-      <p className="mb-2 font-body text-sm text-[var(--ds-muted-foreground)]">
-        已选 {selected.length} 个景点 · 顺序将自动优化
-      </p>
-      <div className="mb-4 flex flex-wrap gap-2">
-        {TRANSPORT_OPTIONS.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => setTransportMode(t.value)}
-            className={`rounded-full px-4 py-1.5 font-body text-xs font-semibold transition ${
-              transportMode === t.value
-                ? 'bg-[var(--ds-primary)] text-white'
-                : 'border border-[var(--ds-primary)]/20 bg-white text-[var(--ds-primary)]'
-            }`}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <p className="font-body text-sm text-[var(--ds-muted-foreground)]">
+          已选 {selected.length} 个景点
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {TRANSPORT_OPTIONS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setTransportMode(t.value)}
+              className={`rounded-full px-4 py-1.5 font-body text-xs font-semibold transition ${
+                transportMode === t.value
+                  ? 'bg-[var(--ds-primary)] text-white'
+                  : 'border border-[var(--ds-primary)]/20 bg-white text-[var(--ds-primary)]'
+              }`}
+            >
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <section className="mb-6 grid min-h-[420px] gap-5 lg:grid-cols-[minmax(240px,28%)_1fr]">
-        <RouteSequenceSidebar plan={displayPlan} planning={planning} />
+      <section className="mb-6 grid min-h-[440px] gap-5 lg:grid-cols-[minmax(280px,32%)_1fr]">
+        <RouteSequenceSidebar
+          plan={displayPlan}
+          selected={displayPlan ? undefined : selected}
+          planning={planning}
+          onRemoveSelected={removeWaypoint}
+          onApplyInternalPlan={(plan) => {
+            setLocalPlan(plan)
+            setMacroPlan(plan)
+            setActiveWaypoint(plan.waypoints[0] ?? null)
+          }}
+        />
         <AmapMapView
           key="route-plan-map"
-          className="min-h-[420px]"
+          className="min-h-[440px]"
           waypoints={displayPlan?.waypoints ?? selected}
           polyline={displayPlan?.polyline}
-          activeId={displayPlan?.waypoints[0]?.id}
+          activeId={displayPlan?.waypoints[0]?.id ?? selected[0]?.id}
         />
       </section>
 
@@ -130,15 +143,8 @@ export function RoutePlanningPage() {
           disabled={planning || selected.length < 2}
           onClick={() => void handlePlan()}
         >
-          {planning ? '正在规划并进入导航…' : '生成路线并导航'}
+          {planning ? '正在规划并进入导航…' : '生成城市路线并导航'}
         </PrimaryButton>
-        <button
-          type="button"
-          onClick={() => setInternalModalOpen(true)}
-          className="rounded-full border border-[var(--ds-primary)]/25 bg-white px-6 py-4 font-body text-sm font-semibold text-[var(--ds-primary)] transition hover:bg-[var(--ds-primary)]/5"
-        >
-          景区内部路线
-        </button>
         {selected.length > 0 || displayPlan ? (
           <button
             type="button"
@@ -149,17 +155,6 @@ export function RoutePlanningPage() {
           </button>
         ) : null}
       </div>
-
-      <InternalRoutePlanModal
-        open={internalModalOpen}
-        onClose={() => setInternalModalOpen(false)}
-        selectedWaypoints={selected}
-        onApplyPlan={(plan) => {
-          setLocalPlan(plan)
-          setMacroPlan(plan)
-          setActiveWaypoint(plan.waypoints[0] ?? null)
-        }}
-      />
     </div>
   )
 }
