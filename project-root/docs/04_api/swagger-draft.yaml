@@ -129,19 +129,26 @@ paths:
             enum: [heat, rating, recommend]
         - name: pageNum
           in: query
+          description: 未传 topK 时生效
           schema:
             type: integer
+            minimum: 1
             default: 1
         - name: pageSize
           in: query
+          description: 未传 topK 时生效
           schema:
             type: integer
+            minimum: 1
+            maximum: 100
             default: 10
         - name: topK
           in: query
+          description: 传入后启用 Top-K 兼容模式并忽略分页参数
           schema:
             type: integer
-            default: 10
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: 获取成功
@@ -446,11 +453,12 @@ paths:
           schema:
             type: integer
             format: int64
-        - name: sourceNodeId
+        - name: facilityId
           in: query
           schema:
             type: integer
             format: int64
+            minimum: 1
         - name: foodType
           in: query
           schema:
@@ -459,12 +467,29 @@ paths:
           in: query
           schema:
             type: string
-            enum: [heat, rating, distance]
-        - name: topK
+            enum: [heat, rating]
+        - name: pageNum
           in: query
+          description: 未传 topK 时生效
           schema:
             type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: 未传 topK 时生效
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
             default: 10
+        - name: topK
+          in: query
+          description: 传入后启用 Top-K 兼容模式并忽略分页参数
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: 获取成功

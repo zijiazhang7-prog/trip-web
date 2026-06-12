@@ -529,13 +529,19 @@ Authorization: Bearer <token>
 | type     | string |  否 | `scenic/campus`         |
 | theme    | string |  否 | 主题                      |
 | sortBy   | string |  否 | `heat/rating/recommend` |
-| pageNum  | int    |  否 | 页码                      |
-| pageSize | int    |  否 | 每页数量                    |
-| topK     | int    |  否 | Top-K 推荐数               |
+| pageNum  | int    |  否 | 页码，默认 1；未传 `topK` 时生效 |
+| pageSize | int    |  否 | 每页数量，默认 10，最大 100；未传 `topK` 时生效 |
+| topK     | int    |  否 | Top-K 推荐数，范围 1～100；传入后优先于分页参数 |
 
 ### Response
 
-返回 `Page<DestinationVO>`
+返回 `PageResultVO<DestinationVO>`。
+
+说明：
+
+- 未传 `topK` 时，对全部符合 `status=1`、`type`、`theme` 条件的候选排序后分页。
+- 传入 `topK` 时保持兼容模式，忽略 `pageNum/pageSize`，响应 `pageNum=1`、`pageSize=topK`。
+- `total` 始终表示过滤后的完整候选数量，`pages=ceil(total/pageSize)`。
 
 ## 9.2 搜索目的地
 
@@ -775,14 +781,22 @@ Authorization: Bearer <token>
 | 参数名           | 类型     | 必填 | 说明                     |
 | ------------- | ------ | -: | ---------------------- |
 | destinationId | long   |  是 | 目的地 ID                 |
-| sourceNodeId  | long   |  否 | 当前节点 ID                |
+| facilityId    | long   |  否 | 所属设施 ID                |
 | foodType      | string |  否 | 菜系                     |
-| sortBy        | string |  否 | 当前基础版支持 `heat/rating`，`distance` 后续联动 MapService 再补 |
-| topK          | int    |  否 | Top-K 数量               |
+| sortBy        | string |  否 | 当前支持 `heat/rating` |
+| pageNum       | int    |  否 | 页码，默认 1；未传 `topK` 时生效 |
+| pageSize      | int    |  否 | 每页数量，默认 10，最大 100；未传 `topK` 时生效 |
+| topK          | int    |  否 | Top-K 数量，范围 1～100；传入后优先于分页参数 |
 
 ### Response
 
-返回 `Page<FoodVO>`
+返回 `PageResultVO<FoodVO>`。
+
+说明：
+
+- 未传 `topK` 时，对目的地下全部匹配候选排序后按 `pageNum/pageSize` 分页。
+- 传入 `topK` 时保持兼容模式，忽略分页参数，只返回前 K 条。
+- `total` 表示过滤后的完整候选数量。
 
 ## 12.2 搜索美食
 
@@ -804,7 +818,7 @@ Authorization: Bearer <token>
 
 返回 `Page<FoodVO>`
 
-说明：Food 当前为 P1 基础版，先实现按目的地 / 设施 / 菜系 / 关键字召回，并复用 `RankService` 做热度、评分排序和 Top-K 输出；价格区间、距离联动、个性化口味推荐和详情接口后续再补。
+说明：Food 当前为 P1 基础版，先实现按目的地 / 设施 / 菜系 / 关键字召回，并复用 `RankService` 做热度、评分排序、Top-K 或分页输出；价格区间、距离联动、个性化口味推荐和详情接口后续再补。
 
 ---
 

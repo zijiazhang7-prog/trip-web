@@ -73,6 +73,15 @@ class QueryServiceTests {
     }
 
     @Test
+    void queryAllDestinationsShouldUseListQueryWithoutPageLimit() {
+        when(destinationMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+
+        queryService.queryAllDestinations(new DestinationQuery());
+
+        verify(destinationMapper).selectList(any(Wrapper.class));
+    }
+
+    @Test
     void queryDestinationsShouldTryNameIndexAndKeepMapperPagination() {
         IndexEngine mockedIndexEngine = mock(IndexEngine.class);
         when(mockedIndexEngine.findExact(IndexNamespace.DESTINATION_NAME, "西湖"))

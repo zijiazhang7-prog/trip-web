@@ -375,10 +375,18 @@
 - `facilityId`
 - `foodType`
 - `sortBy`
+- `pageNum`
+- `pageSize`
 - `topK`
 
 返回：
 - 分页美食列表
+
+当前实现约定：
+
+- 未传 `topK` 时按 `pageNum/pageSize` 返回排序后的真实分页结果。
+- 传入 `topK` 时保持兼容模式，优先返回前 K 条并忽略分页参数。
+- `pageSize` 和 `topK` 最大均为 100，默认分页为第 1 页、每页 10 条。
 
 ---
 

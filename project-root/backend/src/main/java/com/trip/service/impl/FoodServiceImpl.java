@@ -45,9 +45,19 @@ public class FoodServiceImpl implements FoodService {
         }
 
         List<Food> candidates = queryService.queryFoods(toFoodQuery(query));
-        int limit = topK(query.getTopK());
-        List<Food> ranked = rankFoods(candidates, query.getSortBy(), limit);
-        return PageResultVO.of(toFoodVOs(ranked), DEFAULT_PAGE_NUM, limit, candidates.size(), pages(candidates.size(), limit));
+        if (query.getTopK() != null && query.getTopK() > 0) {
+            int limit = topK(query.getTopK());
+            List<Food> ranked = rankFoods(candidates, query.getSortBy(), limit);
+            return PageResultVO.of(
+                    toFoodVOs(ranked),
+                    DEFAULT_PAGE_NUM,
+                    limit,
+                    candidates.size(),
+                    pages(candidates.size(), limit));
+        }
+
+        List<Food> ranked = rankFoods(candidates, query.getSortBy(), null);
+        return page(ranked, pageNum(query.getPageNum()), pageSize(query.getPageSize()));
     }
 
     @Override
@@ -99,7 +109,7 @@ public class FoodServiceImpl implements FoodService {
     }
 
     private PageResultVO<FoodVO> page(List<Food> ranked, int pageNum, int pageSize) {
-        int fromIndex = Math.min((pageNum - 1) * pageSize, ranked.size());
+        int fromIndex = (int) Math.min((long) (pageNum - 1) * pageSize, ranked.size());
         int toIndex = Math.min(fromIndex + pageSize, ranked.size());
         return PageResultVO.of(
                 toFoodVOs(ranked.subList(fromIndex, toIndex)),

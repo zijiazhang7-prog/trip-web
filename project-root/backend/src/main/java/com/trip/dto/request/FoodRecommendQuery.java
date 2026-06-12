@@ -25,6 +25,13 @@ public class FoodRecommendQuery {
     private String sortBy;
 
     @Min(1)
+    private Integer pageNum;
+
+    @Min(1)
+    @Max(100)
+    private Integer pageSize;
+
+    @Min(1)
     @Max(100)
     private Integer topK;
 
@@ -58,6 +65,22 @@ public class FoodRecommendQuery {
 
     public void setSortBy(String sortBy) {
         this.sortBy = sortBy;
+    }
+
+    public Integer getPageNum() {
+        return pageNum;
+    }
+
+    public void setPageNum(Integer pageNum) {
+        this.pageNum = pageNum;
+    }
+
+    public Integer getPageSize() {
+        return pageSize;
+    }
+
+    public void setPageSize(Integer pageSize) {
+        this.pageSize = pageSize;
     }
 
     public Integer getTopK() {

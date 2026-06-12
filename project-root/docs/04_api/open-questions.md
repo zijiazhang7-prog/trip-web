@@ -15,7 +15,6 @@
 | 高 | `GET /api/v1/facilities/search` 文档有、代码没找到 | Facility | `api-spec.md`、`swagger-draft.yaml` 定义；`FacilityController` 只有 `/nearby` | 不确定是否改文档或补接口 | 后端负责人 / 文档负责人 |
 | 高 | Swagger 的 Diary 发布请求字段与代码不一致 | Diary | `swagger-draft.yaml` 使用 `mediaIds`；`DiaryCreateRequest` 使用 `mediaList` | 文档未同步代码 | 文档负责人 / 后端负责人 |
 | 高 | Swagger 的文件上传响应字段与代码不一致 | File | `swagger-draft.yaml` 的 `FileUploadResultVO` 含 `id`；代码 `FileUploadResultVO` 无 `id` | 文档未同步代码 | 文档负责人 / 后端负责人 |
-| 中 | Food 推荐 query 字段口径不一致 | Food | `api-spec.md` 提到 `sourceNodeId`；代码 `FoodRecommendQuery` 使用 `facilityId` | 不确定后续是否做距离联动 | 后端负责人 / 文档负责人 |
 | 中 | Facility nearby 响应字段口径不一致 | Facility | 文档写 `Page<FacilityVO>`；代码返回 `NearbyFacilityVO`，含 `reachableDistance` | 字段命名需统一 | 后端负责人 / 文档负责人 |
 | 中 | Swagger 运行时访问方式未确认 | API 文档 | 有 `swagger-draft.yaml`；后端未找到 springdoc 配置 | 不知道是否需要 `/swagger-ui` | 后端负责人 |
 | 中 | prod/test profile 是否需要补齐 | Runtime | 只有 `application.yml` 和 `application-dev.yml` | 无 test/prod 配置文件 | 后端负责人 |
@@ -49,7 +48,6 @@
 ## 代码/文档冲突项
 - `mediaIds` vs `mediaList`。
 - `FileUploadResultVO.id` 文档存在但代码不存在。
-- `FoodRecommendQuery.sourceNodeId` 文档存在但代码使用 `facilityId`。
 - `Facility nearby` 响应对象文档与代码不同。
 - 我的日记、Facility 搜索、AI 草稿/图片摘要/路线回顾等预留接口文档有但代码入口未找到；Route 历史和日记照片动画已通过独立资源接口实现。
 

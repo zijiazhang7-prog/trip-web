@@ -68,6 +68,64 @@ class FoodServiceTests {
     }
 
     @Test
+    void recommendShouldPaginateByPageSizeWhenTopKIsAbsent() {
+        when(queryService.queryFoods(any(FoodQuery.class))).thenReturn(List.of(
+                food(1L, "A", "面食", 50, 4.0),
+                food(2L, "B", "面食", 40, 4.0),
+                food(3L, "C", "面食", 30, 4.0),
+                food(4L, "D", "面食", 20, 4.0),
+                food(5L, "E", "面食", 10, 4.0)));
+
+        FoodRecommendQuery firstQuery = recommendQuery(1, 2);
+        FoodRecommendQuery secondQuery = recommendQuery(2, 2);
+
+        PageResultVO<FoodVO> first = foodService.recommendFoods(firstQuery);
+        PageResultVO<FoodVO> second = foodService.recommendFoods(secondQuery);
+
+        assertEquals(List.of(1L, 2L), first.getList().stream().map(FoodVO::getId).toList());
+        assertEquals(List.of(3L, 4L), second.getList().stream().map(FoodVO::getId).toList());
+        assertEquals(5, first.getTotal());
+        assertEquals(3, first.getPages());
+        assertEquals(2, second.getPageNum());
+        assertEquals(2, second.getPageSize());
+    }
+
+    @Test
+    void recommendShouldUseRequestedPageSizeInsteadOfDefaultTopK() {
+        List<Food> candidates = java.util.stream.LongStream.rangeClosed(1, 40)
+                .mapToObj(id -> food(id, "美食" + id, "套餐", (int) id, 4.0))
+                .toList();
+        when(queryService.queryFoods(any(FoodQuery.class))).thenReturn(candidates);
+
+        FoodRecommendQuery query = recommendQuery(1, 32);
+        PageResultVO<FoodVO> result = foodService.recommendFoods(query);
+
+        assertEquals(32, result.getList().size());
+        assertEquals(32, result.getPageSize());
+        assertEquals(40, result.getTotal());
+        assertEquals(2, result.getPages());
+    }
+
+    @Test
+    void recommendTopKShouldTakePriorityOverPaging() {
+        when(queryService.queryFoods(any(FoodQuery.class))).thenReturn(List.of(
+                food(1L, "A", "面食", 10, 4.0),
+                food(2L, "B", "面食", 30, 4.0),
+                food(3L, "C", "面食", 20, 4.0)));
+
+        FoodRecommendQuery query = recommendQuery(3, 1);
+        query.setTopK(2);
+
+        PageResultVO<FoodVO> result = foodService.recommendFoods(query);
+
+        assertEquals(List.of(2L, 3L), result.getList().stream().map(FoodVO::getId).toList());
+        assertEquals(1, result.getPageNum());
+        assertEquals(2, result.getPageSize());
+        assertEquals(3, result.getTotal());
+        assertEquals(2, result.getPages());
+    }
+
+    @Test
     void searchShouldSortByRatingAndPage() {
         when(queryService.queryFoods(any(FoodQuery.class))).thenReturn(List.of(
                 food(1L, "牛肉面", "面食", 80, 4.2),
@@ -126,5 +184,14 @@ class FoodServiceTests {
         food.setLng(new BigDecimal("116.123456"));
         food.setLat(new BigDecimal("40.123456"));
         return food;
+    }
+
+    private FoodRecommendQuery recommendQuery(int pageNum, int pageSize) {
+        FoodRecommendQuery query = new FoodRecommendQuery();
+        query.setDestinationId(101L);
+        query.setSortBy("heat");
+        query.setPageNum(pageNum);
+        query.setPageSize(pageSize);
+        return query;
     }
 }

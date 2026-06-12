@@ -475,4 +475,32 @@
 |TC-DIARY-REC-003|Diary/Rank|P0|评分 Top-K 与稳定同分顺序|按 `rating_score` 选 K，同分保持候选顺序|通过：单元测试|
 |TC-DIARY-REC-004|Diary/Recommend|P1|空值与零热度|空标题、正文、目的地字段和全零热度不报错|通过：单元测试|
 |TC-DIARY-REC-005|Diary/Security|P0|匿名访问拦截|未携带 JWT 返回 HTTP 401、`AUTH_003`|通过：MockMvc|
-|TC-DIARY-REC-006|Diary/Recommend|P1|实库偏好变化回归|修改偏好后推荐顺序按可解释规则变化，响应字段不变|待实库接口验证|
+|TC-DIARY-REC-006|Diary/Recommend|P1|实库偏好变化回归|同一批日记下，两组明显不同的偏好分别命中对应兴趣日记，响应字段不变|通过：MySQL 8 真实 JWT HTTP 测试|
+|TC-DIARY-REC-007|Diary/Recommend|P1|非个性化策略用户无关性|两个用户请求 `heat/rating` 时返回完全相同的日记 ID 顺序|通过：MySQL 8 真实 JWT HTTP 测试|
+|TC-DIARY-REC-008|Diary/Recommend|P1|推荐查询无浏览量副作用|六次推荐请求前后测试日记 `heat_score` 不变|通过：MySQL 8 数据库核验|
+|TC-DIARY-REC-009|Demo Data|P0|演示偏好等级合法且可重复导入|三个演示用户的热门、拥挤等级均为 `1..5`，重复执行 SQL 不产生重复偏好|等级静态测试通过；实库幂等导入待校园美食数据补齐|
+
+实库回归入口：
+
+```powershell
+cd project-root/backend
+mvn -q -DskipTests package
+cd ../..
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\project-root\scripts\verify-diary-recommend.ps1 `
+  -BaseUrl http://127.0.0.1:18080
+```
+
+脚本使用随机测试标记创建两个临时用户、一条目的地和四篇公开日记，并在 `finally`
+中清理。测试账号口令和 JWT 只保存在当前进程内，不写入报告。
+
+## 20. 目的地与美食推荐真分页测试
+
+|用例编号|模块|优先级|测试目标|验收标准|当前状态|
+|---|---|---|---|---|---|
+|TC-RECOMMEND-PAGE-001|Recommend|P0|目的地相邻页切片|第 1、2 页各按 `pageSize` 返回，ID 无交集|通过：单元测试与 MySQL 8 HTTP 测试|
+|TC-RECOMMEND-PAGE-002|Recommend|P0|目的地完整候选统计|`total` 为全部启用且符合筛选条件的候选数，`pages=ceil(total/pageSize)`|通过：实库返回 `total=1315`、`pages=42`|
+|TC-RECOMMEND-PAGE-003|Recommend|P1|目的地 Top-K 兼容|传 `topK` 时忽略分页参数，固定返回第 1 页前 K 条|通过：单元测试|
+|TC-FOOD-PAGE-001|Food|P0|美食推荐分页参数生效|未传 `topK` 时使用 `pageNum/pageSize`，不再默认截为 10 条|通过：单元测试与 MySQL 8 HTTP 测试|
+|TC-FOOD-PAGE-002|Food|P1|美食 Top-K 兼容|显式 `topK=5` 时仍只返回 5 条，响应页码为 1|通过：单元测试与 MySQL 8 HTTP 测试|
+|TC-FOOD-PAGE-003|Food|P1|美食跨页切片|65 条候选按 32 条分页应返回 32、32、1，页间 ID 不重复|通过：构造候选单元测试|

@@ -57,9 +57,9 @@ INSERT INTO `user_preference` (
   `user_id`, `prefer_hot_level`, `prefer_theme`, `prefer_food_type`,
   `prefer_crowd_level`, `travel_style`, `custom_preference_text`
 ) VALUES
-  (@user_01_id, 80, '["校园","图书馆","美食"]', '面食', 40, 'relaxed', '希望路线不要太绕，优先看校园建筑和食堂。'),
-  (@user_02_id, 60, '["运动","打卡","夜景"]', '快餐', 60, 'checkin', '喜欢适合拍照的点位和热门路线。'),
-  (@user_03_id, 50, '["学习","安静","咖啡"]', '甜品', 30, 'quiet', '偏好安静的学习空间和咖啡店。')
+  (@user_01_id, 3, '["校园","图书馆","美食"]', '面食', 2, 'relaxed', '希望路线不要太绕，优先看校园建筑和食堂。'),
+  (@user_02_id, 5, '["运动","打卡","夜景"]', '快餐', 4, 'checkin', '喜欢适合拍照的点位和热门路线。'),
+  (@user_03_id, 1, '["学习","安静","咖啡"]', '甜品', 1, 'quiet', '偏好安静的学习空间和咖啡店。')
 ON DUPLICATE KEY UPDATE
   `prefer_hot_level` = VALUES(`prefer_hot_level`),
   `prefer_theme` = VALUES(`prefer_theme`),

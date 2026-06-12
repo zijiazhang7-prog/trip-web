@@ -68,6 +68,81 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>2.43.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <java>
+                        <!-- 使用Google Java风格，业界标准 -->
+                        <googleJavaFormat>1.22.0</googleJavaFormat>
+                        <removeUnusedImports />
+                        <sortImports />
+                    </java>
+                    <!-- 顺带格式化yml、xml、md配置文件 -->
+                    <formatters>
+                        <yaml>
+                            <trimTrailingWhitespace />
+                            <eol>LF</eol>
+                        </yaml>
+                        <xml>
+                            <indent>4</indent>
+                        </xml>
+                        <markdown />
+                    </formatters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.1.2</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- 官方标准sun规范，也可以用google_checks.xml -->
+                    <configLocation>sun_checks.xml</configLocation>
+                    <!-- 错误直接构建失败 -->
+                    <failOnError>true</failOnError>
+                    <failOnWarning>false</failOnWarning>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>3.22.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>pmd</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- 内置常用规则集：基础+代码风格+潜在bug -->
+                    <rulesets>
+                        <ruleset>rulesets/java/quickstart.xml</ruleset>
+                        <ruleset>rulesets/java/bugs.xml</ruleset>
+                        <ruleset>rulesets/java/performance.xml</ruleset>
+                    </rulesets>
+                    <failOnViolation>true</failOnViolation>
+                    <!-- 忽略生成的target代码 -->
+                    <excludeRoots>
+                        <excludeRoot>${project.build.directory}</excludeRoot>
+                    </excludeRoots>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

@@ -811,4 +811,50 @@
 - 推荐候选仅查询公开启用日记，最多读取最近 200 条；列表组装不调用详情接口，因此不会增加浏览量。
 - 推荐排序调用 `RankService.topK` 的 `PriorityQueue` 小顶堆，未在 Diary Service 中执行全量排序截取。
 - 定向执行 `DiaryRecommendServiceTests,DiaryRecommendIntegrationTests,DiaryServiceTests,RankServiceTests`，全部通过。
-- 当前尚未执行带真实登录 token 和演示偏好数据的 MySQL HTTP 回归。
+
+## 26. 2026-06-12 个性化日记推荐实库接口回归
+
+- 使用 `project-root/scripts/verify-diary-recommend.ps1` 在独立端口 `18080` 启动当前后端包，并连接 MySQL 8 `tour_system`。
+- 创建两个临时普通用户，通过真实登录接口分别取得 JWT，再通过
+  `PUT /api/v1/user-preferences/me` 保存 `quietstudy` 与 `nightphoto` 两组明显不同的合法偏好。
+- 对同一批四篇临时公开日记分别请求 `interest/heat/rating`，实际候选总数达到当前上限 200。
+- `interest` 下，两个用户的首篇分别命中各自偏好日记；结果可由偏好词与标题、正文匹配直接解释。
+- `heat` 下，两名用户的完整 Top-4 ID 顺序一致，极高浏览量基准日记排第一。
+- `rating` 下，两名用户的完整 Top-4 ID 顺序一致，5 分基准日记排第一。
+- 六次响应均保持 `ApiResponse<PageResultVO<DiaryVO>>` 字段结构，且
+  `pageNum=1`、`pageSize=4`、`total` 一致。
+- 请求前后四篇临时日记的 `heat_score` 完全一致，确认推荐列表不会触发详情浏览量自增。
+- 定向 Maven 测试再次通过；临时用户、偏好、目的地和日记清理后剩余数量为 0。
+- 测试过程中未记录数据库密码、临时用户口令或完整 JWT。
+- 后续已将 `init-demo-content.sql` 中热门等级和拥挤等级统一修正为接口约束的 `1..5`，
+  并通过 SQL 资源静态测试；完整实库重放仍受校园美食前置数据缺失阻塞。
+
+## 27. 2026-06-12 演示用户偏好等级修复回归
+
+- 修正三个演示用户的 `prefer_hot_level`：`3/5/1`，分别表达一般热门偏好、热门打卡偏好和小众安静偏好。
+- 同步修正此前同样越界的 `prefer_crowd_level`：`2/4/1`。
+- 新增 `DemoContentSqlTests`，读取实际 SQL 资源并校验三组等级均位于 `1..5`。
+- 实库检查确认三个固定演示用户当前均不存在，因此没有旧用户、日记或评论需要迁移或保留。
+- 目标目的地存在 1 条，但其下美食数据为 0；初始化脚本会按前置校验主动中止，本轮未绕过校验或伪造美食数据。
+- 定向执行 `DemoContentSqlTests,UserPreferenceIntegrationTests` 通过。
+- 执行全量 `mvn -q test`：271 个测试，0 失败、0 错误、0 跳过。
+- 连续两次实库幂等重放待校园美食基础数据导入后执行。
+- 偏好读取和个性化推荐接口继续使用原有契约；本次没有修改数据库结构或 API。
+
+## 28. 2026-06-12 目的地与美食推荐真分页回归
+
+- 修复目的地推荐固定查询第 1 页、候选池最多 100 条、响应页码写死的问题。
+- 修复美食推荐忽略 `pageNum/pageSize`、未传 `topK` 时固定返回 10 条的问题。
+- 目的地推荐在未传 `topK` 时全量召回符合条件的启用目的地，经 `RankService`
+  排序后进行内存分页；显式 `topK` 继续使用小顶堆。
+- 美食推荐在未传 `topK` 时复用现有全量排序和分页切片；显式 `topK` 保持旧行为。
+- MySQL 8 真实 HTTP 验证中，目的地第 1、2 页各返回 32 条，ID 交集为 0，
+  `pageNum` 分别为 1/2，`total=1315`、`pages=42`。
+- 选择美食数量最多的 `destinationId=191` 验证：该目的地下共 25 条美食，
+  `pageSize=32` 时第一页返回 25 条而非原来的 10 条，第二页为空，`total=25`、`pages=1`。
+- 同一目的地显式传入 `topK=5` 时返回 5 条，`pageNum=1`、`pageSize=5`，
+  确认向后兼容。
+- 当前实库任一目的地下最多只有 25 条美食，因此美食第二页实库展示仍受数据分布限制；
+  65 条候选的跨页行为已由单元测试覆盖。
+- 全量 `mvn -q test`：40 个测试套件、278 个测试，0 失败、0 错误、0 跳过；
+  `mvn -q -DskipTests package` 通过。

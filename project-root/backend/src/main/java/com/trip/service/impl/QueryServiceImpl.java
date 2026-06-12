@@ -58,10 +58,26 @@ public class QueryServiceImpl implements QueryService {
     @Override
     public IPage<Destination> queryDestinations(DestinationQuery query) {
         DestinationQuery safeQuery = query == null ? new DestinationQuery() : query;
+        LambdaQueryWrapper<Destination> wrapper = destinationWrapper(safeQuery);
+        return destinationMapper.selectPage(
+                new Page<>(pageNum(safeQuery.getPageNum()), pageSize(safeQuery.getPageSize())),
+                wrapper);
+    }
+
+    /**
+     * 查询全部符合条件的启用目的地，供需要全量排序后分页或 Top-K 的业务使用。
+     */
+    @Override
+    public List<Destination> queryAllDestinations(DestinationQuery query) {
+        DestinationQuery safeQuery = query == null ? new DestinationQuery() : query;
+        return destinationMapper.selectList(destinationWrapper(safeQuery));
+    }
+
+    private LambdaQueryWrapper<Destination> destinationWrapper(DestinationQuery query) {
         LambdaQueryWrapper<Destination> wrapper = new LambdaQueryWrapper<Destination>()
                 .eq(Destination::getStatus, ENABLED_STATUS);
 
-        String keyword = normalize(safeQuery.getKeyword());
+        String keyword = normalize(query.getKeyword());
         if (StringUtils.hasText(keyword)) {
             Set<Long> indexedIds = indexedTextCandidates(IndexNamespace.DESTINATION_NAME, keyword);
             wrapper.and(item -> {
@@ -78,23 +94,23 @@ public class QueryServiceImpl implements QueryService {
             });
         }
 
-        String type = normalize(safeQuery.getType());
+        String type = normalize(query.getType());
         if (StringUtils.hasText(type)) {
             wrapper.eq(Destination::getType, type);
         }
 
-        String category = normalize(safeQuery.getCategory());
+        String category = normalize(query.getCategory());
         if (StringUtils.hasText(category)) {
             wrapper.eq(Destination::getCategory, category);
         }
 
-        String theme = normalize(safeQuery.getTheme());
+        String theme = normalize(query.getTheme());
         if (StringUtils.hasText(theme)) {
             wrapper.like(Destination::getTagJson, theme);
         }
 
         wrapper.orderByDesc(Destination::getCreatedAt).orderByAsc(Destination::getId);
-        return destinationMapper.selectPage(new Page<>(pageNum(safeQuery.getPageNum()), pageSize(safeQuery.getPageSize())), wrapper);
+        return wrapper;
     }
 
     /**

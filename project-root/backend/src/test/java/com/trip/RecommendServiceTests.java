@@ -52,10 +52,10 @@ class RecommendServiceTests {
 
     @Test
     void recommendShouldUseHeatWhenAnonymousAndSortByRecommend() {
-        when(queryService.queryDestinations(any(DestinationQuery.class))).thenReturn(page(List.of(
+        when(queryService.queryAllDestinations(any(DestinationQuery.class))).thenReturn(List.of(
                 destination(1L, "文化校园", 80, 4.6, "[\"校园\"]"),
                 destination(2L, "湖边景区", 95, 4.2, "[\"自然\"]"),
-                destination(3L, "历史街区", 70, 4.9, "[\"人文\"]"))));
+                destination(3L, "历史街区", 70, 4.9, "[\"人文\"]")));
 
         DestinationRecommendQuery query = new DestinationRecommendQuery();
         query.setSortBy("recommend");
@@ -79,9 +79,9 @@ class RecommendServiceTests {
         UserPreferenceVO preference = UserPreferenceVO.empty(9L);
         preference.setPreferThemeList(List.of("人文建筑型"));
         when(userPreferenceService.getCurrentPreference()).thenReturn(preference);
-        when(queryService.queryDestinations(any(DestinationQuery.class))).thenReturn(page(List.of(
+        when(queryService.queryAllDestinations(any(DestinationQuery.class))).thenReturn(List.of(
                 destination(1L, "人文建筑馆", 70, 4.0, "[\"人文建筑型\"]"),
-                destination(2L, "高热度广场", 80, 4.0, "[\"运动\"]"))));
+                destination(2L, "高热度广场", 80, 4.0, "[\"运动\"]")));
 
         DestinationRecommendQuery query = new DestinationRecommendQuery();
         query.setSortBy("recommend");
@@ -91,6 +91,85 @@ class RecommendServiceTests {
 
         assertEquals(1L, ((com.trip.vo.response.DestinationVO) result.getList().get(0)).getId());
         verify(userPreferenceService).getCurrentPreference();
+    }
+
+    @Test
+    void personalizedRecommendShouldSupportPagingWithoutTopK() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new JwtClaims(9L, "alice", "user", 1L, 2L),
+                null,
+                List.of()));
+
+        UserPreferenceVO preference = UserPreferenceVO.empty(9L);
+        preference.setPreferThemeList(List.of("人文"));
+        when(userPreferenceService.getCurrentPreference()).thenReturn(preference);
+        when(queryService.queryAllDestinations(any(DestinationQuery.class))).thenReturn(List.of(
+                destination(1L, "自然景区", 20, 4.0, "[\"自然\"]"),
+                destination(2L, "人文校园", 10, 4.0, "[\"人文\"]"),
+                destination(3L, "历史街区", 5, 4.0, "[\"历史\"]")));
+
+        DestinationRecommendQuery query = new DestinationRecommendQuery();
+        query.setSortBy("recommend");
+        query.setPageNum(1);
+        query.setPageSize(2);
+
+        PageResultVO<?> result = recommendService.recommendDestinations(query);
+
+        assertEquals(List.of(2L, 1L), destinationIds(result));
+        assertEquals(3, result.getTotal());
+        assertEquals(2, result.getPages());
+    }
+
+    @Test
+    void recommendShouldPaginateWithoutDuplicateIds() {
+        when(queryService.queryAllDestinations(any(DestinationQuery.class))).thenReturn(List.of(
+                destination(1L, "A", 50, 4.0, "[]"),
+                destination(2L, "B", 40, 4.0, "[]"),
+                destination(3L, "C", 30, 4.0, "[]"),
+                destination(4L, "D", 20, 4.0, "[]"),
+                destination(5L, "E", 10, 4.0, "[]")));
+
+        DestinationRecommendQuery firstQuery = new DestinationRecommendQuery();
+        firstQuery.setSortBy("heat");
+        firstQuery.setPageNum(1);
+        firstQuery.setPageSize(2);
+        DestinationRecommendQuery secondQuery = new DestinationRecommendQuery();
+        secondQuery.setSortBy("heat");
+        secondQuery.setPageNum(2);
+        secondQuery.setPageSize(2);
+
+        PageResultVO<?> first = recommendService.recommendDestinations(firstQuery);
+        PageResultVO<?> second = recommendService.recommendDestinations(secondQuery);
+
+        assertEquals(List.of(1L, 2L), destinationIds(first));
+        assertEquals(List.of(3L, 4L), destinationIds(second));
+        assertEquals(1, first.getPageNum());
+        assertEquals(2, second.getPageNum());
+        assertEquals(2, first.getPageSize());
+        assertEquals(5, first.getTotal());
+        assertEquals(3, first.getPages());
+    }
+
+    @Test
+    void recommendTopKShouldTakePriorityOverPaging() {
+        when(queryService.queryAllDestinations(any(DestinationQuery.class))).thenReturn(List.of(
+                destination(1L, "A", 10, 4.0, "[]"),
+                destination(2L, "B", 30, 4.0, "[]"),
+                destination(3L, "C", 20, 4.0, "[]")));
+
+        DestinationRecommendQuery query = new DestinationRecommendQuery();
+        query.setSortBy("heat");
+        query.setTopK(2);
+        query.setPageNum(3);
+        query.setPageSize(1);
+
+        PageResultVO<?> result = recommendService.recommendDestinations(query);
+
+        assertEquals(List.of(2L, 3L), destinationIds(result));
+        assertEquals(1, result.getPageNum());
+        assertEquals(2, result.getPageSize());
+        assertEquals(3, result.getTotal());
+        assertEquals(2, result.getPages());
     }
 
     @Test
@@ -160,5 +239,11 @@ class RecommendServiceTests {
         destination.setCoverUrl("/files/destination/" + id + ".jpg");
         destination.setStatus(1);
         return destination;
+    }
+
+    private List<Long> destinationIds(PageResultVO<?> result) {
+        return result.getList().stream()
+                .map(item -> ((com.trip.vo.response.DestinationVO) item).getId())
+                .toList();
     }
 }

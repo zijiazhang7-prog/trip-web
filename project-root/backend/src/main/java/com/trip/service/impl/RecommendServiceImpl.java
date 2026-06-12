@@ -40,7 +40,7 @@ public class RecommendServiceImpl implements RecommendService {
 
     private static final int DEFAULT_PAGE_NUM = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
-    private static final int MAX_CANDIDATE_SIZE = 100;
+    private static final int MAX_PAGE_SIZE = 100;
     private static final String SORT_BY_HEAT = "heat";
     private static final String SORT_BY_RATING = "rating";
     private static final String SORT_BY_RECOMMEND = "recommend";
@@ -69,17 +69,27 @@ public class RecommendServiceImpl implements RecommendService {
     @Override
     public PageResultVO<DestinationVO> recommendDestinations(DestinationRecommendQuery query) {
         DestinationRecommendQuery safeQuery = query == null ? new DestinationRecommendQuery() : query;
-        int limit = effectiveLimit(safeQuery.getTopK(), safeQuery.getPageSize());
 
         DestinationQuery destinationQuery = new DestinationQuery();
         destinationQuery.setType(normalize(safeQuery.getType()));
         destinationQuery.setTheme(normalize(safeQuery.getTheme()));
-        destinationQuery.setPageNum(DEFAULT_PAGE_NUM);
-        destinationQuery.setPageSize(MAX_CANDIDATE_SIZE);
 
-        IPage<Destination> page = queryService.queryDestinations(destinationQuery);
-        List<Destination> ranked = rankForRecommend(page.getRecords(), safeQuery.getSortBy(), limit);
-        return PageResultVO.of(toDestinationVOs(ranked), DEFAULT_PAGE_NUM, limit, page.getTotal(), page.getPages());
+        List<Destination> candidates = queryService.queryAllDestinations(destinationQuery);
+        if (safeQuery.getTopK() != null && safeQuery.getTopK() > 0) {
+            int limit = topK(safeQuery.getTopK());
+            List<Destination> ranked = rankForRecommend(candidates, safeQuery.getSortBy(), limit);
+            return PageResultVO.of(
+                    toDestinationVOs(ranked),
+                    DEFAULT_PAGE_NUM,
+                    limit,
+                    candidates.size(),
+                    pages(candidates.size(), limit));
+        }
+
+        int requestedPageNum = pageNum(safeQuery.getPageNum());
+        int requestedPageSize = pageSize(safeQuery.getPageSize());
+        List<Destination> ranked = rankForRecommend(candidates, safeQuery.getSortBy(), null);
+        return paginateDestinations(ranked, requestedPageNum, requestedPageSize);
     }
 
     @Override
@@ -116,12 +126,18 @@ public class RecommendServiceImpl implements RecommendService {
         return queryService.queryPlaces(placeQuery).stream().map(PlaceVO::from).toList();
     }
 
-    private List<Destination> rankForRecommend(List<Destination> candidates, String sortBy, int topK) {
+    private List<Destination> rankForRecommend(List<Destination> candidates, String sortBy, Integer topK) {
         String normalizedSortBy = normalizeRecommendSortBy(sortBy);
         if (SORT_BY_RECOMMEND.equals(normalizedSortBy)) {
             Set<String> preferenceThemes = currentPreferenceThemes();
             if (preferenceThemes.isEmpty()) {
                 return rankService.rankDestinations(candidates, SORT_BY_HEAT, topK);
+            }
+            if (topK == null || topK <= 0) {
+                return rankService.sortByScore(
+                        candidates,
+                        destination -> recommendScore(destination, preferenceThemes),
+                        true);
             }
             return rankService.topK(
                     candidates,
@@ -130,6 +146,20 @@ public class RecommendServiceImpl implements RecommendService {
                     true);
         }
         return rankService.rankDestinations(candidates, normalizedSortBy, topK);
+    }
+
+    private PageResultVO<DestinationVO> paginateDestinations(
+            List<Destination> ranked,
+            int pageNum,
+            int pageSize) {
+        int fromIndex = (int) Math.min((long) (pageNum - 1) * pageSize, ranked.size());
+        int toIndex = Math.min(fromIndex + pageSize, ranked.size());
+        return PageResultVO.of(
+                toDestinationVOs(ranked.subList(fromIndex, toIndex)),
+                pageNum,
+                pageSize,
+                ranked.size(),
+                pages(ranked.size(), pageSize));
     }
 
     /**
@@ -205,13 +235,6 @@ public class RecommendServiceImpl implements RecommendService {
         }
     }
 
-    private int effectiveLimit(Integer topK, Integer pageSize) {
-        if (topK != null && topK > 0) {
-            return Math.min(topK, MAX_CANDIDATE_SIZE);
-        }
-        return pageSize(pageSize);
-    }
-
     private int pageNum(Integer pageNum) {
         if (pageNum == null || pageNum < 1) {
             return DEFAULT_PAGE_NUM;
@@ -223,7 +246,15 @@ public class RecommendServiceImpl implements RecommendService {
         if (pageSize == null || pageSize < 1) {
             return DEFAULT_PAGE_SIZE;
         }
-        return Math.min(pageSize, MAX_CANDIDATE_SIZE);
+        return Math.min(pageSize, MAX_PAGE_SIZE);
+    }
+
+    private int topK(Integer topK) {
+        return Math.min(topK, MAX_PAGE_SIZE);
+    }
+
+    private long pages(long total, long pageSize) {
+        return total == 0 ? 0 : (total + pageSize - 1) / pageSize;
     }
 
     private String normalizeRecommendSortBy(String sortBy) {
