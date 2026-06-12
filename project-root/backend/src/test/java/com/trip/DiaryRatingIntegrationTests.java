@@ -147,7 +147,7 @@ class DiaryRatingIntegrationTests {
         diary.setDestinationId(destinationId);
         diary.setTitle(title);
         diary.setContentText("Diary rating HTTP content");
-        diary.setHeatScore(BigDecimal.ZERO);
+        diary.setHeatScore(0L);
         diary.setRatingScore(BigDecimal.ZERO);
         diary.setRatingCount(0);
         diary.setVisibility("public");

@@ -105,7 +105,7 @@ class DiaryServiceTests {
                 savedDiary.getContentText(),
                 compressionEngine.decompress(savedDiary.getContentCompressed()));
         assertEquals("private", savedDiary.getVisibility());
-        assertEquals(BigDecimal.ZERO, savedDiary.getHeatScore());
+        assertEquals(0L, savedDiary.getHeatScore());
         assertEquals(0, savedDiary.getRatingCount());
 
         ArgumentCaptor<DiaryMedia> mediaCaptor = ArgumentCaptor.forClass(DiaryMedia.class);
@@ -234,8 +234,8 @@ class DiaryServiceTests {
 
     @Test
     void listDiariesShouldReturnPublicDiariesWithMedia() {
-        Diary first = publicDiary(4001L, 7L, 101L, "第一篇", new BigDecimal("20.00"));
-        Diary second = publicDiary(4002L, 8L, 101L, "第二篇", new BigDecimal("10.00"));
+        Diary first = publicDiary(4001L, 7L, 101L, "第一篇", 20L);
+        Diary second = publicDiary(4002L, 8L, 101L, "第二篇", 10L);
         Page<Diary> page = new Page<>(1, 10);
         page.setRecords(List.of(first, second));
         page.setTotal(2);
@@ -287,9 +287,11 @@ class DiaryServiceTests {
     }
 
     @Test
-    void getDetailShouldReturnPublicDiary() {
-        Diary diary = publicDiary(4001L, 7L, 101L, "公开日记", BigDecimal.ZERO);
-        when(diaryMapper.selectById(4001L)).thenReturn(diary);
+    void getDetailShouldIncrementHeatAndReturnRefreshedPublicDiary() {
+        Diary diary = publicDiary(4001L, 7L, 101L, "公开日记", 20L);
+        Diary refreshedDiary = publicDiary(4001L, 7L, 101L, "公开日记", 21L);
+        when(diaryMapper.selectById(4001L)).thenReturn(diary, refreshedDiary);
+        when(diaryMapper.incrementHeatScore(4001L)).thenReturn(1);
         when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
         when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
         when(diaryMediaMapper.selectList(any(Wrapper.class))).thenReturn(List.of(media(5001L, 4001L, 0)));
@@ -298,15 +300,20 @@ class DiaryServiceTests {
 
         assertEquals(4001L, result.getId());
         assertEquals("公开日记", result.getTitle());
+        assertEquals(21L, result.getHeatScore());
         assertEquals(1, result.getMediaList().size());
+        verify(diaryMapper).incrementHeatScore(4001L);
     }
 
     @Test
     void getDetailShouldAllowPrivateDiaryOwner() {
         setCurrentUser(7L);
-        Diary diary = publicDiary(4001L, 7L, 101L, "私有日记", BigDecimal.ZERO);
+        Diary diary = publicDiary(4001L, 7L, 101L, "私有日记", 3L);
         diary.setVisibility("private");
-        when(diaryMapper.selectById(4001L)).thenReturn(diary);
+        Diary refreshedDiary = publicDiary(4001L, 7L, 101L, "私有日记", 4L);
+        refreshedDiary.setVisibility("private");
+        when(diaryMapper.selectById(4001L)).thenReturn(diary, refreshedDiary);
+        when(diaryMapper.incrementHeatScore(4001L)).thenReturn(1);
         when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
         when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
         when(diaryMediaMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
@@ -314,12 +321,13 @@ class DiaryServiceTests {
         DiaryVO result = diaryService.getDiaryDetail(4001L);
 
         assertEquals("private", result.getVisibility());
+        assertEquals(4L, result.getHeatScore());
     }
 
     @Test
     void getDetailShouldRejectPrivateDiaryOtherUser() {
         setCurrentUser(8L);
-        Diary diary = publicDiary(4001L, 7L, 101L, "私有日记", BigDecimal.ZERO);
+        Diary diary = publicDiary(4001L, 7L, 101L, "私有日记", 3L);
         diary.setVisibility("private");
         when(diaryMapper.selectById(4001L)).thenReturn(diary);
         when(userMapper.selectById(8L)).thenReturn(activeUser(8L));
@@ -329,11 +337,39 @@ class DiaryServiceTests {
                 () -> diaryService.getDiaryDetail(4001L));
 
         assertEquals(ErrorCode.AUTH_005, exception.getErrorCode());
+        verify(diaryMapper, org.mockito.Mockito.never()).incrementHeatScore(any());
+    }
+
+    @Test
+    void getDetailShouldNotIncrementDisabledDiary() {
+        Diary diary = publicDiary(4001L, 7L, 101L, "禁用日记", 3L);
+        diary.setStatus(0);
+        when(diaryMapper.selectById(4001L)).thenReturn(diary);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> diaryService.getDiaryDetail(4001L));
+
+        assertEquals(ErrorCode.COMMON_003, exception.getErrorCode());
+        verify(diaryMapper, org.mockito.Mockito.never()).incrementHeatScore(any());
+    }
+
+    @Test
+    void getDetailShouldFailWhenAtomicIncrementDoesNotUpdateRow() {
+        Diary diary = publicDiary(4001L, 7L, 101L, "公开日记", 3L);
+        when(diaryMapper.selectById(4001L)).thenReturn(diary);
+        when(diaryMapper.incrementHeatScore(4001L)).thenReturn(0);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> diaryService.getDiaryDetail(4001L));
+
+        assertEquals(ErrorCode.COMMON_006, exception.getErrorCode());
     }
 
     @Test
     void searchByTitleShouldReuseSearchServiceAndAssembleVOs() {
-        Diary diary = publicDiary(4001L, 7L, 101L, "校园散步", BigDecimal.ZERO);
+        Diary diary = publicDiary(4001L, 7L, 101L, "校园散步", 0L);
         Page<Diary> page = new Page<>(1, 10);
         page.setRecords(List.of(diary));
         page.setTotal(1);
@@ -353,7 +389,7 @@ class DiaryServiceTests {
 
     @Test
     void searchFulltextShouldReuseSearchServiceAndAssembleVOs() {
-        Diary diary = publicDiary(4002L, 8L, 101L, "图书馆", BigDecimal.ZERO);
+        Diary diary = publicDiary(4002L, 8L, 101L, "图书馆", 0L);
         Page<Diary> page = new Page<>(1, 10);
         page.setRecords(List.of(diary));
         page.setTotal(1);
@@ -391,7 +427,7 @@ class DiaryServiceTests {
         return request;
     }
 
-    private Diary publicDiary(Long id, Long userId, Long destinationId, String title, BigDecimal heatScore) {
+    private Diary publicDiary(Long id, Long userId, Long destinationId, String title, Long heatScore) {
         Diary diary = new Diary();
         diary.setId(id);
         diary.setUserId(userId);

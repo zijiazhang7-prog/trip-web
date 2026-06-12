@@ -26,7 +26,7 @@ public class Diary {
     @TableField(select = false)
     private byte[] contentCompressed;
 
-    private BigDecimal heatScore;
+    private Long heatScore;
 
     private BigDecimal ratingScore;
 
@@ -96,11 +96,11 @@ public class Diary {
         this.contentCompressed = contentCompressed;
     }
 
-    public BigDecimal getHeatScore() {
+    public Long getHeatScore() {
         return heatScore;
     }
 
-    public void setHeatScore(BigDecimal heatScore) {
+    public void setHeatScore(Long heatScore) {
         this.heatScore = heatScore;
     }
 

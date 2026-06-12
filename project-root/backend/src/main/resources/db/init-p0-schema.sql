@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS `diary` (
   `title` VARCHAR(150) NOT NULL COMMENT '日记标题',
   `content_text` LONGTEXT NOT NULL COMMENT '日记正文',
   `content_compressed` LONGBLOB NULL COMMENT '压缩内容，扩展字段',
-  `heat_score` DECIMAL(5,2) NULL DEFAULT 0 COMMENT '热度分',
+  `heat_score` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '浏览量，即日记热度',
   `rating_score` DECIMAL(3,2) NULL DEFAULT 0 COMMENT '平均评分',
   `rating_count` INT NOT NULL DEFAULT 0 COMMENT '评分人数',
   `visibility` VARCHAR(20) NULL DEFAULT 'public' COMMENT '可见性，如 public/private',

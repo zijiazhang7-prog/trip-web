@@ -74,7 +74,7 @@ INSERT INTO `diary` (
 )
 SELECT @user_01_id, @destination_id, '沙河校园一日路线记录',
        '从校门进入后先到图书馆，再沿主路去教学楼和食堂。路线节点清晰，适合展示最短路径和周边设施查询。',
-       NULL, 86.00, 4.70, 'public', 1
+       NULL, 86, 4.70, 'public', 1
 WHERE @destination_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM `diary`
@@ -87,7 +87,7 @@ INSERT INTO `diary` (
 )
 SELECT @user_02_id, @destination_id, '图书馆和食堂打卡',
        '上午在图书馆学习，午饭去了食堂窗口。美食推荐里评分靠前的窗口确实更适合演示。',
-       NULL, 72.00, 4.50, 'public', 1
+       NULL, 72, 4.50, 'public', 1
 WHERE @destination_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM `diary`
@@ -100,7 +100,7 @@ INSERT INTO `diary` (
 )
 SELECT @user_03_id, @destination_id, '安静路线和咖啡点位',
        '这次选择了人少的路线，途中查询了附近咖啡和休息设施。可达距离排序比直线距离更符合真实体验。',
-       NULL, 68.00, 4.30, 'public', 1
+       NULL, 68, 4.30, 'public', 1
 WHERE @destination_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM `diary`

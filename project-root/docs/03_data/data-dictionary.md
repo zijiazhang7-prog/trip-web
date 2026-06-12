@@ -341,7 +341,7 @@
 |title|varchar(150)|否|是||日记标题|
 |content_text|longtext|否|是||日记正文|
 |content_compressed|longblob|否|否||自描述 Huffman 压缩包；历史数据或压缩降级时可空|
-|heat_score|decimal(5,2)|否|否|0|热度分|
+|heat_score|bigint unsigned|否|是|0|成功查看日记详情的累计浏览次数，即日记热度|
 |rating_score|decimal(3,2)|否|否|0|平均评分|
 |rating_count|int|否|是|0|有效评分人数|
 |visibility|varchar(20)|否|否|public|可见性，如 `public/private`|

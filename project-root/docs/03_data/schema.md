@@ -428,7 +428,7 @@
 1. 一篇日记至少关联一个用户和一个目的地；
 2. `content_text` 保存正文；
 3. `content_compressed` 保存第一阶段自描述 Huffman 压缩包；压缩失败或历史数据未回填时可为空；
-4. `heat_score` 和 `rating_score` 支撑排序和推荐；
+4. `heat_score` 保存成功查看详情的累计浏览次数，浏览量即日记热度，并直接支撑实时热度排序；
 5. `rating_count` 保存有效评分人数，与 `diary_rating` 聚合结果保持一致；
 6. `visibility` 用于区分公开 / 私有；
 7. `route_history_id` 用于后续路线回顾和 AI 日记生成联动；

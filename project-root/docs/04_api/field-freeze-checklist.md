@@ -114,7 +114,8 @@
 | DiaryMedia | `fileUrl` | body/response | string | 媒体访问 URL | 强冻结 | 否 | 否 | 否 | 上传与日记联动核心字段 | `DiaryMediaRequest.java`、`DiaryMediaVO.java` | 高风险字段 |
 | DiaryVO | `id` | response | long | 日记 ID | 强冻结 | 否 | 否 | 否 | 详情/列表核心字段 | `DiaryVO.java` | 高风险字段 |
 | DiaryVO | `userId` | response | long | 作者用户 ID | 强冻结 | 否 | 否 | 否 | 归属字段 | `DiaryVO.java` | 高风险字段 |
-| DiaryVO | `heatScore` / `ratingScore` | response | decimal | 热度/评分 | 强冻结 | 否 | 否 | 否 | 排序字段 | `DiaryVO.java` | 高风险字段 |
+| DiaryVO | `heatScore` | response | long | 成功查看详情的累计浏览次数，即日记热度 | 强冻结 | 否 | 否 | 否 | 详情计数及热度排序核心字段 | `Diary.java`、`DiaryVO.java`、`DiaryMapper.incrementHeatScore` | 成功详情请求会产生原子 +1 写入 |
+| DiaryVO | `ratingScore` | response | decimal | 日记平均评分 | 强冻结 | 否 | 否 | 否 | 评分排序字段 | `DiaryVO.java` | 高风险字段 |
 | DiaryVO | `ratingCount` | response | integer | 有效评分人数 | 强冻结 | 否 | 否 | 否 | 评分聚合字段已落地 | `Diary.java`、`DiaryVO.java` | 必须与评分明细数量一致 |
 | `/api/v1/diaries/{id}/ratings` | `score` | body | integer | 当前用户评分，范围 1～5 | 强冻结 | 否 | 否 | 否 | 请求 DTO 和数据库约束已实现 | `DiaryRatingRequest.java`、`diary_rating.score` | 越界返回 `DIARY_008` |
 | `/api/v1/diaries/{id}/ratings/me` | `diaryId` / `userScore` / `ratingScore` / `ratingCount` | response | long / integer / decimal / integer | 当前用户评分及日记聚合结果 | 强冻结 | 否 | 否 | 否 | 接口和 VO 已实现 | `DiaryRatingVO.java` | 未评分时仅 `userScore` 可空 |

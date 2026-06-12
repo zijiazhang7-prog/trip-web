@@ -14,6 +14,15 @@ import org.apache.ibatis.type.JdbcType;
 @Mapper
 public interface DiaryMapper extends BaseMapper<Diary> {
 
+    @Update("""
+            UPDATE diary
+            SET heat_score = heat_score + 1,
+                updated_at = updated_at
+            WHERE id = #{diaryId}
+              AND status = 1
+            """)
+    int incrementHeatScore(@Param("diaryId") Long diaryId);
+
     @Select("""
             SELECT id, user_id, destination_id, route_history_id, title, content_text,
                    heat_score, rating_score, rating_count, visibility, status, created_at, updated_at

@@ -205,7 +205,7 @@ erDiagram
         varchar title
         longtext content_text
         longblob content_compressed
-        decimal heat_score
+        bigint heat_score
         decimal rating_score
         varchar visibility
         tinyint status

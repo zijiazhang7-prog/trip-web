@@ -1,50 +1,49 @@
 package com.trip;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.trip.dto.request.DiaryListQuery;
-import com.trip.dto.request.DiaryRatingRequest;
 import com.trip.entity.Destination;
 import com.trip.entity.Diary;
-import com.trip.entity.DiaryRating;
 import com.trip.entity.User;
 import com.trip.mapper.DestinationMapper;
 import com.trip.mapper.DiaryMapper;
-import com.trip.mapper.DiaryRatingMapper;
 import com.trip.mapper.UserMapper;
-import com.trip.security.JwtClaims;
-import com.trip.service.DiaryRatingService;
 import com.trip.service.DiaryService;
-import com.trip.vo.response.DiaryRatingVO;
 import com.trip.vo.response.DiaryVO;
 import com.trip.vo.response.PageResultVO;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.ResponseEntity;
 
 /**
- * 使用 MySQL 实库验证评分覆盖、聚合回写和评分排序。
+ * 使用 MySQL 实库验证日记浏览量原子自增和实时热度排序。
  */
-@SpringBootTest
-class DiaryRatingDatabaseIntegrationTests {
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+class DiaryHeatDatabaseIntegrationTests {
 
-    @Autowired
-    private DiaryRatingService diaryRatingService;
+    private static final int CONCURRENT_VIEWS = 8;
 
     @Autowired
     private DiaryService diaryService;
 
     @Autowired
-    private DiaryRatingMapper diaryRatingMapper;
+    private TestRestTemplate restTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Autowired
     private DiaryMapper diaryMapper;
@@ -61,50 +60,51 @@ class DiaryRatingDatabaseIntegrationTests {
 
     @AfterEach
     void cleanFixtures() {
-        SecurityContextHolder.clearContext();
-        if (!diaryIds.isEmpty()) {
-            diaryRatingMapper.delete(new LambdaQueryWrapper<DiaryRating>()
-                    .in(DiaryRating::getDiaryId, diaryIds));
-        }
         diaryIds.forEach(diaryMapper::deleteById);
         destinationIds.forEach(destinationMapper::deleteById);
         userIds.forEach(userMapper::deleteById);
     }
 
     @Test
-    void ratingsShouldUpsertAggregateAndAffectRatingSort() {
+    void detailViewsShouldIncrementAtomicallyAndAffectHeatSort() throws Exception {
         Assumptions.assumeTrue(hasDatabasePassword(), "DB_PASSWORD is not set in current process");
-        String marker = "rating" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        String marker = "heat" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         User author = insertUser(marker + "author");
-        User visitor = insertUser(marker + "visitor");
         Destination destination = insertDestination(marker);
-        Diary first = insertDiary(author.getId(), destination.getId(), marker + "first");
-        Diary second = insertDiary(author.getId(), destination.getId(), marker + "second");
+        Diary viewedDiary = insertDiary(author.getId(), destination.getId(), marker + "viewed", 2L);
+        Diary otherDiary = insertDiary(author.getId(), destination.getId(), marker + "other", 5L);
 
-        authenticate(author);
-        assertThat(diaryRatingService.rateDiary(first.getId(), request(5))).isTrue();
-        assertThat(diaryRatingService.rateDiary(first.getId(), request(3))).isTrue();
-        assertThat(diaryRatingService.rateDiary(second.getId(), request(2))).isTrue();
+        ResponseEntity<String> firstResponse =
+                restTemplate.getForEntity("/api/v1/diaries/{id}", String.class, viewedDiary.getId());
+        ResponseEntity<String> secondResponse =
+                restTemplate.getForEntity("/api/v1/diaries/{id}", String.class, viewedDiary.getId());
+        JsonNode firstView = objectMapper.readTree(firstResponse.getBody()).path("data");
+        JsonNode secondView = objectMapper.readTree(secondResponse.getBody()).path("data");
 
-        authenticate(visitor);
-        assertThat(diaryRatingService.rateDiary(first.getId(), request(5))).isTrue();
+        assertThat(firstResponse.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(secondResponse.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(firstView.path("heatScore").asLong()).isEqualTo(3L);
+        assertThat(secondView.path("heatScore").asLong()).isEqualTo(4L);
 
-        DiaryRatingVO myRating = diaryRatingService.getMyRating(first.getId());
-        assertThat(myRating.getUserScore()).isEqualTo(5);
-        assertThat(myRating.getRatingScore()).isEqualByComparingTo("4.00");
-        assertThat(myRating.getRatingCount()).isEqualTo(2);
-        assertThat(diaryRatingMapper.selectCount(new LambdaQueryWrapper<DiaryRating>()
-                        .eq(DiaryRating::getDiaryId, first.getId())))
-                .isEqualTo(2);
+        List<CompletableFuture<Integer>> updates = new ArrayList<>();
+        for (int index = 0; index < CONCURRENT_VIEWS; index++) {
+            updates.add(CompletableFuture.supplyAsync(
+                    () -> diaryMapper.incrementHeatScore(viewedDiary.getId())));
+        }
+        CompletableFuture.allOf(updates.toArray(CompletableFuture[]::new)).join();
+        assertThat(updates).allSatisfy(update -> assertThat(update.join()).isEqualTo(1));
+
+        Diary refreshed = diaryMapper.selectById(viewedDiary.getId());
+        assertThat(refreshed.getHeatScore()).isEqualTo(4L + CONCURRENT_VIEWS);
 
         DiaryListQuery query = new DiaryListQuery();
         query.setDestinationId(destination.getId());
-        query.setSortBy("rating");
+        query.setSortBy("heat");
         query.setPageSize(10);
         PageResultVO<DiaryVO> page = diaryService.listDiaries(query);
 
-        assertThat(page.getList()).extracting(DiaryVO::getId).containsExactly(first.getId(), second.getId());
-        assertThat(page.getList().get(0).getRatingCount()).isEqualTo(2);
+        assertThat(page.getList()).extracting(DiaryVO::getId)
+                .containsExactly(viewedDiary.getId(), otherDiary.getId());
     }
 
     private User insertUser(String username) {
@@ -125,7 +125,7 @@ class DiaryRatingDatabaseIntegrationTests {
         destination.setType("campus");
         destination.setCategory("integration-test");
         destination.setCity("Beijing");
-        destination.setDescription("Diary rating integration fixture");
+        destination.setDescription("Diary heat integration fixture");
         destination.setHeatScore(BigDecimal.ZERO);
         destination.setRatingScore(BigDecimal.ZERO);
         destination.setTagJson("[]");
@@ -135,13 +135,13 @@ class DiaryRatingDatabaseIntegrationTests {
         return destination;
     }
 
-    private Diary insertDiary(Long userId, Long destinationId, String title) {
+    private Diary insertDiary(Long userId, Long destinationId, String title, Long heatScore) {
         Diary diary = new Diary();
         diary.setUserId(userId);
         diary.setDestinationId(destinationId);
         diary.setTitle(title);
-        diary.setContentText("Diary rating integration content");
-        diary.setHeatScore(0L);
+        diary.setContentText("Diary heat integration content");
+        diary.setHeatScore(heatScore);
         diary.setRatingScore(BigDecimal.ZERO);
         diary.setRatingCount(0);
         diary.setVisibility("public");
@@ -149,19 +149,6 @@ class DiaryRatingDatabaseIntegrationTests {
         diaryMapper.insert(diary);
         diaryIds.add(diary.getId());
         return diary;
-    }
-
-    private DiaryRatingRequest request(int score) {
-        DiaryRatingRequest request = new DiaryRatingRequest();
-        request.setScore(score);
-        return request;
-    }
-
-    private void authenticate(User user) {
-        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                new JwtClaims(user.getId(), user.getUsername(), user.getRole(), 1L, 2L),
-                null,
-                List.of()));
     }
 
     private boolean hasDatabasePassword() {

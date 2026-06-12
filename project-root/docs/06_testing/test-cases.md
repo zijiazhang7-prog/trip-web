@@ -191,6 +191,9 @@
 | TC-DIARY-023 | Diary / CompressionEngine | P1 | 已有压缩包完整性校验与修复 | 开启 `verify-existing` | 1. 准备正常、损坏、内容不一致压缩包 2. 执行维护 | 正常包、非法字节、旧正文压缩包 | 正常包只统计；损坏和不一致数据从原文重新压缩 | 单元测试覆盖修复分支；实库二次扫描 3 条，校验通过 3 条、修复 0、失败 0 | 通过 | 2026-06-07 单元测试及实库验证 |
 | TC-DIARY-024 | Diary / CompressionEngine | P1 | 单条维护失败不阻塞后续记录 | 批次内同时存在异常和正常日记 | 1. 模拟首条压缩异常 2. 执行维护 3. 检查后续更新和统计 | 失败正文、正常正文 | 失败计数增加；后续记录仍成功回填；日志不记录正文 | `CompressionMaintenanceServiceTests` 通过 | 通过 | 2026-06-07 单元测试 |
 | TC-DIARY-025 | Diary / CompressionEngine | P1 | 压缩维护后全量回归 | MySQL 8 可连接，默认未开启启动回填 | 1. 执行 `mvn -q test` 2. 汇总 Surefire 报告 | 全部后端测试 | 原有接口、索引和日记行为不变 | 25 个测试套件、198 个测试，0 失败、0 错误、0 跳过 | 通过 | 2026-06-07 后端全量测试 |
+| TC-DIARY-026 | Diary | P1 | 成功查看详情后浏览量原子增加 | 存在公开启用日记，初始 `heat_score=2` | 1. 连续查看详情两次 2. 并发执行 8 次原子自增 3. 查询数据库 | diaryId=临时日记 | 两次详情分别返回 3、4；并发后数据库值为 12，不丢失计数 | `DiaryServiceTests` 与 `DiaryHeatDatabaseIntegrationTests` 通过 | 通过 | 2026-06-12 单元及 MySQL 实库测试 |
+| TC-DIARY-027 | Diary | P1 | 无效访问不增加浏览量 | 存在禁用或其他用户私有日记 | 1. 请求禁用日记 2. 请求无权访问的私有日记 3. 检查 Mapper 调用 | status=0 / visibility=private | 请求失败，且不执行 `incrementHeatScore` | `DiaryServiceTests` 通过 | 通过 | 2026-06-12 单元测试 |
+| TC-DIARY-028 | Diary | P1 | 热度排序使用实时浏览量 | 同一目的地下两篇公开日记，初始热度分别为 2、5 | 1. 查看第一篇两次 2. 再并发增加 8 次 3. 调用 `sortBy=heat` | destinationId=临时目的地 | 第一篇实时热度变为 12，并排在热度 5 的日记之前 | `DiaryHeatDatabaseIntegrationTests` 通过，临时数据已清理 | 通过 | 2026-06-12 MySQL 实库测试 |
 
 ---
 

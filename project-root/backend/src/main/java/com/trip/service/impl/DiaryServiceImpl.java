@@ -121,7 +121,7 @@ public class DiaryServiceImpl implements DiaryService {
         diary.setTitle(title);
         diary.setContentText(contentText);
         diary.setContentCompressed(compressSafely(contentText));
-        diary.setHeatScore(BigDecimal.ZERO);
+        diary.setHeatScore(0L);
         diary.setRatingScore(BigDecimal.ZERO);
         diary.setRatingCount(0);
         diary.setVisibility(visibility);
@@ -174,6 +174,7 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     @Override
+    @Transactional
     public DiaryVO getDiaryDetail(Long id) {
         if (id == null || id <= 0) {
             throw new BusinessException(ErrorCode.COMMON_001);
@@ -189,7 +190,14 @@ public class DiaryServiceImpl implements DiaryService {
                 throw new BusinessException(ErrorCode.AUTH_005);
             }
         }
-        return assembleDiaryVO(diary);
+        if (diaryMapper.incrementHeatScore(id) != 1) {
+            throw new BusinessException(ErrorCode.COMMON_006);
+        }
+        Diary refreshedDiary = diaryMapper.selectById(id);
+        if (refreshedDiary == null) {
+            throw new BusinessException(ErrorCode.COMMON_006);
+        }
+        return assembleDiaryVO(refreshedDiary);
     }
 
     @Override

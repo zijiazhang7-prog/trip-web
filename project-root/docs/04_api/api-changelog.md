@@ -542,3 +542,11 @@
 - `RouteEdgeVO` 兼容性新增 `transportType`，表示该条路径边实际使用的交通工具。
 - `mixed` 当前仅支持 `shortest_time`，允许在公共节点零成本换乘。
 - 数据库表结构不变，`map_edge.transport_type` 使用七种固定道路权限值。
+
+## 18. 2026-06-12 日记浏览量即热度
+
+- `GET /api/v1/diaries/{id}` 在成功通过状态与可见性校验后，原子增加一次浏览量。
+- `DiaryVO.heatScore` 字段名保持不变，语义固定为累计浏览次数，响应类型由 decimal 收紧为 int64。
+- 不存在、禁用或无权查看的日记不增加浏览量。
+- `sortBy=heat` 继续直接按数据库实时 `heat_score` 倒序，不新增缓存或复杂热度公式。
+- 数据库需执行 `migrate-diary-view-heat-schema.sql`，将 `diary.heat_score` 迁移为 `BIGINT UNSIGNED`。

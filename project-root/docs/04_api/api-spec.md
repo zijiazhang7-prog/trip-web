@@ -294,7 +294,7 @@ Authorization: Bearer <token>
   "routeHistoryId": 9001,
   "title": "今天在校园里散步",
   "contentText": "正文摘要",
-  "heatScore": 25.0,
+  "heatScore": 25,
   "ratingScore": 4.8,
   "visibility": "public",
   "mediaList": [
@@ -871,6 +871,8 @@ Authorization: Bearer <token>
 
 * 方法：`GET`
 * 路径：`/api/v1/diaries/{id}`
+
+成功通过状态与可见性校验后，后端会将该日记的 `heatScore` 原子增加 1，并在本次响应中返回更新后的浏览量。不存在、禁用或当前用户无权查看的日记不会增加浏览量。
 
 ### Response
 

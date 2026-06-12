@@ -2305,8 +2305,10 @@ components:
         contentText:
           type: string
         heatScore:
-          type: number
-          format: double
+          type: integer
+          format: int64
+          minimum: 0
+          description: 成功查看日记详情的累计浏览次数，即日记热度
         ratingScore:
           type: number
           format: double

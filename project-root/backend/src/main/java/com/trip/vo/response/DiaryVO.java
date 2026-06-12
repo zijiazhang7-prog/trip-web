@@ -17,7 +17,7 @@ public class DiaryVO {
     private Long routeHistoryId;
     private String title;
     private String contentText;
-    private BigDecimal heatScore;
+    private Long heatScore;
     private BigDecimal ratingScore;
     private Integer ratingCount;
     private String visibility;
@@ -109,11 +109,11 @@ public class DiaryVO {
         this.contentText = contentText;
     }
 
-    public BigDecimal getHeatScore() {
+    public Long getHeatScore() {
         return heatScore;
     }
 
-    public void setHeatScore(BigDecimal heatScore) {
+    public void setHeatScore(Long heatScore) {
         this.heatScore = heatScore;
     }
 

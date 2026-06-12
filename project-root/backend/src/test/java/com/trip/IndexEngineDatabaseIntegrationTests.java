@@ -308,7 +308,7 @@ class IndexEngineDatabaseIntegrationTests {
         diary.setDestinationId(destinationId);
         diary.setTitle(title);
         diary.setContentText(contentText);
-        diary.setHeatScore(new BigDecimal(heatScore));
+        diary.setHeatScore(new BigDecimal(heatScore).longValueExact());
         diary.setRatingScore(new BigDecimal(ratingScore));
         diary.setVisibility("public");
         diary.setStatus(1);

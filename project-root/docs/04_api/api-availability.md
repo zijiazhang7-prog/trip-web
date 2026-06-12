@@ -62,7 +62,7 @@
 | 美食搜索 | `/api/v1/foods/search` | GET | Food | 是 | 是 | 已可用 | `FoodSearchQuery` | `PageResultVO<FoodVO>` | `FoodController.java` | `api-spec.md` 12.2 | 公开接口 |
 | 发布日记 | `/api/v1/diaries` | POST | Diary | 是 | 是 | 已可用 | `DiaryCreateRequest` | `DiaryCreateResponse` | `DiaryController.java` | `api-spec.md` 13.1 | 需要登录 |
 | 日记列表 | `/api/v1/diaries` | GET | Diary | 是 | 是 | 已可用 | `DiaryListQuery` | `PageResultVO<DiaryVO>` | `DiaryController.java` | `api-spec.md` 13.2 | 公开接口 |
-| 日记详情 | `/api/v1/diaries/{id}` | GET | Diary | 是 | 是 | 已可用 | path `id` | `DiaryVO` | `DiaryController.java` | `api-spec.md` 13.3 | 公开接口 |
+| 日记详情 | `/api/v1/diaries/{id}` | GET | Diary | 是 | 是 | 已可用 | path `id` | `DiaryVO` | `DiaryController.java`、`DiaryServiceImpl.java`、`DiaryMapper.java` | `api-spec.md` 13.3 | 成功查看后 `heatScore` 原子 +1；私有日记仅作者可查看并计数 |
 | 日记标题检索 | `/api/v1/diaries/search/title` | GET | Diary/Search | 是 | 是 | 已可用 | `DiaryTitleSearchQuery` | `PageResultVO<DiaryVO>` | `DiaryController.java` | `api-spec.md` 13.4 | 公开接口 |
 | 日记全文检索 | `/api/v1/diaries/search/fulltext` | GET | Diary/Search | 是 | 是 | 已可用 | `DiaryFulltextSearchQuery` | `PageResultVO<DiaryVO>` | `DiaryController.java` | `api-spec.md` 13.5 | 公开接口，当前基于 MySQL LIKE |
 | 日记评分 | `/api/v1/diaries/{id}/ratings` | POST | Diary | 是 | 是 | 已可用 | `DiaryRatingRequest` | `Boolean` | `DiaryController.java`、`DiaryRatingServiceImpl.java` | `api-spec.md` 13.6、`swagger-draft.yaml` | 重复评分覆盖更新，需要登录 |
