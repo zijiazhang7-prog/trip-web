@@ -3,6 +3,7 @@ package com.trip.dto.request;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
@@ -33,7 +34,9 @@ public class AdminMapEdgeRequest {
     @DecimalMin(value = "0.01")
     private BigDecimal crowdFactor;
 
-    @Size(max = 20)
+    @Pattern(
+            regexp = "^(walk|bike|cart|walk_bike|walk_cart|bike_cart|all)$",
+            message = "道路交通权限不合法")
     private String transportType;
 
     @Size(max = 20)

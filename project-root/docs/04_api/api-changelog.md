@@ -34,6 +34,18 @@
 
 建议按“版本号 + 日期 + 变更摘要”的方式记录。
 
+## 2026-06-12 AIGC 日记照片动画 MVP
+
+- 新增 `POST /api/v1/diaries/{diaryId}/animation`：仅作者生成或覆盖动画脚本。
+- 新增 `GET /api/v1/diaries/{diaryId}/animation`：公开日记匿名可查，私有日记仅作者可查。
+- 新增 `DiaryAnimationVO`、`AnimationScriptVO`、`AnimationSceneVO`。
+- 新增错误码 `AI_009`、`AI_010`，并正式使用 `AI_001`、`AI_002`、`AI_007`。
+- 不修改任何现有 Diary、File 或 AI 预留接口字段语义。
+- 新增可配置的 `openai-compatible` 多模态 Provider，默认仍使用 `mock-template`，外部调用失败时自动降级。
+- `DiaryAnimationVO.provider` 新增可选值 `openai-compatible`。
+- `AnimationSceneVO` 新增向后兼容的可选字段 `visualDescription`；旧 `script_json` 仍可读取。
+- 动画接口路径、HTTP 方法、请求体、权限和 `diary_animation` 表结构均未变化。
+
 ## 4. 2026-06-10 Diary 评分闭环
 
 - 实现既有 `POST /api/v1/diaries/{id}/ratings`，响应继续为 Boolean，不破坏已生成前端契约。
@@ -514,3 +526,11 @@
 - 新增 `CommentCreateRequest`、`CommentVO` 和评论分页契约。
 - GET 评论列表公开；发布和删除需要 JWT。
 - 第一阶段只支持一级评论，正文最大 500 字符。
+
+## 17. 2026-06-11 路线交通工具策略
+
+- 路线 API 路径保持不变。
+- 请求 `transportType` 增加 `mixed`，并正式启用 `walk/bike/cart` 道路过滤。
+- `RouteEdgeVO` 兼容性新增 `transportType`，表示该条路径边实际使用的交通工具。
+- `mixed` 当前仅支持 `shortest_time`，允许在公共节点零成本换乘。
+- 数据库表结构不变，`map_edge.transport_type` 使用七种固定道路权限值。

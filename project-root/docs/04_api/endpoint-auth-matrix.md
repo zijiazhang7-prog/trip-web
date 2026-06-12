@@ -36,6 +36,8 @@
 | `/api/v1/diaries` | POST | 是 | 已登录用户 | JWT | POST 未 permitAll，落入 `.anyRequest().authenticated()` | `SecurityConfig.java`、`DiaryController.java` | 发布日记 |
 | `/api/v1/diaries/{id}/ratings` | POST | 是 | 已登录用户 | JWT | POST 落入 `.anyRequest().authenticated()` | `SecurityConfig.java`、`DiaryController.java` | 提交或更新评分 |
 | `/api/v1/diaries/{id}/ratings/me` | GET | 是 | 已登录用户 | JWT | 专用 authenticated matcher 位于日记公开 GET 规则之前 | `SecurityConfig.java`、`DiaryController.java` | 查询当前用户评分 |
+| `/api/v1/diaries/{diaryId}/animation` | POST | 是 | 日记作者 | JWT + Service 所有者校验 | POST 落入 authenticated，Service 比对当前用户与 `diary.user_id` | `SecurityConfig.java`、`DiaryAnimationController.java`、`AnimationServiceImpl.java` | 作者可为自己的公开/私有日记生成 |
+| `/api/v1/diaries/{diaryId}/animation` | GET | 公开日记否，私有日记是 | 公开访问或私有日记作者 | 无/JWT + Service 可见性校验 | GET 命中日记公开规则，私有资源由 Service 二次校验 | `SecurityConfig.java`、`DiaryAnimationController.java`、`AnimationServiceImpl.java` | 未生成返回 `AI_010` |
 | `/api/v1/destinations/{id}/comments` | GET/POST | GET 否，POST 是 | 发布为已登录用户 | GET 无 / POST JWT | GET 命中目的地公开规则，POST 落入 authenticated | `SecurityConfig.java`、`DestinationController.java` | 一级评论 |
 | `/api/v1/foods/{id}/comments` | GET/POST | GET 否，POST 是 | 发布为已登录用户 | GET 无 / POST JWT | GET 命中美食公开规则，POST 落入 authenticated | `SecurityConfig.java`、`FoodController.java` | 一级评论 |
 | `/api/v1/diaries/{id}/comments` | GET/POST | GET 否，POST 是 | 发布为已登录用户 | GET 无 / POST JWT | GET 命中日记公开规则，POST 落入 authenticated | `SecurityConfig.java`、`DiaryController.java` | 仅公开启用日记 |
@@ -43,7 +45,7 @@
 | `/api/v1/files/upload` | POST | 是 | 已登录用户 | JWT | `requestMatchers(POST, "/api/v1/files/upload").authenticated()` | `SecurityConfig.java`、`FileController.java` | multipart 上传 |
 | `/files/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/files/**").permitAll()` | `SecurityConfig.java`、`FileResourceConfig.java` | 静态访问上传资源 |
 | `/api/v1/admin/**` | 全部 | 是 | admin | JWT + `ROLE_admin` | `requestMatchers("/api/v1/admin/**").hasRole("admin")` | `SecurityConfig.java`、`AdminController.java` | 覆盖管理端维护与导入 |
-| `/api/v1/ai/**` | POST | 待确认 | 文档倾向需要登录或按能力控制 | 待确认 | 文档有定义，后端未找到 Controller | `api-spec.md` | P2 预留 |
+| `/api/v1/ai/**` | POST | 待确认 | 文档倾向需要登录或按能力控制 | 待确认 | 文档有定义，后端未找到对应 Controller | `api-spec.md` | 草稿/摘要等 P2 预留，不包含已实现动画接口 |
 
 ## 待确认项
 - Route 历史、我的日记列表接口是否补实现，以及权限是否按文档执行。

@@ -627,8 +627,11 @@ Authorization: Bearer <token>
 说明：
 - `strategyType` 当前支持 `shortest_distance` 和 `shortest_time`。
 - `shortest_distance` 以 `map_edge.distance` 作为 Dijkstra 边权。
-- `shortest_time` 以 `distance / (ideal_speed * crowd_factor)` 作为 Dijkstra 边权；`estimatedTime` 按分钟返回。
-- 当前交通工具边过滤尚未实现，`transportType` 先作为路线历史记录字段保留。
+- `transportType` 支持 `walk`、`bike`、`cart`、`mixed`，默认 `walk`。
+- `walk/bike/cart` 会按 `map_edge.transport_type` 的组合通行权限过滤道路。
+- `shortest_time` 以 `distance / (min(交通工具默认速度, 道路 ideal_speed) * crowd_factor)` 作为 Dijkstra 边权；道路速度为空时使用交通工具默认速度，`estimatedTime` 按分钟返回。
+- `mixed` 当前只支持 `shortest_time`，采用任意公共节点零换乘成本的课程 MVP。
+- `pathEdges[].transportType` 返回该条路径边实际使用的交通工具。
 
 ## 10.2 多目标路线规划
 
@@ -656,7 +659,8 @@ Authorization: Bearer <token>
 
 说明：
 - 当前多目标基础版使用内部 `MapService` 的有向带权图和 Dijkstra 能力，不依赖外部地图 API。
-- 当前支持 `strategyType=shortest_distance` 与 `strategyType=shortest_time`；交通工具边过滤留到后续 P1 步骤。
+- 当前支持 `strategyType=shortest_distance` 与 `strategyType=shortest_time`。
+- 单一交通方式和 `mixed` 规则与单目标接口一致，多目标每一段及返回起点段均使用同一交通约束。
 - `targetNodeIds` 不能为空，当前最多支持 8 个目标节点，且不允许重复。
 - 多目标访问顺序采用最近邻启发式：每次选择从当前节点到未访问目标中当前策略权重最小的一点；结果不保证 TSP 全局最优。
 - 如果 `returnToStart=true`，系统会在访问完目标点后追加返回起点的最短路径。
@@ -1020,6 +1024,78 @@ Authorization: Bearer <token>
 - 管理员可隐藏任意正常评论，隐藏后置 `status=0`。
 - `commentType` 只允许 `destination`、`food`、`diary`。
 - 当前不维护目的地、美食、日记主表的评论数聚合字段。
+
+## 13.9 AIGC 日记照片动画
+
+当前实现状态：已实现后端 MVP 和可配置的 OpenAI-compatible 多模态 Provider。默认仍使用离线 `mock-template`；配置真实 Provider 后会读取已落库日记图片并生成结构化动画脚本。外部调用失败、超时或返回非法 JSON 时自动降级到模板结果。当前不导出 MP4。
+
+### 13.9.1 生成或重新生成动画
+
+* 方法：`POST`
+* 路径：`/api/v1/diaries/{diaryId}/animation`
+* 权限：需要 JWT，且仅日记作者可调用
+* Request Body：无
+
+业务规则：
+
+- 日记必须存在且 `status=1`；
+- 作者可为自己的公开或私有日记生成动画；
+- 只读取该日记已落库且 `media_type=image` 的 `diary_media`；
+- 请求不接受图片 URL，脚本不能引用其他日记媒体或任意外链；
+- 至少需要一张图片，否则返回 `AI_009`；
+- 重复生成覆盖同一条 `diary_animation` 记录。
+- 真实 Provider 只读取 `/files/diary/...` 对应的本地图片，不接受请求传入任意外链；
+- 默认最多处理 6 张图片，单图默认不超过 2MB，总图片默认不超过 8MB；
+- AI 调用在数据库事务外执行，保存前会重新校验日记和媒体快照；
+- `provider=openai-compatible` 表示真实多模态调用成功，`provider=mock-template` 表示默认模板或降级结果。
+
+### 13.9.2 查询动画
+
+* 方法：`GET`
+* 路径：`/api/v1/diaries/{diaryId}/animation`
+* 权限：公开日记允许匿名查询；私有日记仅作者查询
+
+### Response
+
+```json
+{
+  "success": true,
+  "code": "SUCCESS",
+  "message": "success",
+  "data": {
+    "id": 1,
+    "diaryId": 101,
+    "provider": "openai-compatible",
+    "title": "北京邮电大学沙河校区 · 校园漫步 动画回顾",
+    "narration": "今天沿着校园主路游览了图书馆。",
+    "status": "ready",
+    "script": {
+      "schemaVersion": "1.0",
+      "aspectRatio": "16:9",
+      "totalDurationMs": 4000,
+      "backgroundMusic": "light-travel",
+      "scenes": [
+        {
+          "order": 1,
+          "mediaId": 501,
+          "fileUrl": "/files/diary/20260612/photo.jpg",
+          "visualDescription": "画面中有现代校园建筑、道路、绿化和蓝天。",
+          "durationMs": 4000,
+          "motion": "zoom_in",
+          "transition": "fade",
+          "subtitle": "第 1 幕 · 北京邮电大学沙河校区",
+          "narration": "旅程从北京邮电大学沙河校区的第一张照片开始。"
+        }
+      ]
+    },
+    "createdAt": "2026-06-12T10:00:00",
+    "updatedAt": "2026-06-12T10:00:00"
+  },
+  "timestamp": "2026-06-12T10:00:00"
+}
+```
+
+`visualDescription` 为向后兼容的可选字段。旧版 `script_json` 没有该字段时仍可读取，前端 AnimationPlayer 可选择展示或忽略。
 
 ## 14. File 接口
 
@@ -1454,7 +1530,7 @@ Authorization: Bearer <token>
 
 ## 16. AI 接口（后续增强）
 
-> AI 接口当前属于 P2 后续增强，预留但不阻塞基础主线实现。
+> 日记照片动画已通过 Diary 资源接口实现后端 MVP。以下日记草稿、图片摘要、路线回顾、多人协商和推荐理由接口仍是规划项，代码未实现，不纳入当前联调范围。
 
 ## 16.1 日记草稿生成
 

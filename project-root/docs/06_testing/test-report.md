@@ -372,7 +372,7 @@
   - `POST /api/v1/routes/plan/multi` 已接入 `RouteController` 和 `RouteService`，会写入 `route_history`。
   - `MapService` 使用有向带权图邻接表和 Dijkstra 分段求最短路，再用最近邻启发式决定多目标访问顺序。
   - 已覆盖多目标最近邻拼接、返回起点、重复目标拦截、目标数量超过 8 个拦截、不可达目标返回 `ROUTE_003`。
-  - 当前已支持 `shortest_distance` 与 `shortest_time`；交通工具约束尚未实现。
+  - 当时已支持 `shortest_distance` 与 `shortest_time`；交通工具约束已于 2026-06-11 后续版本补齐。
   - 当前未执行前端页面联调。
 - Route 多目标实库接口验证已完成：
   - 临时图数据：4 个节点 A / B / C / D，边为 `A->B=100`、`B->C=120`、`C->A=140`、`A->C=500`，D 为不可达目标。
@@ -736,3 +736,33 @@
 3. 进入中期汇报前  
 4. 进入最终验收前  
 5. 需要输出最终测试情况说明材料时
+
+## 19. 2026-06-11 路线交通工具策略回归
+
+- 新增道路组合权限、交通工具默认速度、道路限速和拥挤度时间成本测试。
+- 验证 walk/bike/cart 会实际改变合法边集合。
+- 验证 mixed 可在公共节点切换交通工具，且路径边保留实际工具。
+- 验证单目标、多目标、路线历史和 Facility 原有调用均未发生接口路径回归。
+- 执行 `mvn -q test`，全量测试通过。
+- 未执行 bike/cart/mixed 实库 HTTP 验证：当前数据库道路仍均为 `walk`，需要先准备演示子图。
+
+## 20. 2026-06-12 AIGC 日记照片动画后端测试
+
+- 新增 `AIServiceTests` 和 `AnimationServiceTests`。
+- 已验证模板 provider 按图片顺序生成合法脚本、JSON 可序列化、总时长正确。
+- 已验证未登录、非作者、无图片、私有日记、正常生成、重复生成和不存在动画等分支。
+- 已验证 provider 不能引用当前日记之外的媒体，provider 异常不会执行动画表写入。
+- 定向执行 `mvn -q "-Dtest=AIServiceTests,AnimationServiceTests" test` 通过。
+- 执行 `mvn -q test`，34 个测试套件、243 个测试，0 失败、0 错误、0 跳过。
+- `diary_animation` 实库迁移、HTTP 接口回归和前端播放器尚未执行。
+
+## 21. 2026-06-12 AIGC 多模态 Provider 回归
+
+- 新增 OpenAI-compatible 多模态 Provider，测试通过本机 Mock Server 执行，不访问公网、不使用真实密钥。
+- 已验证请求包含配置模型、Bearer 鉴权、日记上下文和本地图片 Base64 data URI。
+- 已验证合法严格 JSON 可转换为统一动画脚本，`mediaId` 由模型返回、`fileUrl` 由服务端可信数据回填。
+- 已验证非法 JSON、读取超时、HTTP 500、缺少 API Key 时自动降级到 `mock-template`。
+- 已验证只允许读取 `/files/diary/...` 日记图片，并校验数量、大小、文件签名和路径边界。
+- 已验证 AI 调用前后使用独立短事务，媒体快照变化时不保存过期脚本。
+- 执行 `mvn -q test`，35 个测试套件、250 个测试，0 失败、0 错误、0 跳过。
+- 尚未执行真实厂商带密钥联调，因此不能把模型兼容性、视觉理解质量、额度和平均响应时间标记为已验证。

@@ -417,3 +417,35 @@
 |TC-COMMENT-006|Comment|P1|所有者软删除|普通用户只能删除自己的评论并置 `status=2`|通过：单元测试|
 |TC-COMMENT-007|Comment|P1|越权删除拦截|普通用户删除他人评论返回 403、`COMMENT_004`|通过：MySQL 8 HTTP 测试|
 |TC-COMMENT-008|Comment|P1|管理员隐藏评论|管理员可将任意正常评论置 `status=0`，列表不再展示|通过：MySQL 8 HTTP 测试|
+
+## 16. 路线交通工具策略测试
+
+|用例编号|模块|优先级|测试目标|验收标准|当前状态|
+|---|---|---|---|---|---|
+|TC-ROUTE-014|GraphEngine|P0|单一交通工具过滤|walk/bike/cart 只能通过对应或组合权限道路|通过：单元测试|
+|TC-ROUTE-015|GraphEngine|P0|共享道路时间成本|同一 `walk_bike` 道路按实际工具速度计算不同时间|通过：单元测试|
+|TC-ROUTE-016|GraphEngine|P0|mixed 最短时间|路径可组合 walk 与 bike/cart，分边返回实际工具|通过：单元测试|
+|TC-ROUTE-017|MapService|P0|约束贯穿单目标和多目标|所有分段及返回起点段使用同一交通约束|通过：单元测试|
+|TC-ROUTE-018|Route|P0|路线历史交通信息|顶层保存请求模式，路径边 JSON 保存实际工具|通过：单元测试|
+|TC-ROUTE-019|Route|P1|实库交通道路演示|校园 bike、景区 cart、mixed 返回可解释的差异路线|待补演示数据后执行|
+
+## 17. AIGC 日记照片动画测试
+
+|用例编号|模块|优先级|测试目标|验收标准|当前状态|
+|---|---|---|---|---|---|
+|TC-AI-ANIM-001|AIService|P1|模板生成合法脚本|场景顺序、总时长、动效和 JSON 均合法|通过：单元测试|
+|TC-AI-ANIM-002|Animation|P1|未登录生成拦截|返回 `AUTH_003`|通过：单元测试|
+|TC-AI-ANIM-003|Animation|P1|非作者生成拦截|返回 403、`AUTH_005`|通过：单元测试|
+|TC-AI-ANIM-004|Animation|P1|无图片日记拒绝|返回 422、`AI_009`|通过：单元测试|
+|TC-AI-ANIM-005|Animation|P1|公开/私有日记生成|作者均可生成，日记原流程不变|通过：单元测试|
+|TC-AI-ANIM-006|Animation|P1|重复生成覆盖|同一 `diary_id` 更新原记录，不新增版本|通过：单元测试|
+|TC-AI-ANIM-007|Animation|P1|媒体引用安全|脚本引用其他日记媒体时返回 `AI_007`|通过：单元测试|
+|TC-AI-ANIM-008|Animation|P1|查询权限|公开动画匿名可查，私有动画仅作者可查|通过：单元测试|
+|TC-AI-ANIM-009|Animation|P1|实库接口回归|迁移建表后生成、重复生成、查询与落库一致|待执行|
+|TC-AI-ANIM-010|Frontend|P1|照片动画播放|前端按 `script.scenes` 完成字幕、动效和转场播放|待前端实现|
+|TC-AI-ANIM-011|AI Provider|P1|真实协议请求|Mock Server 收到模型名、Bearer 头、文本上下文和 Base64 图片|通过：单元测试|
+|TC-AI-ANIM-012|AI Provider|P1|严格 JSON 解析|合法 JSON 生成统一脚本；非 JSON、字段非法和错误媒体引用触发降级|通过：单元测试|
+|TC-AI-ANIM-013|AI Provider|P1|超时和 HTTP 错误降级|读取超时或 5xx 时返回 `mock-template`，不影响日记接口|通过：Mock Server 测试|
+|TC-AI-ANIM-014|AI Provider|P1|本地图片安全读取|只允许 `/files/diary/...`，限制数量/大小/格式并校验路径边界|通过：单元测试|
+|TC-AI-ANIM-015|Animation|P1|媒体快照并发保护|AI 调用期间媒体集合变化时不保存过期脚本|通过：单元测试|
+|TC-AI-ANIM-016|AI Provider|P1|真实厂商联调|设置环境变量后响应 `provider=openai-compatible` 且视觉描述与图片相关|待提供测试密钥后执行|

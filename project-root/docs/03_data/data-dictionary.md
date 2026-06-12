@@ -251,9 +251,9 @@
 |from_node_id|bigint|否|是||起始节点 ID|
 |to_node_id|bigint|否|是||终止节点 ID|
 |distance|decimal(8,2)|否|是||边长度|
-|ideal_speed|decimal(5,2)|否|否||理想速度|
+|ideal_speed|decimal(5,2)|否|否||道路理想最高速度，单位为米/分钟；为空时使用交通工具默认速度|
 |crowd_factor|decimal(3,2)|否|否||拥挤度系数|
-|transport_type|varchar(20)|否|否||交通方式，如 `walk/bike/cart`|
+|transport_type|varchar(20)|否|否||道路通行权限：`walk/bike/cart/walk_bike/walk_cart/bike_cart/all`|
 |edge_type|varchar(20)|否|否||边类型，如 `road/stairs/elevator`|
 |bidirectional_flag|tinyint|否|否|0|是否双向|
 
@@ -262,6 +262,11 @@
 - `from_node_id`
 - `to_node_id`
 - `transport_type`
+
+**交通权限说明：**
+- `transport_type` 表示道路允许哪些交通工具通行，不表示用户请求的路线模式。
+- 用户请求可使用 `walk/bike/cart/mixed`；其中 `mixed` 不允许写入 `map_edge`。
+- 同一路段支持多种方式时使用组合权限值，不要求创建重复平行边。
 
 ---
 
@@ -389,6 +394,29 @@
 **建议索引：**
 - `(diary_id, user_id)` 唯一索引
 - `user_id`
+
+---
+
+## 5.11A 日记动画脚本表 `diary_animation`
+
+**表功能说明：**
+保存日记照片动画的结构化播放脚本。当前只生成 JSON，不导出视频文件。
+
+|字段名|数据类型|主键|非空|默认值|字段说明|
+|---|---|--:|--:|---|---|
+|id|bigint|是|是||主键|
+|diary_id|bigint|否|是||关联日记 ID，一篇日记唯一一条当前动画|
+|provider|varchar(50)|否|是|mock-template|脚本生成提供方|
+|animation_title|varchar(150)|否|是||动画标题|
+|narration_text|text|否|是||动画总旁白|
+|script_json|json|否|是||前端可播放的分镜脚本|
+|status|varchar(20)|否|是|ready|生成状态|
+|created_at|datetime|否|是|CURRENT_TIMESTAMP|创建时间|
+|updated_at|datetime|否|是|CURRENT_TIMESTAMP|更新时间|
+
+**索引与约束：**
+- `UNIQUE(diary_id)`
+- `diary_id` 外键关联 `diary.id`，删除日记时级联删除
 
 ---
 

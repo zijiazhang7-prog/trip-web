@@ -930,3 +930,14 @@ P1 阶段优先做：
 - 日记评论只允许作用于 `status=1`、`visibility=public` 的日记，第一阶段只展示一级评论。
 - 评论模块不调用 IndexEngine、CompressionEngine、GraphEngine 或 RankService。
 - 直接 SQL 导入的日记不会经过 `DiaryService`，因此 `content_compressed` 初始为空；导入后必须由 `CompressionMaintenanceService` 回填，并在应用启动时重建 `DIARY_TITLE`、`DIARY_CONTENT` 索引。
+
+## 20. 2026-06-12 AIGC 照片动画扩展
+
+- 日记主流程保持不变，动画通过独立的 `DiaryAnimationController` 和 `AnimationService` 接入。
+- `POST /api/v1/diaries/{diaryId}/animation` 仅作者可生成或重新生成。
+- `GET /api/v1/diaries/{diaryId}/animation` 复用日记公开/私有可见性语义。
+- 动画素材只读取 `diary_media.media_type=image`，视频不进入第一阶段脚本。
+- `diary_animation` 与 `diary` 为 0..1:1，重复生成更新原记录。
+- 默认使用 `mock-template`，可配置 `openai-compatible` 多模态 Provider 读取已落库图片并生成视觉描述、字幕和旁白；失败时自动降级。
+- AI 外部调用不持有日记数据库事务，保存前会重新校验日记状态、作者和媒体快照。
+- 当前后端只生成结构化分镜，前端播放器和 MP4 导出不属于本阶段。

@@ -331,8 +331,8 @@
 ### 设计要点
 1. 按有向图建模，而不是简单无向图；
 2. `distance` 用于最短距离策略；
-3. `ideal_speed` + `crowd_factor` 可支撑最短时间策略；
-4. `transport_type` 可为后续交通方式约束预留空间；
+3. `ideal_speed` 表示道路理想最高速度（米/分钟），与交通工具默认速度、`crowd_factor` 共同支撑最短时间策略；
+4. `transport_type` 已用于道路通行权限，允许 `walk/bike/cart/walk_bike/walk_cart/bike_cart/all`；
 5. `edge_type` 可区分道路、楼梯、电梯等类型。
 
 ### 建议索引
@@ -488,6 +488,35 @@
 
 ### 建议索引
 - `(diary_id, user_id)` 唯一索引
+
+---
+
+## 5.11A 日记动画脚本表 `diary_animation`
+
+### 表定位
+保存由 AIService 模板提供方生成的前端可播放照片动画脚本，不保存 MP4 文件。
+
+### 主要字段
+- `id`
+- `diary_id`
+- `provider`
+- `animation_title`
+- `narration_text`
+- `script_json`
+- `status`
+- `created_at`
+- `updated_at`
+
+### 设计要点
+1. `diary_id` 使用唯一约束，一篇日记只保留一个当前动画；
+2. 重复生成更新原记录，不新增版本；
+3. `script_json` 使用 MySQL 8 `JSON`，保存分镜顺序、媒体引用、字幕、旁白、动效和时长；
+4. 脚本只能引用该日记 `diary_media` 中 `media_type=image` 的记录；
+5. 删除日记时级联删除动画脚本；
+6. 当前 `provider` 固定为 `mock-template`，不依赖外部 API 或网络。
+
+### 初始化脚本
+- `backend/src/main/resources/db/init-p2-diary-animation-schema.sql`
 
 ---
 

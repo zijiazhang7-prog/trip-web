@@ -70,6 +70,7 @@
 | RoutePlanVO | `estimatedTime` | response | integer | 预计时间，按分钟 | 强冻结 | 否 | 否 | 否 | 文档与代码均已使用 | `RoutePlanVO.java`、`api-spec.md` | 单位必须固定 |
 | RoutePlanVO | `historyId` | response | long | 路线历史 ID | 强冻结 | 否 | 否 | 否 | 日记可关联路线历史 | `RoutePlanVO.java` | 高风险字段 |
 | RoutePathEdgeVO | `fromNodeId/toNodeId/distance` | response.pathEdges | long/decimal | 边起点、终点、距离 | 强冻结 | 否 | 否 | 否 | 路径边展示字段 | `RoutePathEdgeVO.java` | 前端画线依赖 |
+| RoutePathEdgeVO | `transportType` | response.pathEdges | string | 该条路径边实际使用的 `walk/bike/cart` | 强冻结 | 否 | 否 | 否 | mixed 路线解释与历史回放依赖 | `RoutePathEdgeVO.java`、`GraphEngine.java` | 2026-06-11 兼容性新增字段 |
 | Map node/admin | `lng` / `lat` | body/response | decimal | 节点经纬度 | 强冻结 | 否 | 否 | 否 | 管理端地图维护字段 | `AdminMapNodeRequest.java`、`AdminMapNodeVO.java` | 高风险字段 |
 
 ## 7. 周边设施字段
@@ -137,6 +138,17 @@
 | `/api/v1/files/upload` | `refId` | multipart | long | 关联业务 ID | 建议冻结 | 否 | 否 | 否 | Controller 已实现，可选 | `FileController.java` |  |
 | FileUploadResultVO | `fileUrl` | response | string | 文件访问地址 | 强冻结 | 否 | 否 | 否 | 日记发布依赖 | `FileUploadResultVO.java` | 高风险字段 |
 | FileUploadResultVO | `id` | response | 不存在 | 当前不返回文件 ID | 待确认 | 是 | 是 | 是 | Swagger 与代码不一致 | `FileUploadResultVO.java`、`swagger-draft.yaml` | 前端不能依赖 `id` |
+
+## 10A. AIGC 日记照片动画字段
+
+|接口名/路径|字段名|位置|当前类型|当前语义|冻结等级|允许改名|允许改类型|允许改语义|冻结原因|来源证据|风险说明|
+|---|---|---|---|---|---|---|---|---|---|---|---|
+|`/api/v1/diaries/{diaryId}/animation`|`diaryId`|path/response|long|日记 ID|强冻结|否|否|否|Controller、Entity 和 VO 已实现|`DiaryAnimationController.java`、`DiaryAnimationVO.java`|资源归属核心字段|
+|DiaryAnimationVO|`provider/title/narration/status`|response|string|生成提供方、标题、总旁白和状态|强冻结|否|否|否|真实响应字段已实现|`DiaryAnimationVO.java`|provider 为 `mock-template/openai-compatible`|
+|AnimationScriptVO|`schemaVersion/aspectRatio/totalDurationMs/backgroundMusic/scenes`|response|string/string/int/string/array|播放器脚本元数据|强冻结|否|否|否|前端播放器核心契约|`AnimationScriptVO.java`|第一版 schemaVersion 固定 1.0|
+|AnimationSceneVO|`order/mediaId/fileUrl/durationMs`|response|int/long/string/int|场景顺序、媒体引用和时长|强冻结|否|否|否|场景播放核心契约|`AnimationSceneVO.java`|fileUrl 必须来自当前日记媒体|
+|AnimationSceneVO|`motion/transition/subtitle/narration`|response|string|string|string|string|动效、转场、字幕和场景旁白|强冻结|否|否|否|模板 provider 和 Swagger 已定义|`AnimationSceneVO.java`|动效与转场值域固定|
+|AnimationSceneVO|`visualDescription`|response|string/null|模型对照片可见内容的客观描述|建议冻结|否|是|否|真实多模态 Provider 已实现，旧脚本需兼容 null|`AnimationSceneVO.java`、`OpenAiCompatibleAnimationProvider.java`|前端播放器不得将其作为必填播放字段|
 
 ## 待确认项
 - `frontend-runtime-facts.md` 缺失，无法冻结前端内部字段、baseURL、proxy 和 token 存储字段。

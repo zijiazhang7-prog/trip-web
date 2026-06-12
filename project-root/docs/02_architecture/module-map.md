@@ -92,7 +92,7 @@
 | MapService     | 公共能力 | P0    | 图建模、最短路径、多点路径、设施可达距离计算             | GraphEngine、MapNodeMapper、MapEdgeMapper       |
 | SearchService  | 公共能力 | P1    | 全文检索、模糊检索                          | IndexEngine、Diary 数据                          |
 | FileService    | 公共能力 | P0    | 文件上传、文件访问                          | 文件存储                                          |
-| AIService      | 公共能力 | P2    | AI 日记草稿、图片摘要、路线回顾、推荐理由、多人协商说明      | 外部 AI 能力、Diary、Route、Recommend、UserPreference |
+| AIService      | 公共能力 | P2    | 动画多模态脚本生成、Provider 选择与降级，并预留日记草稿、路线回顾等能力 | AnimationScriptProvider、文件存储、外部 AI 能力、Diary |
 | ImportService  | 公共能力 | P1    | 批量导入与数据初始化                         | ImportEngine、MySQL、文件存储                       |
 
 ---

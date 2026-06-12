@@ -165,7 +165,7 @@
   - `walk`
   - `bike`
   - `cart`
-  - 后续可扩展 `mixed`
+  - `mixed`
 
 ### 5.1.3 多目标规划输入
 - 是否返回起点 `returnToStart`
@@ -418,7 +418,7 @@ P0 阶段优先采用：
 - 已在 `MapService` 中落地最短时间策略。
 - 当前仍复用有向带权图邻接表和 Dijkstra，不重写路径框架，只根据 `strategyType` 切换边权。
 - `shortest_distance` 使用 `map_edge.distance` 作为边权。
-- `shortest_time` 使用 `distance / (ideal_speed * crowd_factor)` 作为边权；若边缺少有效速度或拥挤度，则该边不参与最短时间路径计算。
+- `shortest_time` 使用 `distance / (min(交通工具默认速度, 道路 ideal_speed) * crowd_factor)` 作为边权；道路速度为空时使用交通工具默认速度，拥挤度无效时该边不参与路径计算。
 - `RouteService` 保存 `route_history.strategy_type`，并将 `shortest_time` 的累计时间换算为分钟级 `estimatedTime`。
 - 已完成单元测试和单目标实库接口验证：同一组图数据下，最短距离返回 `A -> B -> C`，最短时间返回 `A -> C`，说明策略切换已生效。
 
@@ -426,7 +426,7 @@ P0 阶段优先采用：
 - 数据结构：有向带权图邻接表、优先队列、距离表、前驱表。
 - 时间复杂度：单次 Dijkstra 约为 `O((V + E) log V)`。
 - 空间复杂度：约为 `O(V + E)`。
-- 适用范围：适合景区 / 校园内部小到中等规模图数据的距离优先或时间优先路线规划；当前不处理交通工具边过滤。
+- 适用范围：适合景区 / 校园内部小到中等规模图数据的距离优先或时间优先路线规划，并支持交通工具道路权限过滤。
 
 ---
 
@@ -440,12 +440,17 @@ P0 阶段优先采用：
 - `cart`：只能走电瓶车路线或允许电瓶车通行的边
 
 ### 当前实现建议
-P1 阶段先实现“单一交通工具约束”：
-- 过滤不合法边
-- 在合法子图上运行最短路径
+当前已实现：
+- 用户模式使用 `walk/bike/cart/mixed` 枚举。
+- 道路权限使用 `walk/bike/cart/walk_bike/walk_cart/bike_cart/all` 枚举。
+- 单一交通工具在合法子图上运行 Dijkstra。
+- 同一路段支持多种交通方式时使用组合权限，不需要复制道路边。
+- 路径边返回实际使用的交通工具。
 
-### 后续增强
-P2 阶段可扩展“混合交通工具最短时间”。
+### mixed MVP
+- mixed 使用 `(nodeId, actualTransportType)` 状态执行最短时间 Dijkstra。
+- 当前允许在任意公共节点零成本换乘，不实现站点、等待时间和车辆调度。
+- mixed 只允许与 `shortest_time` 组合。
 
 ---
 
@@ -477,7 +482,7 @@ P1 阶段采用“**启发式分解**”实现：
 - 每一段路径仍由 `MapService` 在目的地有向带权图上运行 Dijkstra 得到，边权可按 `shortest_distance` 或 `shortest_time` 切换。
 - 当前目标点数量限制为最多 8 个，不允许重复目标点。
 - 当前返回复用 `RoutePlanVO`，其中 `pathNodes` 和 `pathEdges` 是完整拼接路线，`route_history` 记录完整路径 JSON。
-- 当前版本不实现交通工具边过滤、开放时间 / 游玩时长 / 性价比等增强约束。
+- 当前版本已实现交通工具边过滤；开放时间、游玩时长、换乘成本和性价比仍属于后续增强。
 
 ### 当前落地复杂度
 - 数据结构：有向带权图邻接表、优先队列、距离表、前驱表、未访问目标集合、路径拼接列表。
@@ -609,7 +614,7 @@ P2
 - 当前接口已实现，返回拼接后的完整路径。
 - 当前最多支持 8 个目标点。
 - 当前支持 `shortest_distance` 与 `shortest_time`。
-- 当前交通工具边过滤后续再补。
+- 当前已支持单一交通工具过滤和 mixed 最短时间；实库仍需补充 bike/cart/组合权限演示道路。
 
 ---
 

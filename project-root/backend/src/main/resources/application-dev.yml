@@ -21,6 +21,20 @@ trip:
     backfill-enabled: ${DIARY_COMPRESSION_BACKFILL_ENABLED:false}
     batch-size: ${DIARY_COMPRESSION_BATCH_SIZE:100}
     verify-existing: ${DIARY_COMPRESSION_VERIFY_EXISTING:false}
+  ai:
+    animation:
+      provider: ${AI_ANIMATION_PROVIDER:mock-template}
+      fallback-enabled: ${AI_ANIMATION_FALLBACK_ENABLED:true}
+      base-url: ${AI_API_BASE_URL:}
+      api-key: ${AI_API_KEY:}
+      model: ${AI_MODEL_NAME:}
+      connect-timeout: ${AI_CONNECT_TIMEOUT:3s}
+      read-timeout: ${AI_READ_TIMEOUT:45s}
+      max-images: ${AI_MAX_IMAGES:6}
+      max-image-size: ${AI_MAX_IMAGE_SIZE:2MB}
+      max-total-image-size: ${AI_MAX_TOTAL_IMAGE_SIZE:8MB}
+      max-content-chars: ${AI_MAX_CONTENT_CHARS:3000}
+      max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:2500}
 
 mybatis-plus:
   configuration:

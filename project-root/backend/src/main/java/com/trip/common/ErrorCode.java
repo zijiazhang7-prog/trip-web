@@ -14,6 +14,8 @@ public enum ErrorCode {
     ROUTE_001("ROUTE_001", "起点节点不存在"),
     ROUTE_002("ROUTE_002", "终点节点不存在"),
     ROUTE_003("ROUTE_003", "当前起点与目标点不可达"),
+    ROUTE_005("ROUTE_005", "交通方式不支持"),
+    ROUTE_008("ROUTE_008", "当前交通方式下无可用路径"),
     ROUTE_009("ROUTE_009", "起点和终点不属于同一目的地"),
     ROUTE_010("ROUTE_010", "路径规划服务异常"),
     AUTH_001("AUTH_001", "用户名已存在"),
@@ -44,7 +46,12 @@ public enum ErrorCode {
     DIARY_003("DIARY_003", "日记不存在"),
     DIARY_006("DIARY_006", "日记评分失败"),
     DIARY_008("DIARY_008", "评分值不合法"),
-    DIARY_011("DIARY_011", "当前日记不可访问");
+    DIARY_011("DIARY_011", "当前日记不可访问"),
+    AI_001("AI_001", "AI 输入参数不完整"),
+    AI_002("AI_002", "动画生成失败，请稍后重试"),
+    AI_007("AI_007", "AI 返回结果格式不正确"),
+    AI_009("AI_009", "日记没有可用于动画的图片"),
+    AI_010("AI_010", "该日记尚未生成动画");
 
     private final String code;
     private final String message;

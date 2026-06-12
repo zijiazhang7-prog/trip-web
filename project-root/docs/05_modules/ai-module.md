@@ -939,3 +939,24 @@ AI 模块后续可扩展：
 7. 多模态 AI 模型正式接入时
 8. 新增 AI 相关数据库表时
 9. 新增 AI 相关接口时
+
+## 20. 2026-06-12 AIGC 日记照片动画 MVP
+
+- 已新增 `AIService`、`AnimationScriptProvider` 和默认 `MockTemplateAnimationProvider`。
+- provider 只接收纯输入模型并返回结构化脚本，不访问 Mapper、Entity、DTO、VO 或外部网络。
+- 已新增 `AnimationService` 编排权限、日记/媒体/目的地读取、脚本校验和 `diary_animation` 持久化。
+- 仅日记作者可生成；公开日记动画可匿名查看，私有日记动画仅作者查看。
+- 脚本只允许引用当前日记已落库的图片媒体，不接受任意外链。
+- 重复生成覆盖同一条记录；生成失败不影响日记发布、浏览、搜索和压缩主流程。
+- 当前输出是前端可播放 JSON，不导出 MP4，也不宣称具备真实图片语义理解能力。
+
+## 21. 2026-06-12 OpenAI-compatible 多模态 Provider
+
+- `AnimationScriptProvider` 已成为可替换策略接口，当前实现包括 `mock-template` 和 `openai-compatible`。
+- `AIService` 根据配置选择 Provider，并在真实调用失败、超时或输出非法时统一回退模板实现。
+- 真实 Provider 使用日记标题、正文、目的地及已落库图片生成标题、总旁白、视觉描述、字幕和分镜。
+- 本地图片由 `LocalAnimationImageLoader` 在上传根目录内安全读取并转换为 Base64；不接收任意外链。
+- 模型不得返回可信文件 URL，服务端按 `mediaId` 回填数据库中的原始 `fileUrl`。
+- `AnimationService` 使用“短事务读取快照 -> 事务外 AI 调用 -> 短事务复核并保存”，避免外部调用长期持有日记行锁。
+- `diary_animation` 表和现有 Controller/API 路径保持不变；`script.scenes[].visualDescription` 为向后兼容的可选字段。
+- 默认不调用外部网络；只有配置 `AI_ANIMATION_PROVIDER=openai-compatible` 且服务地址、密钥、模型完整时才启用真实调用。

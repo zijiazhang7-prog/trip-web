@@ -54,7 +54,7 @@ class RouteServiceTests {
     void planSingleRouteShouldSaveHistoryAndReturnPlan() {
         setCurrentUser(7L);
         when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
-        when(mapService.shortestPath(101L, 1L, 3L, "shortest_distance")).thenReturn(pathResult());
+        when(mapService.shortestPath(101L, 1L, 3L, "shortest_distance", "walk")).thenReturn(pathResult());
         when(routeHistoryMapper.insert(any(RouteHistory.class))).thenAnswer(invocation -> {
             RouteHistory history = invocation.getArgument(0);
             history.setId(9001L);
@@ -92,7 +92,7 @@ class RouteServiceTests {
     void planSingleRouteShouldKeepProvidedTransportTypeAsRecordOnly() {
         setCurrentUser(7L);
         when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
-        when(mapService.shortestPath(101L, 1L, 3L, "shortest_distance")).thenReturn(pathResult());
+        when(mapService.shortestPath(101L, 1L, 3L, "shortest_distance", "bike")).thenReturn(pathResult());
         when(routeHistoryMapper.insert(any(RouteHistory.class))).thenAnswer(invocation -> {
             RouteHistory history = invocation.getArgument(0);
             history.setId(9002L);
@@ -105,14 +105,15 @@ class RouteServiceTests {
         RoutePlanVO result = routeService.planSingleRoute(request);
 
         assertEquals("bike", result.getTransportType());
-        verify(mapService).shortestPath(101L, 1L, 3L, "shortest_distance");
+        verify(mapService).shortestPath(101L, 1L, 3L, "shortest_distance", "bike");
     }
 
     @Test
     void planMultiRouteShouldSaveHistoryAndReturnMergedPlan() {
         setCurrentUser(7L);
         when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
-        when(mapService.multiTargetPath(101L, 1L, List.of(2L, 3L), true, "shortest_distance")).thenReturn(multiPathResult());
+        when(mapService.multiTargetPath(101L, 1L, List.of(2L, 3L), true, "shortest_distance", "walk"))
+                .thenReturn(multiPathResult());
         when(routeHistoryMapper.insert(any(RouteHistory.class))).thenAnswer(invocation -> {
             RouteHistory history = invocation.getArgument(0);
             history.setId(9010L);
@@ -211,7 +212,8 @@ class RouteServiceTests {
     void planSingleRouteShouldPropagateMapServiceBusinessError() {
         setCurrentUser(7L);
         when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
-        when(mapService.shortestPath(101L, 1L, 3L, "shortest_distance")).thenThrow(new BusinessException(ErrorCode.ROUTE_003));
+        when(mapService.shortestPath(101L, 1L, 3L, "shortest_distance", "walk"))
+                .thenThrow(new BusinessException(ErrorCode.ROUTE_003));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
@@ -232,7 +234,7 @@ class RouteServiceTests {
     void planSingleRouteShouldUseShortestTimeStrategyAndEstimatedTime() {
         setCurrentUser(7L);
         when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
-        when(mapService.shortestPath(101L, 1L, 3L, "shortest_time")).thenReturn(pathResultForTime());
+        when(mapService.shortestPath(101L, 1L, 3L, "shortest_time", "walk")).thenReturn(pathResultForTime());
         when(routeHistoryMapper.insert(any(RouteHistory.class))).thenAnswer(invocation -> {
             RouteHistory history = invocation.getArgument(0);
             history.setId(9003L);
@@ -246,7 +248,64 @@ class RouteServiceTests {
 
         assertEquals("shortest_time", result.getStrategyType());
         assertEquals(4, result.getEstimatedTime());
-        verify(mapService).shortestPath(101L, 1L, 3L, "shortest_time");
+        verify(mapService).shortestPath(101L, 1L, 3L, "shortest_time", "walk");
+    }
+
+    @Test
+    void planSingleRouteShouldRejectUnknownTransportType() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        SingleRoutePlanRequest request = validRequest();
+        request.setTransportType("fly");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> routeService.planSingleRoute(request));
+
+        assertEquals(ErrorCode.ROUTE_005, exception.getErrorCode());
+        verifyNoInteractions(mapService);
+    }
+
+    @Test
+    void planSingleRouteShouldRejectMixedDistanceStrategy() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        SingleRoutePlanRequest request = validRequest();
+        request.setTransportType("mixed");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> routeService.planSingleRoute(request));
+
+        assertEquals(ErrorCode.COMMON_002, exception.getErrorCode());
+        verifyNoInteractions(mapService);
+    }
+
+    @Test
+    void planSingleRouteShouldSaveMixedPathEdgeTransports() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        ShortestPathResult pathResult = pathResultForTime();
+        pathResult.getPathEdges().get(1).setTransportType("bike");
+        when(mapService.shortestPath(101L, 1L, 3L, "shortest_time", "mixed")).thenReturn(pathResult);
+        when(routeHistoryMapper.insert(any(RouteHistory.class))).thenAnswer(invocation -> {
+            RouteHistory history = invocation.getArgument(0);
+            history.setId(9004L);
+            return 1;
+        });
+
+        SingleRoutePlanRequest request = validRequest();
+        request.setStrategyType("shortest_time");
+        request.setTransportType("mixed");
+        RoutePlanVO result = routeService.planSingleRoute(request);
+
+        assertEquals("mixed", result.getTransportType());
+        assertEquals(List.of("walk", "bike"), result.getPathEdges().stream()
+                .map(item -> item.getTransportType())
+                .toList());
+        ArgumentCaptor<RouteHistory> captor = ArgumentCaptor.forClass(RouteHistory.class);
+        verify(routeHistoryMapper).insert(captor.capture());
+        assertTrue(captor.getValue().getPathEdgeJson().contains("\"transportType\":\"bike\""));
     }
 
     private MultiRoutePlanRequest validMultiRequest() {
@@ -264,13 +323,14 @@ class RouteServiceTests {
         result.setStartNodeId(1L);
         result.setTargetNodeId(3L);
         result.setTotalDistance(new BigDecimal("160.00"));
+        result.setEstimatedTime(new BigDecimal("2.00"));
         result.setPathNodes(List.of(
                 new PathNodeResult(1L, "校门"),
                 new PathNodeResult(2L, "图书馆"),
                 new PathNodeResult(3L, "食堂")));
         result.setPathEdges(List.of(
-                new PathEdgeResult(11L, 1L, 2L, new BigDecimal("80.00")),
-                new PathEdgeResult(12L, 2L, 3L, new BigDecimal("80.00"))));
+                new PathEdgeResult(11L, 1L, 2L, new BigDecimal("80.00"), "walk"),
+                new PathEdgeResult(12L, 2L, 3L, new BigDecimal("80.00"), "walk")));
         return result;
     }
 
@@ -281,15 +341,16 @@ class RouteServiceTests {
         result.setEndNodeId(1L);
         result.setOrderedTargetNodeIds(List.of(2L, 3L));
         result.setTotalDistance(new BigDecimal("240.00"));
+        result.setEstimatedTime(new BigDecimal("3.00"));
         result.setPathNodes(List.of(
                 new PathNodeResult(1L, "校门"),
                 new PathNodeResult(2L, "图书馆"),
                 new PathNodeResult(3L, "食堂"),
                 new PathNodeResult(1L, "校门")));
         result.setPathEdges(List.of(
-                new PathEdgeResult(11L, 1L, 2L, new BigDecimal("80.00")),
-                new PathEdgeResult(12L, 2L, 3L, new BigDecimal("80.00")),
-                new PathEdgeResult(13L, 3L, 1L, new BigDecimal("80.00"))));
+                new PathEdgeResult(11L, 1L, 2L, new BigDecimal("80.00"), "walk"),
+                new PathEdgeResult(12L, 2L, 3L, new BigDecimal("80.00"), "walk"),
+                new PathEdgeResult(13L, 3L, 1L, new BigDecimal("80.00"), "walk")));
         return result;
     }
 

@@ -25,6 +25,7 @@ import com.trip.mapper.ImportFailureMapper;
 import com.trip.mapper.MapEdgeMapper;
 import com.trip.mapper.MapNodeMapper;
 import com.trip.mapper.PlaceMapper;
+import com.trip.model.route.EdgeTransportAccess;
 import com.trip.service.ImportService;
 import com.trip.service.IndexMaintenanceService;
 import java.io.BufferedReader;
@@ -342,7 +343,14 @@ public class ImportServiceImpl implements ImportService {
         edge.setDistance(decimalRequired(values, "distance"));
         edge.setIdealSpeed(decimal(values, "ideal_speed"));
         edge.setCrowdFactor(decimal(values, "crowd_factor"));
-        edge.setTransportType(text(values, "transport_type"));
+        String transportType = text(values, "transport_type");
+        if (EdgeTransportAccess.fromValue(transportType).isEmpty()
+                || edge.getCrowdFactor() == null
+                || edge.getCrowdFactor().compareTo(BigDecimal.ZERO) <= 0
+                || edge.getCrowdFactor().compareTo(BigDecimal.ONE) > 0) {
+            throw new BusinessException(ErrorCode.IMPORT_004);
+        }
+        edge.setTransportType(transportType.trim().toLowerCase(Locale.ROOT));
         edge.setEdgeType(text(values, "edge_type"));
         edge.setBidirectionalFlag(intOrDefault(values, "bidirectional_flag", 0));
         mapEdgeMapper.insert(edge);

@@ -38,6 +38,7 @@ import com.trip.mapper.MapEdgeMapper;
 import com.trip.mapper.MapNodeMapper;
 import com.trip.mapper.PlaceMapper;
 import com.trip.mapper.UserMapper;
+import com.trip.model.route.EdgeTransportAccess;
 import com.trip.service.AdminService;
 import com.trip.service.ImportService;
 import com.trip.service.IndexMaintenanceService;
@@ -673,6 +674,12 @@ public class AdminServiceImpl implements AdminService {
         if (!request.getDestinationId().equals(fromNode.getDestinationId())
                 || !request.getDestinationId().equals(toNode.getDestinationId())) {
             throw new BusinessException(ErrorCode.ROUTE_009);
+        }
+        if (request.getCrowdFactor() == null
+                || request.getCrowdFactor().compareTo(BigDecimal.ZERO) <= 0
+                || request.getCrowdFactor().compareTo(BigDecimal.ONE) > 0
+                || EdgeTransportAccess.fromValue(request.getTransportType()).isEmpty()) {
+            throw new BusinessException(ErrorCode.COMMON_002);
         }
     }
 

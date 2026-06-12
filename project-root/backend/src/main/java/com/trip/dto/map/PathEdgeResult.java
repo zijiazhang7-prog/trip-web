@@ -15,11 +15,19 @@ public class PathEdgeResult {
 
     private BigDecimal distance;
 
-    public PathEdgeResult(Long edgeId, Long fromNodeId, Long toNodeId, BigDecimal distance) {
+    private String transportType;
+
+    public PathEdgeResult(
+            Long edgeId,
+            Long fromNodeId,
+            Long toNodeId,
+            BigDecimal distance,
+            String transportType) {
         this.edgeId = edgeId;
         this.fromNodeId = fromNodeId;
         this.toNodeId = toNodeId;
         this.distance = distance;
+        this.transportType = transportType;
     }
 
     public Long getEdgeId() {
@@ -52,5 +60,13 @@ public class PathEdgeResult {
 
     public void setDistance(BigDecimal distance) {
         this.distance = distance;
+    }
+
+    public String getTransportType() {
+        return transportType;
+    }
+
+    public void setTransportType(String transportType) {
+        this.transportType = transportType;
     }
 }

@@ -230,6 +230,18 @@ erDiagram
         datetime created_at
     }
 
+    DIARY_ANIMATION {
+        bigint id PK
+        bigint diary_id FK
+        varchar provider
+        varchar animation_title
+        text narration_text
+        json script_json
+        varchar status
+        datetime created_at
+        datetime updated_at
+    }
+
     ROUTE_HISTORY {
         bigint id PK
         bigint user_id FK
@@ -382,6 +394,7 @@ erDiagram
     DIARY ||--o{ DIARY_MEDIA : contains
     DIARY ||--o{ DIARY_RATING : receives
     DIARY ||--o{ DIARY_COMMENT : receives
+    DIARY ||--o| DIARY_ANIMATION : generates
     DIARY ||--o{ TRAVEL_JOURNAL_ENTRY : reuses
 
     ROUTE_HISTORY ||--o{ DIARY : supports
@@ -980,18 +993,19 @@ erDiagram
 
 ---
 
-## 6.10 日记与媒体 / 评分：1:N
+## 6.10 日记与媒体 / 评分 / 动画
 
 `DIARY ||--o{ DIARY_MEDIA : contains`  
 `DIARY ||--o{ DIARY_RATING : receives`
+`DIARY ||--o| DIARY_ANIMATION : generates`
 
 ### 含义
 
-一篇日记可以挂多个媒体，也可以收到多个评分。
+一篇日记可以挂多个媒体、收到多个评分，并可生成零或一个当前动画脚本。
 
 ### 设计意义
 
-便于后续从简单图文扩展到更丰富的内容形态，而不破坏日记主表结构。
+媒体、评分和动画均使用独立表，便于扩展内容形态而不破坏日记主表结构。
 
 ---
 

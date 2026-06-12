@@ -9,14 +9,17 @@ import com.trip.dto.map.ShortestPathResult;
 import com.trip.engine.graph.GraphEngine;
 import com.trip.engine.graph.GraphEngine.Graph;
 import com.trip.engine.graph.GraphEngine.GraphEdge;
-import com.trip.engine.graph.GraphEngine.PreviousStep;
+import com.trip.engine.graph.GraphEngine.PathEdge;
 import com.trip.engine.graph.GraphEngine.ShortestPathTree;
 import com.trip.engine.graph.GraphEngine.WeightDistance;
+import com.trip.engine.graph.RouteConstraint;
 import com.trip.entity.MapEdge;
 import com.trip.entity.MapNode;
 import com.trip.exception.BusinessException;
 import com.trip.mapper.MapEdgeMapper;
 import com.trip.mapper.MapNodeMapper;
+import com.trip.model.route.EdgeTransportAccess;
+import com.trip.model.route.RouteTransportType;
 import com.trip.service.MapService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -35,6 +38,7 @@ public class MapServiceImpl implements MapService {
     private static final int BIDIRECTIONAL = 1;
     private static final String STRATEGY_SHORTEST_DISTANCE = "shortest_distance";
     private static final String STRATEGY_SHORTEST_TIME = "shortest_time";
+    private static final String DEFAULT_TRANSPORT_TYPE = "walk";
 
     private final MapNodeMapper mapNodeMapper;
     private final MapEdgeMapper mapEdgeMapper;
@@ -66,10 +70,21 @@ public class MapServiceImpl implements MapService {
 
     @Override
     public ShortestPathResult shortestPath(Long destinationId, Long startNodeId, Long targetNodeId, String strategyType) {
+        return shortestPath(destinationId, startNodeId, targetNodeId, strategyType, DEFAULT_TRANSPORT_TYPE);
+    }
+
+    @Override
+    public ShortestPathResult shortestPath(
+            Long destinationId,
+            Long startNodeId,
+            Long targetNodeId,
+            String strategyType,
+            String transportType) {
         validateId(destinationId);
         validateId(startNodeId);
         validateId(targetNodeId);
         String normalizedStrategyType = normalizeStrategyType(strategyType);
+        RouteTransportType normalizedTransportType = normalizeTransportType(transportType);
 
         GraphContext graphContext = buildGraph(destinationId);
         MapNode startNode = graphContext.nodeMap().get(startNodeId);
@@ -85,11 +100,17 @@ public class MapServiceImpl implements MapService {
         }
 
         ShortestPathTree shortestPathTree = graphEngine.shortestPaths(
-                graphContext.graph(), startNodeId, normalizedStrategyType);
+                graphContext.graph(),
+                startNodeId,
+                new RouteConstraint(normalizedStrategyType, normalizedTransportType));
         WeightDistance totalWeight = shortestPathTree.weights().get(targetNodeId);
         BigDecimal totalDistance = shortestPathTree.distances().get(targetNodeId);
         if (totalDistance == null) {
-            throw new BusinessException(ErrorCode.ROUTE_003);
+            throw new BusinessException(unreachableError(
+                    graphContext.graph(),
+                    startNodeId,
+                    List.of(targetNodeId),
+                    normalizedTransportType));
         }
 
         ShortestPathResult result = new ShortestPathResult();
@@ -98,8 +119,8 @@ public class MapServiceImpl implements MapService {
         result.setTargetNodeId(targetNodeId);
         result.setTotalDistance(totalDistance);
         result.setEstimatedTime(totalWeight == null ? ZERO : totalWeight.time());
-        result.setPathNodes(buildPathNodes(graphContext, startNodeId, targetNodeId, shortestPathTree.previousMap()));
-        result.setPathEdges(buildPathEdges(startNodeId, targetNodeId, shortestPathTree.previousMap()));
+        result.setPathNodes(buildPathNodes(graphContext, startNodeId, targetNodeId, shortestPathTree));
+        result.setPathEdges(buildPathEdges(startNodeId, targetNodeId, shortestPathTree));
         return result;
     }
 
@@ -128,10 +149,29 @@ public class MapServiceImpl implements MapService {
             List<Long> targetNodeIds,
             boolean returnToStart,
             String strategyType) {
+        return multiTargetPath(
+                destinationId,
+                startNodeId,
+                targetNodeIds,
+                returnToStart,
+                strategyType,
+                DEFAULT_TRANSPORT_TYPE);
+    }
+
+    @Override
+    public MultiPathResult multiTargetPath(
+            Long destinationId,
+            Long startNodeId,
+            List<Long> targetNodeIds,
+            boolean returnToStart,
+            String strategyType,
+            String transportType) {
         validateId(destinationId);
         validateId(startNodeId);
         validateTargetNodeIds(targetNodeIds);
         String normalizedStrategyType = normalizeStrategyType(strategyType);
+        RouteTransportType normalizedTransportType = normalizeTransportType(transportType);
+        RouteConstraint routeConstraint = new RouteConstraint(normalizedStrategyType, normalizedTransportType);
 
         GraphContext graphContext = buildGraph(destinationId);
         if (!graphContext.nodeMap().containsKey(startNodeId)) {
@@ -157,10 +197,14 @@ public class MapServiceImpl implements MapService {
 
         while (!unvisitedTargetIds.isEmpty()) {
             ShortestPathTree shortestPathTree = graphEngine.shortestPaths(
-                    graphContext.graph(), currentNodeId, normalizedStrategyType);
+                    graphContext.graph(), currentNodeId, routeConstraint);
             Long nextTargetId = graphEngine.nearestTarget(unvisitedTargetIds, shortestPathTree.weights());
             if (nextTargetId == null) {
-                throw new BusinessException(ErrorCode.ROUTE_003);
+                throw new BusinessException(unreachableError(
+                        graphContext.graph(),
+                        currentNodeId,
+                        unvisitedTargetIds,
+                        normalizedTransportType));
             }
             ShortestPathResult segment = buildSegment(graphContext, currentNodeId, nextTargetId, shortestPathTree);
             appendSegment(allPathNodes, allPathEdges, segment);
@@ -173,10 +217,14 @@ public class MapServiceImpl implements MapService {
 
         if (returnToStart && !currentNodeId.equals(startNodeId)) {
             ShortestPathTree shortestPathTree = graphEngine.shortestPaths(
-                    graphContext.graph(), currentNodeId, normalizedStrategyType);
+                    graphContext.graph(), currentNodeId, routeConstraint);
             BigDecimal returnDistance = shortestPathTree.distances().get(startNodeId);
             if (returnDistance == null) {
-                throw new BusinessException(ErrorCode.ROUTE_003);
+                throw new BusinessException(unreachableError(
+                        graphContext.graph(),
+                        currentNodeId,
+                        List.of(startNodeId),
+                        normalizedTransportType));
             }
             ShortestPathResult segment = buildSegment(graphContext, currentNodeId, startNodeId, shortestPathTree);
             appendSegment(allPathNodes, allPathEdges, segment);
@@ -211,7 +259,10 @@ public class MapServiceImpl implements MapService {
         if (!graphContext.nodeMap().containsKey(startNodeId)) {
             throw new BusinessException(ErrorCode.ROUTE_001);
         }
-        return graphEngine.shortestPaths(graphContext.graph(), startNodeId, STRATEGY_SHORTEST_DISTANCE).distances();
+        return graphEngine.shortestPaths(
+                graphContext.graph(),
+                startNodeId,
+                new RouteConstraint(STRATEGY_SHORTEST_DISTANCE, RouteTransportType.WALK)).distances();
     }
 
     private GraphContext buildGraph(Long destinationId) {
@@ -252,17 +303,17 @@ public class MapServiceImpl implements MapService {
                 || edge.getDistance().compareTo(ZERO) <= 0) {
             return;
         }
-        BigDecimal idealSpeed = edge.getIdealSpeed();
-        BigDecimal crowdFactor = edge.getCrowdFactor();
-        BigDecimal timeCost = null;
-        if (idealSpeed != null
-                && crowdFactor != null
-                && idealSpeed.compareTo(ZERO) > 0
-                && crowdFactor.compareTo(ZERO) > 0) {
-            timeCost = edge.getDistance().divide(idealSpeed.multiply(crowdFactor), 8, java.math.RoundingMode.HALF_UP);
-        }
+        EdgeTransportAccess transportAccess = EdgeTransportAccess.fromValue(edge.getTransportType())
+                .orElse(EdgeTransportAccess.WALK);
         adjacency.computeIfAbsent(fromNodeId, key -> new ArrayList<>())
-                .add(new GraphEdge(edge.getId(), fromNodeId, toNodeId, edge.getDistance(), timeCost));
+                .add(new GraphEdge(
+                        edge.getId(),
+                        fromNodeId,
+                        toNodeId,
+                        edge.getDistance(),
+                        edge.getIdealSpeed(),
+                        edge.getCrowdFactor(),
+                        transportAccess));
     }
 
     private ShortestPathResult buildSegment(
@@ -282,8 +333,8 @@ public class MapServiceImpl implements MapService {
         result.setTotalDistance(totalDistance);
         WeightDistance totalWeight = shortestPathTree.weights().get(targetNodeId);
         result.setEstimatedTime(totalWeight == null ? ZERO : totalWeight.time());
-        result.setPathNodes(buildPathNodes(graphContext, startNodeId, targetNodeId, shortestPathTree.previousMap()));
-        result.setPathEdges(buildPathEdges(startNodeId, targetNodeId, shortestPathTree.previousMap()));
+        result.setPathNodes(buildPathNodes(graphContext, startNodeId, targetNodeId, shortestPathTree));
+        result.setPathEdges(buildPathEdges(startNodeId, targetNodeId, shortestPathTree));
         return result;
     }
 
@@ -307,8 +358,8 @@ public class MapServiceImpl implements MapService {
             GraphContext graphContext,
             Long startNodeId,
             Long targetNodeId,
-            Map<Long, PreviousStep> previousMap) {
-        List<Long> nodeIds = graphEngine.backtrackNodeIds(startNodeId, targetNodeId, previousMap);
+            ShortestPathTree shortestPathTree) {
+        List<Long> nodeIds = graphEngine.backtrackNodeIds(startNodeId, targetNodeId, shortestPathTree);
         if (nodeIds.isEmpty()) {
             throw new BusinessException(ErrorCode.ROUTE_003);
         }
@@ -323,18 +374,24 @@ public class MapServiceImpl implements MapService {
     private List<PathEdgeResult> buildPathEdges(
             Long startNodeId,
             Long targetNodeId,
-            Map<Long, PreviousStep> previousMap) {
+            ShortestPathTree shortestPathTree) {
         if (startNodeId.equals(targetNodeId)) {
             return List.of();
         }
 
         List<PathEdgeResult> pathEdges = new ArrayList<>();
-        List<GraphEdge> graphEdges = graphEngine.backtrackEdges(startNodeId, targetNodeId, previousMap);
+        List<PathEdge> graphEdges = graphEngine.backtrackEdges(startNodeId, targetNodeId, shortestPathTree);
         if (graphEdges.isEmpty()) {
             throw new BusinessException(ErrorCode.ROUTE_003);
         }
-        for (GraphEdge edge : graphEdges) {
-            pathEdges.add(new PathEdgeResult(edge.edgeId(), edge.fromNodeId(), edge.toNodeId(), edge.distance()));
+        for (PathEdge pathEdge : graphEdges) {
+            GraphEdge edge = pathEdge.edge();
+            pathEdges.add(new PathEdgeResult(
+                    edge.edgeId(),
+                    edge.fromNodeId(),
+                    edge.toNodeId(),
+                    edge.distance(),
+                    pathEdge.transportType().value()));
         }
         return pathEdges;
     }
@@ -363,6 +420,30 @@ public class MapServiceImpl implements MapService {
             return STRATEGY_SHORTEST_TIME;
         }
         return STRATEGY_SHORTEST_DISTANCE;
+    }
+
+    private RouteTransportType normalizeTransportType(String transportType) {
+        return RouteTransportType.fromValue(transportType)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_005));
+    }
+
+    private ErrorCode unreachableError(
+            Graph graph,
+            Long startNodeId,
+            Iterable<Long> targetNodeIds,
+            RouteTransportType requestedType) {
+        if (!RouteTransportType.MIXED.equals(requestedType)) {
+            ShortestPathTree unrestrictedTree = graphEngine.shortestPaths(
+                    graph,
+                    startNodeId,
+                    new RouteConstraint(STRATEGY_SHORTEST_DISTANCE, RouteTransportType.MIXED));
+            for (Long targetNodeId : targetNodeIds) {
+                if (unrestrictedTree.distances().containsKey(targetNodeId)) {
+                    return ErrorCode.ROUTE_008;
+                }
+            }
+        }
+        return ErrorCode.ROUTE_003;
     }
 
     private record GraphContext(Map<Long, MapNode> nodeMap, Graph graph) {

@@ -172,7 +172,7 @@
 | MapService       | 图建模、最短路径、多点路径     | MapNode / MapEdge 表                                                                                              | Route、Facility                     | P0      |
 | SearchService    | 全文 / 模糊检索         | 索引能力、文本数据                                                                                                        | Diary 检索增强                         | P1      |
 | ImportService    | 导入与初始化            | ImportEngine、MySQL、文件存储                                                                                          | Admin、数据准备                         | P1      |
-| AIService        | AI 扩展能力           | 外部 AI 能力、基础主线模块、统一输入输出定义                                                                                         | Diary 增强、Recommend 增强、创新功能         | P2      |
+| AIService        | AI Provider 调度、动画脚本生成与降级 | AnimationScriptProvider、本地文件存储、外部多模态 AI、统一输入输出定义 | Diary 动画、后续 Recommend/Route AI 增强 | P2      |
 | IndexEngine      | Hash / Trie / 倒排索引等检索结构 | 基础数据快照、索引构建触发点                                                                                                  | QueryService、SearchService          | P1      |
 | GraphEngine      | 图结构、Dijkstra、单源最短路、路径回溯 | MapService 转换后的节点和边                                                                                                | MapService                           | P1      |
 | CompressionEngine | Huffman 无损压缩与还原     | 日记文本、已有 `diary.content_compressed` 字段                                                                                | Diary 压缩增强                         | P1 |

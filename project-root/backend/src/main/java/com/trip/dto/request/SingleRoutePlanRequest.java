@@ -3,7 +3,6 @@ package com.trip.dto.request;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
 
 /**
  * 单目标路线规划请求。
@@ -25,7 +24,7 @@ public class SingleRoutePlanRequest {
     @Pattern(regexp = "^(shortest_distance|shortest_time)$", message = "仅支持 shortest_distance 或 shortest_time")
     private String strategyType;
 
-    @Size(max = 20)
+    @Pattern(regexp = "^(walk|bike|cart|mixed)$", message = "仅支持 walk、bike、cart 或 mixed")
     private String transportType;
 
     public Long getDestinationId() {

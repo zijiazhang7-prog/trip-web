@@ -14,11 +14,14 @@ public class RoutePathEdgeVO {
 
     private BigDecimal distance;
 
+    private String transportType;
+
     public static RoutePathEdgeVO from(PathEdgeResult edge) {
         RoutePathEdgeVO vo = new RoutePathEdgeVO();
         vo.setFromNodeId(edge.getFromNodeId());
         vo.setToNodeId(edge.getToNodeId());
         vo.setDistance(edge.getDistance());
+        vo.setTransportType(edge.getTransportType());
         return vo;
     }
 
@@ -44,5 +47,13 @@ public class RoutePathEdgeVO {
 
     public void setDistance(BigDecimal distance) {
         this.distance = distance;
+    }
+
+    public String getTransportType() {
+        return transportType;
+    }
+
+    public void setTransportType(String transportType) {
+        this.transportType = transportType;
     }
 }

@@ -773,6 +773,49 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseDiaryRatingVO'
 
+  /diaries/{diaryId}/animation:
+    post:
+      tags: [AI, Diary]
+      summary: 生成或重新生成日记照片动画脚本
+      description: 仅日记作者可调用；默认使用 mock-template，可配置 OpenAI-compatible 多模态 Provider；外部调用失败时自动降级，不导出 MP4。
+      parameters:
+        - name: diaryId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDiaryAnimationVO'
+        '422':
+          description: 日记没有图片或生成脚本不合法
+    get:
+      tags: [AI, Diary]
+      summary: 获取日记照片动画脚本
+      description: 公开日记允许匿名查询，私有日记仅作者可查询。
+      security: []
+      parameters:
+        - name: diaryId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDiaryAnimationVO'
+        '404':
+          description: 日记或动画不存在
+
   /diaries/{id}/comments:
     get:
       tags: [Diary]
@@ -1372,6 +1415,14 @@ components:
             data:
               $ref: '#/components/schemas/DiaryRatingVO'
 
+    ApiResponseDiaryAnimationVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DiaryAnimationVO'
+
     ApiResponseCommentVO:
       allOf:
         - $ref: '#/components/schemas/ApiResponseBase'
@@ -1547,7 +1598,7 @@ components:
           enum: [shortest_distance, shortest_time]
         transportType:
           type: string
-          enum: [walk, bike, cart]
+          enum: [walk, bike, cart, mixed]
 
     MultiRoutePlanRequest:
       type: object
@@ -1569,7 +1620,7 @@ components:
           enum: [shortest_distance, shortest_time]
         transportType:
           type: string
-          enum: [walk, bike, cart]
+          enum: [walk, bike, cart, mixed]
         returnToStart:
           type: boolean
           default: true
@@ -1626,6 +1677,85 @@ components:
         ratingCount:
           type: integer
           minimum: 0
+
+    DiaryAnimationVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        diaryId:
+          type: integer
+          format: int64
+        provider:
+          type: string
+          enum: [mock-template, openai-compatible]
+        title:
+          type: string
+        narration:
+          type: string
+        status:
+          type: string
+          enum: [ready]
+        script:
+          $ref: '#/components/schemas/AnimationScriptVO'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AnimationScriptVO:
+      type: object
+      properties:
+        schemaVersion:
+          type: string
+          enum: ['1.0']
+        aspectRatio:
+          type: string
+          enum: ['16:9']
+        totalDurationMs:
+          type: integer
+          minimum: 1000
+        backgroundMusic:
+          type: string
+        scenes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AnimationSceneVO'
+
+    AnimationSceneVO:
+      type: object
+      properties:
+        order:
+          type: integer
+          minimum: 1
+        mediaId:
+          type: integer
+          format: int64
+        fileUrl:
+          type: string
+          description: 必须来自当前日记已落库的 image 类型 diary_media
+        visualDescription:
+          type: string
+          nullable: true
+          description: AI 对当前照片可见内容的客观描述；旧脚本或模板降级结果可为空或为通用描述
+        durationMs:
+          type: integer
+          minimum: 1000
+          maximum: 10000
+        motion:
+          type: string
+          enum: [zoom_in, zoom_out, pan_left, pan_right]
+        transition:
+          type: string
+          enum: [fade, dissolve, slide]
+        subtitle:
+          type: string
+        narration:
+          type: string
 
     CommentCreateRequest:
       type: object
@@ -1860,6 +1990,7 @@ components:
           format: double
         transportType:
           type: string
+          enum: [walk, bike, cart, walk_bike, walk_cart, bike_cart, all]
         edgeType:
           type: string
         bidirectionalFlag:
@@ -2209,6 +2340,9 @@ components:
         distance:
           type: number
           format: double
+        transportType:
+          type: string
+          enum: [walk, bike, cart]
 
     RoutePlanVO:
       type: object

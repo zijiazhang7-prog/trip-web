@@ -13,6 +13,7 @@ import com.trip.entity.User;
 import com.trip.exception.BusinessException;
 import com.trip.mapper.RouteHistoryMapper;
 import com.trip.mapper.UserMapper;
+import com.trip.model.route.RouteTransportType;
 import com.trip.security.JwtClaims;
 import com.trip.service.MapService;
 import com.trip.service.RouteService;
@@ -39,8 +40,6 @@ public class RouteServiceImpl implements RouteService {
     private static final int MAX_MULTI_TARGET_COUNT = 8;
     private static final String STRATEGY_SHORTEST_DISTANCE = "shortest_distance";
     private static final String STRATEGY_SHORTEST_TIME = "shortest_time";
-    private static final String DEFAULT_TRANSPORT_TYPE = "walk";
-    private static final BigDecimal WALK_SPEED_METER_PER_MINUTE = new BigDecimal("80");
 
     private final MapService mapService;
     private final RouteHistoryMapper routeHistoryMapper;
@@ -68,22 +67,24 @@ public class RouteServiceImpl implements RouteService {
         Long userId = currentUserId();
         ensureActiveUser(userId);
         String strategyType = strategyType(request.getStrategyType());
-        String transportType = transportType(request.getTransportType());
+        RouteTransportType transportType = transportType(request.getTransportType());
+        validateStrategyTransportCombination(strategyType, transportType);
 
         ShortestPathResult pathResult = mapService.shortestPath(
                 request.getDestinationId(),
                 request.getStartNodeId(),
                 request.getTargetNodeId(),
-                strategyType);
-        Integer estimatedTime = estimateTime(pathResult, strategyType);
+                strategyType,
+                transportType.value());
+        Integer estimatedTime = normalizeEstimatedTime(pathResult.getEstimatedTime());
 
-        RouteHistory history = toHistory(userId, pathResult, strategyType, transportType, estimatedTime);
+        RouteHistory history = toHistory(userId, pathResult, strategyType, transportType.value(), estimatedTime);
         int inserted = routeHistoryMapper.insert(history);
         if (inserted != 1 || history.getId() == null) {
             throw new BusinessException(ErrorCode.COMMON_006);
         }
 
-        return toRoutePlanVO(pathResult, strategyType, transportType, estimatedTime, history.getId());
+        return toRoutePlanVO(pathResult, strategyType, transportType.value(), estimatedTime, history.getId());
     }
 
     @Override
@@ -94,7 +95,8 @@ public class RouteServiceImpl implements RouteService {
         Long userId = currentUserId();
         ensureActiveUser(userId);
         String strategyType = strategyType(request.getStrategyType());
-        String transportType = transportType(request.getTransportType());
+        RouteTransportType transportType = transportType(request.getTransportType());
+        validateStrategyTransportCombination(strategyType, transportType);
         boolean returnToStart = Boolean.TRUE.equals(request.getReturnToStart());
 
         MultiPathResult pathResult = mapService.multiTargetPath(
@@ -102,16 +104,17 @@ public class RouteServiceImpl implements RouteService {
                 request.getStartNodeId(),
                 request.getTargetNodeIds(),
                 returnToStart,
-                strategyType);
-        Integer estimatedTime = estimateTime(pathResult, strategyType);
+                strategyType,
+                transportType.value());
+        Integer estimatedTime = normalizeEstimatedTime(pathResult.getEstimatedTime());
 
-        RouteHistory history = toHistory(userId, pathResult, strategyType, transportType, estimatedTime);
+        RouteHistory history = toHistory(userId, pathResult, strategyType, transportType.value(), estimatedTime);
         int inserted = routeHistoryMapper.insert(history);
         if (inserted != 1 || history.getId() == null) {
             throw new BusinessException(ErrorCode.COMMON_006);
         }
 
-        return toRoutePlanVO(pathResult, strategyType, transportType, estimatedTime, history.getId());
+        return toRoutePlanVO(pathResult, strategyType, transportType.value(), estimatedTime, history.getId());
     }
 
     private RouteHistory toHistory(
@@ -203,32 +206,11 @@ public class RouteServiceImpl implements RouteService {
                 .toList());
     }
 
-    private Integer estimateTime(ShortestPathResult pathResult, String strategyType) {
-        if (STRATEGY_SHORTEST_TIME.equals(strategyType)) {
-            return normalizeEstimatedTime(pathResult.getEstimatedTime());
-        }
-        return estimateTimeByDistance(pathResult.getTotalDistance());
-    }
-
-    private Integer estimateTime(MultiPathResult pathResult, String strategyType) {
-        if (STRATEGY_SHORTEST_TIME.equals(strategyType)) {
-            return normalizeEstimatedTime(pathResult.getEstimatedTime());
-        }
-        return estimateTimeByDistance(pathResult.getTotalDistance());
-    }
-
     private Integer normalizeEstimatedTime(BigDecimal estimatedTime) {
         if (estimatedTime == null || estimatedTime.compareTo(BigDecimal.ZERO) <= 0) {
             return 0;
         }
         return estimatedTime.setScale(0, RoundingMode.CEILING).intValue();
-    }
-
-    private Integer estimateTimeByDistance(BigDecimal totalDistance) {
-        if (totalDistance == null || totalDistance.compareTo(BigDecimal.ZERO) <= 0) {
-            return 0;
-        }
-        return totalDistance.divide(WALK_SPEED_METER_PER_MINUTE, 0, RoundingMode.CEILING).intValue();
     }
 
     private String writeJson(Object value) {
@@ -284,10 +266,20 @@ public class RouteServiceImpl implements RouteService {
         return normalized;
     }
 
-    private String transportType(String transportType) {
+    private RouteTransportType transportType(String transportType) {
         if (!StringUtils.hasText(transportType)) {
-            return DEFAULT_TRANSPORT_TYPE;
+            return RouteTransportType.WALK;
         }
-        return transportType.trim();
+        return RouteTransportType.fromValue(transportType)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_005));
+    }
+
+    private void validateStrategyTransportCombination(
+            String strategyType,
+            RouteTransportType transportType) {
+        if (RouteTransportType.MIXED.equals(transportType)
+                && !STRATEGY_SHORTEST_TIME.equals(strategyType)) {
+            throw new BusinessException(ErrorCode.COMMON_002);
+        }
     }
 }

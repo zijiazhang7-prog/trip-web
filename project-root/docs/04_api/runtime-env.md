@@ -17,6 +17,11 @@
 | test/prod profile | 未找到独立 `application-test.yml` / `application-prod.yml` | resources 扫描结果 |
 | multipart 限制 | 默认 5MB，可由 `FILE_MAX_SIZE` 覆盖 | `application-dev.yml` |
 | 上传目录 | `${FILE_UPLOAD_DIR:uploads}` | `application-dev.yml` |
+| 动画 AI Provider | `${AI_ANIMATION_PROVIDER:mock-template}`，可选 `mock-template/openai-compatible` | `application-dev.yml`、`AiAnimationProperties.java` |
+| AI 服务地址/密钥/模型 | `AI_API_BASE_URL`、`AI_API_KEY`、`AI_MODEL_NAME`；仓库不保存真实密钥 | `application-dev.yml` |
+| AI 超时 | 连接默认 3 秒、读取默认 45 秒，可由 `AI_CONNECT_TIMEOUT/AI_READ_TIMEOUT` 覆盖 | `application-dev.yml` |
+| AI 图片限制 | 默认最多 6 张、单图 2MB、总计 8MB | `AI_MAX_IMAGES`、`AI_MAX_IMAGE_SIZE`、`AI_MAX_TOTAL_IMAGE_SIZE` |
+| AI 降级 | `${AI_ANIMATION_FALLBACK_ENABLED:true}`；真实 Provider 失败时回退 `mock-template` | `AIServiceImpl.java` |
 | JWT secret | `${JWT_SECRET:dev-only-change-me-to-a-long-random-secret}` | `application-dev.yml` |
 | JWT 过期时间 | `${JWT_EXPIRE_MINUTES:120}` 分钟 | `application-dev.yml` |
 | 登录 token 返回位置 | `data.token` | `LoginResponse.java`、`AuthController.java`、`api-spec.md` 7.2 |

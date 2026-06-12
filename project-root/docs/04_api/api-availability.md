@@ -52,8 +52,8 @@
 | 目的地详情 | `/api/v1/destinations/{id}` | GET | Recommend | 是 | 是 | 已可用 | path `id` | `DestinationVO` | `DestinationController.java` | `api-spec.md` 9.3 | 公开接口 |
 | 目的地下场所列表 | `/api/v1/destinations/{id}/places` | GET | Recommend/Place | 是 | 是 | 已可用 | path `id` + `DestinationPlacesQuery` | `List<PlaceVO>` | `DestinationController.java` | `api-spec.md` 9.4 | 公开接口 |
 | 目的地相关日记 | `/api/v1/destinations/{id}/diaries` | GET | Diary | 是 | 是 | 已可用 | path `id` + `DiaryListQuery` | `PageResultVO<DiaryVO>` | `DiaryController.java` | `api-spec.md` 9.5 | 公开接口 |
-| 单目标路线规划 | `/api/v1/routes/plan/single` | POST | Route | 是 | 是 | 已可用 | `SingleRoutePlanRequest` | `RoutePlanVO` | `RouteController.java` | `api-spec.md` 10.1 | 需要登录，支持 `shortest_distance` / `shortest_time` |
-| 多目标路线规划 | `/api/v1/routes/plan/multi` | POST | Route | 是 | 是 | 已可用 | `MultiRoutePlanRequest` | `RoutePlanVO` | `RouteController.java` | `api-spec.md` 10.2 | 需要登录；文档中 Swagger 曾出现 `ApiResponseMultiRoutePlanVO`，代码实际返回 `RoutePlanVO` |
+| 单目标路线规划 | `/api/v1/routes/plan/single` | POST | Route | 是 | 是 | 已可用 | `SingleRoutePlanRequest` | `RoutePlanVO` | `RouteController.java` | `api-spec.md` 10.1 | 需要登录，支持距离/时间策略及 `walk/bike/cart/mixed` |
+| 多目标路线规划 | `/api/v1/routes/plan/multi` | POST | Route | 是 | 是 | 已可用 | `MultiRoutePlanRequest` | `RoutePlanVO` | `RouteController.java` | `api-spec.md` 10.2 | 需要登录；支持交通约束；代码实际返回 `RoutePlanVO` |
 | 路线历史列表 | `/api/v1/routes/history` | GET | Route | 否 | 是 | 文档有但代码未找到 | page query | `Page<RouteHistoryVO>` | 未找到 Controller 入口 | `api-spec.md` 10.3 | 待实现或文档降级 |
 | 路线历史详情 | `/api/v1/routes/history/{id}` | GET | Route | 否 | 是 | 文档有但代码未找到 | path `id` | `RouteHistoryVO` | 未找到 Controller 入口 | `api-spec.md` 10.4 | 待实现或文档降级 |
 | 附近设施 | `/api/v1/facilities/nearby` | GET | Facility | 是 | 是 | 已可用 | `NearbyFacilityQuery` | `PageResultVO<NearbyFacilityVO>` | `FacilityController.java` | `api-spec.md` 11.1 | 公开接口，基于图上可达距离 |
@@ -67,6 +67,8 @@
 | 日记全文检索 | `/api/v1/diaries/search/fulltext` | GET | Diary/Search | 是 | 是 | 已可用 | `DiaryFulltextSearchQuery` | `PageResultVO<DiaryVO>` | `DiaryController.java` | `api-spec.md` 13.5 | 公开接口，当前基于 MySQL LIKE |
 | 日记评分 | `/api/v1/diaries/{id}/ratings` | POST | Diary | 是 | 是 | 已可用 | `DiaryRatingRequest` | `Boolean` | `DiaryController.java`、`DiaryRatingServiceImpl.java` | `api-spec.md` 13.6、`swagger-draft.yaml` | 重复评分覆盖更新，需要登录 |
 | 我的日记评分 | `/api/v1/diaries/{id}/ratings/me` | GET | Diary | 是 | 是 | 已可用 | path `id` | `DiaryRatingVO` | `DiaryController.java`、`DiaryRatingServiceImpl.java` | `api-spec.md` 13.6A、`swagger-draft.yaml` | 未评分时 `userScore=null`，需要登录 |
+| 生成日记照片动画 | `/api/v1/diaries/{diaryId}/animation` | POST | AI/Diary | 是 | 是 | 已可用 | path `diaryId` | `DiaryAnimationVO` | `DiaryAnimationController.java`、`AnimationServiceImpl.java`、`OpenAiCompatibleAnimationProvider.java`、`MockTemplateAnimationProvider.java` | `api-spec.md` 13.9、`swagger-draft.yaml` | 仅作者；默认模板，可配置真实多模态 Provider，失败自动降级；不导出 MP4 |
+| 查询日记照片动画 | `/api/v1/diaries/{diaryId}/animation` | GET | AI/Diary | 是 | 是 | 已可用 | path `diaryId` | `DiaryAnimationVO` | `DiaryAnimationController.java`、`AnimationServiceImpl.java` | `api-spec.md` 13.9、`swagger-draft.yaml` | 公开日记匿名可查，私有日记仅作者 |
 | 目的地评论列表/发布 | `/api/v1/destinations/{id}/comments` | GET/POST | Comment/Destination | 是 | 是 | 已可用 | `CommentPageQuery` / `CommentCreateRequest` | `PageResultVO<CommentVO>` / `CommentVO` | `DestinationController.java`、`CommentServiceImpl.java` | `api-spec.md` 13.8、`swagger-draft.yaml` | GET 公开，POST 登录 |
 | 美食评论列表/发布 | `/api/v1/foods/{id}/comments` | GET/POST | Comment/Food | 是 | 是 | 已可用 | `CommentPageQuery` / `CommentCreateRequest` | `PageResultVO<CommentVO>` / `CommentVO` | `FoodController.java`、`CommentServiceImpl.java` | `api-spec.md` 13.8、`swagger-draft.yaml` | GET 公开，POST 登录 |
 | 日记评论列表/发布 | `/api/v1/diaries/{id}/comments` | GET/POST | Comment/Diary | 是 | 是 | 已可用 | `CommentPageQuery` / `CommentCreateRequest` | `PageResultVO<CommentVO>` / `CommentVO` | `DiaryController.java`、`CommentServiceImpl.java` | `api-spec.md` 13.8、`swagger-draft.yaml` | 只允许公开启用日记 |
@@ -90,7 +92,7 @@
 | 执行导入 | `/api/v1/admin/import-batches` | POST | Admin/Import | 是 | 是 | 已可用 | multipart `targetTable,sourceType,file` | `ImportResult` | `AdminController.java` | `api-spec.md` 15.18 | 需要 admin |
 | 导入批次列表 | `/api/v1/admin/import-batches` | GET | Admin/Import | 是 | 是 | 已可用 | `AdminPageQuery` + `status` | `PageResultVO<AdminImportBatchVO>` | `AdminController.java` | `api-spec.md` 15.19 | 需要 admin |
 | 导入失败明细 | `/api/v1/admin/import-batches/{batchId}/failures` | GET | Admin/Import | 是 | 是 | 已可用 | path `batchId` + `AdminPageQuery` | `PageResultVO<AdminImportFailureVO>` | `AdminController.java` | `api-spec.md` 15.20 | 需要 admin |
-| AI 日记草稿/图片摘要/路线回顾/多人协商/推荐理由 | `/api/v1/ai/**` | POST | AI | 否 | 是 | 文档有但代码未找到 | 文档定义 | 文档定义 | 未找到 AI Controller | `api-spec.md` 16、`swagger-draft.yaml` | P2 预留，不能按已实现展示 |
+| AI 日记草稿/图片摘要/路线回顾/多人协商/推荐理由 | `/api/v1/ai/**` | POST | AI | 否 | 是 | 文档有但代码未找到 | 文档定义 | 文档定义 | 未找到对应 AI Controller | `api-spec.md` 16 | P2 预留；不包含已实现的日记照片动画资源接口 |
 
 ## 4. 待确认项
 - `frontend-runtime-facts.md` 未找到，无法确认前端技术栈、路由模式、baseURL、proxy、token 存储和 auth header 处理。

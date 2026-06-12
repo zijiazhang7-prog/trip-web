@@ -22,8 +22,9 @@
 | 中 | Swagger 运行时访问方式未确认 | API 文档 | 有 `swagger-draft.yaml`；后端未找到 springdoc 配置 | 不知道是否需要 `/swagger-ui` | 后端负责人 |
 | 中 | prod/test profile 是否需要补齐 | Runtime | 只有 `application.yml` 和 `application-dev.yml` | 无 test/prod 配置文件 | 后端负责人 |
 | 中 | AI 接口是否只是文档预留 | AI | `api-spec.md` 定义 P2 AI；后端未找到 AI Controller | 当前不能按已实现演示 | 项目负责人 / 后端负责人 |
+| 高 | OpenAI-compatible 实际厂商兼容性 | AI Animation | 已实现多模态 Chat Completions、Base64 图片和 `response_format=json_object` | 尚未使用真实厂商密钥验证模型名称、请求格式、额度和响应稳定性 | 后端负责人 / 项目负责人 |
 | 中 | Admin 新增/修改返回对象与 Swagger 旧口径不一致 | Admin | Controller 返回 VO；Swagger 部分旧定义可能是 id/boolean | 需要统一最终契约 | 文档负责人 |
-| 中 | 交通方式边过滤尚未实现是否影响 Route 契约 | Route | `api-spec.md` 明确 `transportType` 当前主要记录历史，非过滤 | 前端是否展示交通方式切换需确认 | 后端负责人 / 前端负责人 |
+| 中 | 前端如何展示 mixed 路线中的交通方式切换 | Route | 后端已在 `pathEdges[].transportType` 返回每条边实际工具 | 当前无完整前端工程，无法确认地图分段样式和换乘提示 | 前端负责人 |
 | 中 | 日记检索是否后续升级 FULLTEXT/倒排索引 | Diary/Search | `progress.md` 说明当前 LIKE，未实现 FULLTEXT | 当前语义可用，但性能边界需说明 | 后端负责人 |
 | 低 | 上传文件访问域名是否需要拼接后端 origin | File | 返回 `fileUrl` 为 `/files/...` 相对路径 | 前端展示时是否需要补 origin 未确认 | 前端负责人 |
 | 低 | CORS 允许源是否覆盖实际前端端口 | Runtime | 当前仅允许 `5173` 两种 localhost | 前端实际端口未知 | 前端负责人 / 后端负责人 |
@@ -32,14 +33,14 @@
 
 | 类型 | 当前记录 |
 |---|---|
-| 文档有、代码没找到的接口 | Route 历史、Facility 搜索、Diary 评分、我的日记、AI 接口 |
+| 文档有、代码没找到的接口 | Route 历史、Facility 搜索、我的日记、AI 草稿/图片摘要/路线回顾等预留接口；日记评分和照片动画已有代码 |
 | token 返回位置不清楚 | 后端已确认在 `data.token`；前端保存位置待确认 |
 | 鉴权方式不清楚 | 后端已确认 JWT Bearer；前端注入方式待确认 |
 | 返回体不统一 | 大多数接口统一 `ApiResponse`；文档/Swagger 个别响应对象旧口径需同步 |
 | DTO/VO 字段语义不清 | `sourceNodeId/facilityId`、`reachableDistance/distance`、`mediaIds/mediaList` |
 | 环境配置不完整 | 缺少前端运行时事实、test/prod profile、测试服务器地址 |
 | 路由冲突 | 暂未发现后端 Controller 路由冲突；`/api/v1/destinations/{id}/diaries` 由 DiaryController 实现，需文档说明归属 |
-| Mock / 假数据 / TODO / FIXME / Not Implemented | 代码扫描未发现业务代码中的 `NOT_IMPLEMENTED`；文档历史记录中存在旧状态，当前需要以最新 progress 为准 |
+| Mock / 假数据 / TODO / FIXME / Not Implemented | 动画默认仍为 `mock-template`，配置真实 Provider 后才调用多模态模型；其他历史状态以最新 progress 为准 |
 | frontend-runtime-facts 与后端预期不一致 | 文件缺失，无法比对 |
 
 ## 待确认项
@@ -52,7 +53,7 @@
 - `FileUploadResultVO.id` 文档存在但代码不存在。
 - `FoodRecommendQuery.sourceNodeId` 文档存在但代码使用 `facilityId`。
 - `Facility nearby` 响应对象文档与代码不同。
-- Route 历史、Diary 评分、我的日记、Facility 搜索、AI 接口文档有但代码入口未找到。
+- Route 历史、我的日记、Facility 搜索、AI 草稿/图片摘要/路线回顾等预留接口文档有但代码入口未找到；日记照片动画已通过独立资源接口实现。
 
 ## 建议下一步动作
 - 先由后端/文档负责人清理 Swagger 与代码 DTO/VO 的冲突。

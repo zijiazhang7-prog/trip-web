@@ -719,3 +719,20 @@ Codex CLI 更适合：
 3. 同用途 prompt 优先复用，不重复造版本
 4. 如果某个 prompt 已经失效，及时替换
 5. 每个 prompt 都尽量保留用途说明和约束条件
+
+---
+
+## 14. 日记照片动画多模态 Prompt
+
+当前后端真实 Provider 使用统一 System Prompt，约束如下：
+
+1. 结合日记标题、正文、目的地和实际图片生成动画标题、旁白、字幕和场景描述。
+2. 只描述图片中可见的建筑、道路、天空、人物、食物、校园或景区场景。
+3. 不猜测人物身份、不可见事实或无法确认的具体建筑名称。
+4. 每张图片必须且只能生成一个场景，顺序与输入一致，并原样返回 `mediaId`。
+5. `motion` 只允许 `zoom_in/zoom_out/pan_left/pan_right`。
+6. `transition` 只允许 `fade/dissolve/slide`。
+7. 只输出合法 JSON，不输出 Markdown、代码围栏或解释。
+8. 模型不输出 `fileUrl`；后端根据 `mediaId` 回填可信媒体 URL。
+
+完整 Prompt 以 `OpenAiCompatibleAnimationProvider.SYSTEM_PROMPT` 的代码实现为准。修改输出结构时必须同步 API、Swagger 和动画播放器契约。

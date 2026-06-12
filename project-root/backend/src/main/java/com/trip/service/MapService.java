@@ -12,6 +12,13 @@ public interface MapService {
 
     ShortestPathResult shortestPath(Long destinationId, Long startNodeId, Long targetNodeId, String strategyType);
 
+    ShortestPathResult shortestPath(
+            Long destinationId,
+            Long startNodeId,
+            Long targetNodeId,
+            String strategyType,
+            String transportType);
+
     MultiPathResult multiTargetPath(
             Long destinationId,
             Long startNodeId,
@@ -24,6 +31,14 @@ public interface MapService {
             List<Long> targetNodeIds,
             boolean returnToStart,
             String strategyType);
+
+    MultiPathResult multiTargetPath(
+            Long destinationId,
+            Long startNodeId,
+            List<Long> targetNodeIds,
+            boolean returnToStart,
+            String strategyType,
+            String transportType);
 
     Map<Long, BigDecimal> shortestDistances(Long destinationId, Long startNodeId);
 }

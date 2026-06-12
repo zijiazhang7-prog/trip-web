@@ -396,3 +396,15 @@ Mock 主要用于以下阶段：
 5. **在厂商未定前，统一采用“抽象封装 + 配置预留 + mock 支持 + 可降级”的设计策略**
 6. **待后续选型明确后，再补充具体接入实现与配置说明**
 
+---
+
+## 11. 2026-06-12 日记动画多模态 Provider
+
+- 已新增 OpenAI-compatible 多模态动画脚本 Provider，调用路径为业务 `AnimationService -> AIService -> AnimationScriptProvider`。
+- 默认 Provider 仍为 `mock-template`；设置 `AI_ANIMATION_PROVIDER=openai-compatible` 后才调用真实服务。
+- 真实服务配置使用 `AI_API_BASE_URL`、`AI_API_KEY`、`AI_MODEL_NAME`，密钥不得写入仓库或日志。
+- 本地 `/files/diary/...` 图片由后端在受控上传目录读取并转换为 Base64 data URI，不要求外部模型访问本机 URL。
+- 默认限制 6 张图片、单图 2MB、总计 8MB，只允许 JPEG、PNG、WebP 文件签名。
+- 外部调用设置连接和读取超时；网络错误、超时、HTTP 错误、非法 JSON 或字段校验失败时降级到模板 Provider。
+- 当前兼容协议为多模态 Chat Completions，并使用 `response_format=json_object`；不同兼容厂商是否完全支持该字段需要在实际选型后验证。
+- 当前未执行真实厂商带密钥联调，因此具体模型名称、额度和计费仍为待确认项。
