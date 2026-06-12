@@ -1,7 +1,7 @@
 import { coerceSpringPage, type NormalizedPage } from './coercePage'
 import { httpRequest } from './http'
 import type { Food } from '../data/siteData'
-import { foodTypesForCuisines, resolveCuisine } from '../lib/taxonomy'
+import { foodTypesForCuisines, resolveFoodCuisineTags } from '../lib/taxonomy'
 
 export type FoodVO = {
   id: number
@@ -18,6 +18,7 @@ export type FoodVO = {
   lng?: number | string
   lat?: number | string
   cuisineTag?: string
+  cuisineTags?: string[]
 }
 
 function normalizeAssetUrl(url: string | undefined): string {
@@ -63,8 +64,20 @@ export function foodDedupeKey(f: Food): string {
 export function foodVOToFood(vo: FoodVO): Food {
   const rating =
     vo.ratingScore != null ? String(vo.ratingScore) : vo.heatScore != null ? String(vo.heatScore) : '—'
-  const cuisineTag = vo.cuisineTag ?? resolveCuisine(vo.foodType)
-  const tags = cuisineTag ? [cuisineTag] : vo.foodType ? [vo.foodType] : []
+  const cuisineTags = resolveFoodCuisineTags({
+    cuisineTags: vo.cuisineTags,
+    cuisineTag: vo.cuisineTag,
+    foodType: vo.foodType,
+    name: vo.shopName ?? vo.name,
+    dish: vo.name,
+    tags: vo.foodType ? [vo.foodType] : [],
+  })
+  const cuisineTag = cuisineTags[0] ?? vo.cuisineTag ?? null
+  const tags = cuisineTags.length
+    ? cuisineTags
+    : vo.foodType
+      ? [vo.foodType]
+      : []
   const lng = toCoord(vo.lng)
   const lat = toCoord(vo.lat)
   return {
@@ -78,6 +91,7 @@ export function foodVOToFood(vo: FoodVO): Food {
     image: normalizeAssetUrl(vo.coverUrl),
     tags,
     cuisineTag,
+    cuisineTags,
     foodType: vo.foodType ?? null,
     description: vo.description?.trim(),
     lng,

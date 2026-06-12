@@ -11,7 +11,7 @@ import { isDemoDestination } from '../destination/isDemoDestination'
 import { readSessionCache, writeSessionCache } from '../sessionCache'
 
 const DEST_CATALOG_CACHE = 'trip_full_dest_catalog_v1'
-const FOOD_CATALOG_CACHE = 'trip_full_food_catalog_v1'
+const FOOD_CATALOG_CACHE = 'trip_full_food_catalog_v3'
 const CATALOG_TTL_MS = 10 * 60 * 1000
 
 const MAX_DEST_PAGES = 40
@@ -101,7 +101,7 @@ export async function fetchAllFoodsCatalog(
   onProgress?: (p: CatalogProgress) => void,
 ): Promise<FoodVO[]> {
   const cached = readSessionCache<FoodVO[]>(FOOD_CATALOG_CACHE, CATALOG_TTL_MS)
-  if (cached?.length) return cached
+  if (cached && cached.length > 0) return cached
 
   const destIds = await fetchNonDemoDestinationIds(24, 50)
   const ids = (destIds.length ? destIds : await fetchNonDemoDestinationIds(40, 50)).slice(
@@ -124,7 +124,7 @@ export async function fetchAllFoodsCatalog(
     })
   }
 
-  writeSessionCache(FOOD_CATALOG_CACHE, all)
+  if (all.length > 0) writeSessionCache(FOOD_CATALOG_CACHE, all)
   return all
 }
 

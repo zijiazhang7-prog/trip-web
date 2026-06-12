@@ -136,21 +136,64 @@ export function scoreDestination(tags: ResolvedDestinationTags, sel: UserTagSele
   return score
 }
 
-export function resolveFoodCuisineTag(food: {
-  cuisineTag?: string | null
+function foodSearchableText(food: {
+  name?: string | null
+  dish?: string | null
+  foodType?: string | null
   tags: string[]
-}): string | null {
-  if (food.cuisineTag?.trim()) return food.cuisineTag.trim()
-  for (const t of food.tags) {
-    const mapped = resolveCuisine(t)
-    if (mapped) return mapped
+}): string {
+  return [food.name, food.dish, food.foodType, ...food.tags]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+
+/** 与后端 TaxonomyService.resolveFood 对齐：关键词 + foodType 映射 */
+export function resolveFoodCuisineTags(food: {
+  cuisineTags?: string[] | null
+  cuisineTag?: string | null
+  foodType?: string | null
+  name?: string | null
+  dish?: string | null
+  tags: string[]
+}): string[] {
+  const out = new Set<string>()
+  for (const t of food.cuisineTags ?? []) {
+    if (t?.trim()) out.add(t.trim())
   }
-  for (const t of food.tags) {
-    for (const [cuisine, dbTypes] of Object.entries(TAXONOMY.foodTypeByCuisine)) {
-      if ((dbTypes as string[]).includes(t)) return cuisine
+  if (food.cuisineTag?.trim()) out.add(food.cuisineTag.trim())
+  if (food.foodType?.trim()) {
+    const mapped = resolveCuisine(food.foodType)
+    if (mapped) out.add(mapped)
+    if (TAXONOMY.cuisineTags.includes(food.foodType as (typeof TAXONOMY.cuisineTags)[number])) {
+      out.add(food.foodType)
     }
   }
-  return null
+  for (const t of food.tags) {
+    const mapped = resolveCuisine(t)
+    if (mapped) out.add(mapped)
+    if (TAXONOMY.cuisineTags.includes(t as (typeof TAXONOMY.cuisineTags)[number])) out.add(t)
+  }
+  const hay = foodSearchableText(food)
+  const keywords = TAXONOMY.cuisineKeywords as Record<string, string[]> | undefined
+  if (keywords && hay) {
+    for (const [cuisine, kws] of Object.entries(keywords)) {
+      if (kws.some((kw) => kw && hay.includes(kw.toLowerCase()))) out.add(cuisine)
+    }
+  }
+  return [...out]
+}
+
+export function resolveFoodCuisineTag(food: {
+  cuisineTags?: string[] | null
+  cuisineTag?: string | null
+  foodType?: string | null
+  name?: string | null
+  dish?: string | null
+  tags: string[]
+}): string | null {
+  const tags = resolveFoodCuisineTags(food)
+  return tags[0] ?? null
 }
 
 export function scoreFood(cuisineTag: string | null | undefined, sel: UserTagSelection): number {
@@ -166,7 +209,10 @@ export function scoreFood(cuisineTag: string | null | undefined, sel: UserTagSel
 
 export type FoodSortable = {
   id?: number
+  name?: string
+  dish?: string
   tags: string[]
+  cuisineTags?: string[] | null
   cuisineTag?: string | null
   foodType?: string | null
   heatScore?: number
@@ -176,29 +222,17 @@ export type FoodSortable = {
 
 export function foodMatchesCuisineTag(food: FoodSortable, cuisineTag: string): boolean {
   if (!cuisineTag.trim()) return true
-  const resolved = resolveFoodCuisineTag(food)
-  if (resolved === cuisineTag) return true
-  const dbTypes =
-    TAXONOMY.foodTypeByCuisine[cuisineTag as keyof typeof TAXONOMY.foodTypeByCuisine] ?? []
-  if (food.tags.some((t) => dbTypes.includes(t))) return true
-  const rawType = 'foodType' in food ? String((food as { foodType?: string }).foodType ?? '') : ''
-  if (rawType && dbTypes.includes(rawType)) return true
-  return false
+  return resolveFoodCuisineTags(food).includes(cuisineTag)
 }
 
 export function scoreFoodItem(food: FoodSortable, sel: UserTagSelection): number {
-  const cuisine = resolveFoodCuisineTag(food)
-  if (!cuisine) {
-    for (const selected of sel.cuisineTags) {
-      const dbTypes =
-        TAXONOMY.foodTypeByCuisine[selected as keyof typeof TAXONOMY.foodTypeByCuisine] ?? []
-      if (food.tags.some((t) => dbTypes.includes(t))) {
-        return TAXONOMY.scoringWeights.cuisineMatch
-      }
-    }
-    return 0
+  if (!sel.cuisineTags.length) return 0
+  const resolved = resolveFoodCuisineTags(food)
+  let score = 0
+  for (const selected of sel.cuisineTags) {
+    if (resolved.includes(selected)) score += TAXONOMY.scoringWeights.cuisineMatch
   }
-  return scoreFood(cuisine, sel)
+  return score
 }
 
 export function sortDestinationsByTagMatch<T extends Destination>(
