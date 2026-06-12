@@ -14,6 +14,8 @@ type DiaryItem = {
   title?: string
   contentText?: string
   heatScore?: number
+  ratingScore?: number
+  ratingCount?: number
   mediaList?: DiaryMedia[]
 }
 
@@ -48,8 +50,11 @@ export type CommunityFeedItem = {
   location: string
   excerpt: string
   imgs: string[]
+  videos?: string[]
   likes: number
   comments: number
+  ratingScore?: number | null
+  ratingCount?: number
   avatar: string
   title?: string
   fullText?: string
@@ -70,7 +75,12 @@ function normalizeAssetUrl(url: string): string {
 function toFeedItem(item: DiaryItem): CommunityFeedItem {
   const meta = parseHandAccountMeta(item.contentText)
   const cover = meta?.coverUrl ? normalizeAssetUrl(meta.coverUrl) : undefined
-  const mediaImgs = (item.mediaList || []).map((media) => normalizeAssetUrl(media.fileUrl))
+  const mediaImgs = (item.mediaList || [])
+    .filter((m) => m.mediaType !== 'video')
+    .map((media) => normalizeAssetUrl(media.fileUrl))
+  const videos = (item.mediaList || [])
+    .filter((m) => m.mediaType === 'video')
+    .map((media) => normalizeAssetUrl(media.fileUrl))
   const imgs = cover ? [cover, ...mediaImgs.filter((u) => u !== cover)].slice(0, 3) : mediaImgs.slice(0, 3)
   return {
     id: item.id,
@@ -78,8 +88,11 @@ function toFeedItem(item: DiaryItem): CommunityFeedItem {
     location: item.destinationName || '未知地点',
     excerpt: excerptFromContent(item.contentText, item.title),
     imgs,
+    videos,
     likes: Math.max(0, Math.round(item.heatScore || 0)),
     comments: 0,
+    ratingScore: item.ratingScore ?? null,
+    ratingCount: item.ratingCount ?? 0,
     avatar: DEFAULT_AVATAR,
     title: meta?.bookTitle || item.title || '未命名手账',
     fullText: item.contentText || '',

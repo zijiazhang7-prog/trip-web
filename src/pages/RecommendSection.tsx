@@ -7,6 +7,7 @@ import {
   searchDestinationsPage,
 } from '../api/destination'
 import { fetchDiariesByDestination, type CommunityFeedItem } from '../api/community'
+import { CommentSection } from '../components/ui/CommentSection'
 import { Top10Strip } from '../components/ui/Top10Strip'
 import { inferTotalPages } from '../api/pagination'
 import { useTripContext } from '../context/tripContext'
@@ -770,6 +771,13 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
               <p className="text-xs text-[#8ca49a]">
                 {detailIndex + 1} / {filteredDestinations.length}
               </p>
+              {detailDest.id != null ? (
+                <CommentSection
+                  targetType="destination"
+                  targetId={detailDest.id}
+                  title="景点评论"
+                />
+              ) : null}
               <div className="flex flex-wrap gap-3 pt-2">
                 <PrimaryButton
                   variant="secondary"

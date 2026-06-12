@@ -10,7 +10,10 @@ import {
 } from '../api/food'
 import { foodTags, foods as foodsFallback, type Food } from '../data/siteData'
 import { useTripContext } from '../context/tripContext'
+import { CommentSection } from '../components/ui/CommentSection'
 import { Top10Strip } from '../components/ui/Top10Strip'
+import { BEIJING_ATTRACTIONS } from '../data/beijingDestinations'
+import { formatDistanceMeters, haversineMeters } from '../lib/geo/haversine'
 import { readSessionCache, writeSessionCache } from '../lib/sessionCache'
 
 const glass =
@@ -141,6 +144,7 @@ export function FoodPage() {
   const [loadingFoodTop10, setLoadingFoodTop10] = useState(false)
   const [foodSearch, setFoodSearch] = useState('')
   const [selectedFoodTag, setSelectedFoodTag] = useState('')
+  const [listSort, setListSort] = useState<'heat' | 'rating' | 'distance'>('heat')
   const [mode, setMode] = useState<'browse' | 'search'>('browse')
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -436,8 +440,15 @@ export function FoodPage() {
     /** 不依赖 foods.length：避免因每条追加都断开 IO 导致「已在视区内却不回调」 */
   }, [usingFallback, loadingInitial, mode, moreAvailable])
 
+  const anchorCoords = useMemo(() => {
+    if (!scopeDestinationId) return null
+    const hit = BEIJING_ATTRACTIONS.find((a) => a.destinationId === scopeDestinationId)
+    if (hit) return { lng: hit.lng, lat: hit.lat }
+    return null
+  }, [scopeDestinationId])
+
   const filteredFoods = useMemo(() => {
-    return foods.filter((f) => {
+    const filtered = foods.filter((f) => {
       const matchSearch =
         !foodSearch.trim() ||
         f.name.includes(foodSearch) ||
@@ -446,7 +457,24 @@ export function FoodPage() {
       const matchTag = !selectedFoodTag || f.tags.includes(selectedFoodTag)
       return matchSearch && matchTag
     })
-  }, [foods, foodSearch, selectedFoodTag])
+    const sorted = [...filtered]
+    if (listSort === 'rating') {
+      sorted.sort((a, b) => (b.ratingScore ?? 0) - (a.ratingScore ?? 0))
+    } else if (listSort === 'distance' && anchorCoords) {
+      const dist = (f: Food) => {
+        if (f.lng == null || f.lat == null) return Number.POSITIVE_INFINITY
+        return haversineMeters(anchorCoords.lng, anchorCoords.lat, f.lng, f.lat)
+      }
+      sorted.sort((a, b) => dist(a) - dist(b))
+    } else {
+      sorted.sort((a, b) => (b.heatScore ?? 0) - (a.heatScore ?? 0))
+    }
+    return sorted.map((f) => {
+      if (listSort !== 'distance' || !anchorCoords || f.lng == null || f.lat == null) return f
+      const m = haversineMeters(anchorCoords.lng, anchorCoords.lat, f.lng, f.lat)
+      return { ...f, distance: formatDistanceMeters(m) }
+    })
+  }, [foods, foodSearch, selectedFoodTag, listSort, anchorCoords])
 
   useEffect(() => {
     if (ctxDestinationId) {
@@ -647,10 +675,38 @@ export function FoodPage() {
             <button
               type="button"
               onClick={() => void runFoodFeed(foodSearch)}
-              className="mb-7 w-full rounded-full bg-[var(--ds-primary)] px-4 py-2.5 font-body text-sm font-semibold text-white transition hover:brightness-110"
+              className="mb-4 w-full rounded-full bg-[var(--ds-primary)] px-4 py-2.5 font-body text-sm font-semibold text-white transition hover:brightness-110"
             >
               {foodSearch.trim() ? '关键词检索' : '刷新推荐'}
             </button>
+            <p className="mb-2 font-body text-xs font-semibold text-[var(--ds-muted-foreground)]">排序</p>
+            <div className="mb-7 flex flex-wrap gap-2">
+              {(
+                [
+                  { value: 'heat', label: '热度' },
+                  { value: 'rating', label: '评分' },
+                  { value: 'distance', label: '距离' },
+                ] as const
+              ).map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setListSort(s.value)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    listSort === s.value
+                      ? 'bg-[var(--ds-primary)] text-white'
+                      : 'border border-[var(--ds-primary)]/20 text-[var(--ds-primary)]'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            {listSort === 'distance' && !anchorCoords ? (
+              <p className="mb-4 font-body text-[11px] text-amber-800">
+                选择带坐标的目的地后可按直线距离排序（后端 distance 接口上线后将自动对接）。
+              </p>
+            ) : null}
             {!scopeAll && scopeDestinationId ? (
               <Top10Strip
                 title="本目的地美食 Top10"
@@ -837,6 +893,9 @@ export function FoodPage() {
               <p className="text-xs text-[#8ca49a]">
                 {detailIndex + 1} / {filteredFoods.length}
               </p>
+              {detailFood.id != null ? (
+                <CommentSection targetType="food" targetId={detailFood.id} title="美食评论" />
+              ) : null}
             </div>
           </div>
         </div>

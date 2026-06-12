@@ -1,6 +1,8 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
+import { getCurrentUser } from '../../api/auth'
 import { clearStoredToken, hasStoredToken } from '../../api/http'
+import { DemoGuideModal } from '../ui/DemoGuideModal'
 import { AuthUiProvider } from '../../context/AuthUiProvider'
 import { AuthModal } from '../auth/AuthModal'
 import type { AuthMode } from '../auth/authArt'
@@ -13,6 +15,17 @@ export function AppShell() {
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<AuthMode>('login')
   const [isAuthed, setIsAuthed] = useState<boolean>(() => hasStoredToken())
+  const [demoOpen, setDemoOpen] = useState(false)
+
+  useEffect(() => {
+    if (!hasStoredToken()) return
+    void getCurrentUser()
+      .then(() => setIsAuthed(true))
+      .catch(() => {
+        clearStoredToken()
+        setIsAuthed(false)
+      })
+  }, [])
   const backdropVariant: ShellBackdropVariant =
     pathname === '/' ? 'white' : pathname === '/diary' ? 'plain' : 'ambient'
   const rootWash =
@@ -34,6 +47,7 @@ export function AppShell() {
       <ShellBackdrop variant={backdropVariant} />
       <Navbar
         isAuthed={isAuthed}
+        onDemoGuide={() => setDemoOpen(true)}
         onLogout={() => {
           clearStoredToken()
           setIsAuthed(false)
@@ -43,6 +57,7 @@ export function AppShell() {
           setAuthOpen(true)
         }}
       />
+      <DemoGuideModal open={demoOpen} onClose={() => setDemoOpen(false)} />
       <AuthModal
         open={authOpen}
         mode={authMode}

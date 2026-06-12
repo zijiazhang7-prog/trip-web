@@ -14,8 +14,11 @@ import { useTripContext } from '../context/tripContext'
 import { communityPosts } from '../data/siteData'
 import { entryPlainText, publishHandAccountWithCustomText } from '../features/diary/publish'
 import type { DiaryBook, DiaryEntry } from '../features/diary/types'
+import { CommentSection } from '../components/ui/CommentSection'
 import { InlineNotice } from '../components/ui/InlineNotice'
 import { PageHeader } from '../components/ui/PageHeader'
+import { StarRatingInput } from '../components/ui/StarRatingInput'
+import { fetchMyDiaryRating, submitDiaryRating } from '../api/rating'
 
 const glass =
   'ds-card-lift ds-glass-panel mb-6 break-inside-avoid rounded-[32px] p-7 last:mb-0 hover:-translate-y-1'
@@ -51,6 +54,12 @@ export function CommunityPage() {
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null)
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
   const [revealedIds, setRevealedIds] = useState<Set<number>>(new Set())
+  const [detailRating, setDetailRating] = useState<{
+    userScore: number | null
+    ratingScore: number | null
+    ratingCount: number
+  } | null>(null)
+  const [ratingBusy, setRatingBusy] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   const applyFeedPosts = (nextPosts: CommunityFeedItem[]) => {
@@ -303,18 +312,48 @@ export function CommunityPage() {
     }
   }
 
+  const loadDetailRating = (id: number, fallback?: CommunityFeedItem | null) => {
+    if (!hasStoredToken()) {
+      setDetailRating({
+        userScore: null,
+        ratingScore: fallback?.ratingScore ?? null,
+        ratingCount: fallback?.ratingCount ?? 0,
+      })
+      return
+    }
+    void fetchMyDiaryRating(id)
+      .then((r) =>
+        setDetailRating({
+          userScore: r.userScore,
+          ratingScore: r.ratingScore,
+          ratingCount: r.ratingCount,
+        }),
+      )
+      .catch(() =>
+        setDetailRating({
+          userScore: null,
+          ratingScore: fallback?.ratingScore ?? null,
+          ratingCount: fallback?.ratingCount ?? 0,
+        }),
+      )
+  }
+
   const openDetail = (id: number) => {
     const cached = posts.find((p) => p.id === id) ?? null
     setDetailOpen(true)
     setSelectedPostId(id)
     setSelectedPost(cached)
+    loadDetailRating(id, cached)
     if (cached?.fullText?.trim()) {
       setDetailLoading(false)
       return
     }
     setDetailLoading(true)
     void fetchCommunityDiaryDetail(id)
-      .then((detail) => setSelectedPost(detail))
+      .then((detail) => {
+        setSelectedPost(detail)
+        loadDetailRating(id, detail)
+      })
       .catch((err) => {
         setError(err instanceof Error ? err.message : '加载详情失败')
         if (!cached) setSelectedPost(null)
@@ -588,7 +627,7 @@ export function CommunityPage() {
             if (e.target === e.currentTarget) setDetailOpen(false)
           }}
         >
-          <div className="w-full max-w-2xl rounded-2xl border border-white/60 bg-white p-5 shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/60 bg-white p-5 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-[#2C3E36]">手账详情</h3>
               <div className="flex items-center gap-2">
@@ -647,6 +686,30 @@ export function CommunityPage() {
                     ))}
                   </div>
                 ) : null}
+                {selectedPost.videos && selectedPost.videos.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedPost.videos.map((v) => (
+                      <video key={v} src={v} controls className="w-full rounded-lg" />
+                    ))}
+                  </div>
+                ) : null}
+                <StarRatingInput
+                  value={detailRating?.userScore ?? null}
+                  average={detailRating?.ratingScore ?? selectedPost.ratingScore}
+                  count={detailRating?.ratingCount ?? selectedPost.ratingCount}
+                  disabled={ratingBusy || !hasStoredToken()}
+                  onChange={(score) => {
+                    if (!hasStoredToken()) return
+                    setRatingBusy(true)
+                    void submitDiaryRating(selectedPost.id, score)
+                      .then(() => loadDetailRating(selectedPost.id, selectedPost))
+                      .catch((err) =>
+                        setError(err instanceof Error ? err.message : '评分失败'),
+                      )
+                      .finally(() => setRatingBusy(false))
+                  }}
+                />
+                <CommentSection targetType="diary" targetId={selectedPost.id} title="手账评论" />
               </div>
             ) : (
               <p className="text-sm text-[#6B8076]">暂无详情</p>

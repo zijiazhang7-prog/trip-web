@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { fetchNearbyFacilities, type NearbyFacilityVO } from '../api/facility'
 import { AmapNavigateMap } from '../components/route/AmapNavigateMap'
@@ -60,12 +60,21 @@ function NavigatePageContent() {
   const navigate = useNavigate()
   const { macroPlan, activeWaypoint, setActiveWaypoint, setMacroPlan } = useRoutePlan()
   const [facilityType, setFacilityType] = useState('')
+  const [facilityKeyword, setFacilityKeyword] = useState('')
   const [facilitySource, setFacilitySource] = useState<'graph' | 'amap'>('graph')
   const [facilities, setFacilities] = useState<FacilityRow[]>([])
   const [loadingFac, setLoadingFac] = useState(false)
   const [facError, setFacError] = useState<string | null>(null)
 
   const focusWaypoint = activeWaypoint ?? macroPlan?.waypoints?.[0] ?? null
+
+  const visibleFacilities = useMemo(() => {
+    const kw = facilityKeyword.trim().toLowerCase()
+    if (!kw) return facilities
+    return facilities.filter(
+      (f) => f.name.toLowerCase().includes(kw) || f.type.toLowerCase().includes(kw),
+    )
+  }, [facilities, facilityKeyword])
   const activeLegIndex = Math.max(
     0,
     (macroPlan?.waypoints?.findIndex((wp) => String(wp.id) === String(focusWaypoint?.id)) ?? 1) - 1,
@@ -180,6 +189,12 @@ function NavigatePageContent() {
         </InlineNotice>
       ) : null}
 
+      {macroPlan?.summary ? (
+        <p className="mb-4 rounded-xl border border-[var(--ds-primary)]/12 bg-[var(--ds-muted)]/35 px-4 py-3 font-body text-sm text-[var(--ds-foreground)]">
+          {macroPlan.summary}
+        </p>
+      ) : null}
+
       <section className="mb-6">
         <RouteTimelinePanel
           plan={macroPlan}
@@ -225,7 +240,7 @@ function NavigatePageContent() {
           <select
             value={facilityType}
             onChange={(e) => setFacilityType(e.target.value)}
-            className="mt-3 rounded-full border border-[color-mix(in_srgb,var(--ds-border)_70%,transparent)] bg-white px-4 py-2 font-body text-sm"
+            className="mt-3 w-full rounded-full border border-[color-mix(in_srgb,var(--ds-border)_70%,transparent)] bg-white px-4 py-2 font-body text-sm"
           >
             {FACILITY_TYPES.map((t) => (
               <option key={t.value || 'all'} value={t.value}>
@@ -233,6 +248,16 @@ function NavigatePageContent() {
               </option>
             ))}
           </select>
+          <input
+            type="search"
+            value={facilityKeyword}
+            onChange={(e) => setFacilityKeyword(e.target.value)}
+            placeholder="按名称或类别筛选…"
+            className="mt-2 w-full rounded-full border border-[color-mix(in_srgb,var(--ds-border)_70%,transparent)] bg-white px-4 py-2 font-body text-sm"
+          />
+          <p className="mt-1 font-body text-[10px] text-[var(--ds-muted-foreground)]">
+            后端 facilities/search 未上线时，在此做本地关键字过滤
+          </p>
 
           {facError && !loadingFac ? (
             <p className="mt-3 font-body text-xs text-[var(--ds-destructive)]">{facError}</p>
@@ -243,7 +268,7 @@ function NavigatePageContent() {
               <li className="py-6 text-center font-body text-sm text-[var(--ds-muted-foreground)]">查询中…</li>
             ) : null}
             {!loadingFac &&
-              facilities.map((f) => (
+              visibleFacilities.map((f) => (
                 <li
                   key={f.id}
                   className="rounded-2xl border border-[color-mix(in_srgb,var(--ds-border)_40%,transparent)] bg-white/90 px-4 py-3"

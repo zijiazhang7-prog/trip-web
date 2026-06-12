@@ -14,6 +14,8 @@ export type FoodVO = {
   ratingScore?: number
   avgPrice?: number
   coverUrl?: string
+  lng?: number | string
+  lat?: number | string
 }
 
 function normalizeAssetUrl(url: string | undefined): string {
@@ -22,10 +24,17 @@ function normalizeAssetUrl(url: string | undefined): string {
   return url.startsWith('/') ? url : `/${url}`
 }
 
+function toCoord(v: number | string | undefined): number | undefined {
+  const n = typeof v === 'string' ? Number(v) : v
+  return Number.isFinite(n) ? (n as number) : undefined
+}
+
 export function foodVOToFood(vo: FoodVO): Food {
   const rating =
     vo.ratingScore != null ? String(vo.ratingScore) : vo.heatScore != null ? String(vo.heatScore) : '—'
   const tags = vo.foodType ? [vo.foodType] : []
+  const lng = toCoord(vo.lng)
+  const lat = toCoord(vo.lat)
   return {
     id: vo.id,
     destinationId: vo.destinationId,
@@ -37,6 +46,10 @@ export function foodVOToFood(vo: FoodVO): Food {
     image: normalizeAssetUrl(vo.coverUrl),
     tags,
     description: vo.description?.trim(),
+    lng,
+    lat,
+    heatScore: vo.heatScore,
+    ratingScore: vo.ratingScore,
   }
 }
 

@@ -26,6 +26,10 @@ export type Food = {
   image: string
   tags: string[]
   description?: string
+  lng?: number
+  lat?: number
+  heatScore?: number
+  ratingScore?: number
 }
 
 export type CommunityPost = {

@@ -19,11 +19,12 @@ function navClass(active: boolean) {
 
 export type NavbarProps = {
   onAccountClick?: () => void
+  onDemoGuide?: () => void
   isAuthed?: boolean
   onLogout?: () => void
 }
 
-export function Navbar({ onAccountClick, isAuthed = false, onLogout }: NavbarProps) {
+export function Navbar({ onAccountClick, onDemoGuide, isAuthed = false, onLogout }: NavbarProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const hash = location.hash
@@ -88,10 +89,17 @@ export function Navbar({ onAccountClick, isAuthed = false, onLogout }: NavbarPro
           ))}
         </nav>
 
+        <button
+          type="button"
+          className="cursor-target ml-auto hidden rounded-full border border-[color-mix(in_srgb,var(--ds-cream)_28%,transparent)] px-3 py-2 text-xs font-semibold text-[color-mix(in_srgb,var(--ds-cream)_85%,var(--ds-sage))] transition hover:text-[var(--ds-cream)] sm:inline-flex"
+          onClick={() => onDemoGuide?.()}
+        >
+          演示指引
+        </button>
         {isAuthed ? (
           <button
             type="button"
-            className="cursor-target ml-auto rounded-full border border-[color-mix(in_srgb,var(--ds-cream)_35%,transparent)] bg-[color-mix(in_srgb,var(--ds-cream)_12%,transparent)] px-4 py-2 text-xs font-semibold text-[var(--ds-cream)] transition hover:scale-[1.02] hover:bg-[color-mix(in_srgb,var(--ds-cream)_20%,transparent)] active:scale-[0.98]"
+            className="cursor-target rounded-full border border-[color-mix(in_srgb,var(--ds-cream)_35%,transparent)] bg-[color-mix(in_srgb,var(--ds-cream)_12%,transparent)] px-4 py-2 text-xs font-semibold text-[var(--ds-cream)] transition hover:scale-[1.02] hover:bg-[color-mix(in_srgb,var(--ds-cream)_20%,transparent)] active:scale-[0.98]"
             onClick={() => onLogout?.()}
           >
             退出登录

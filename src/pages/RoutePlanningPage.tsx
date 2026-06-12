@@ -10,7 +10,7 @@ import { PrimaryButton } from '../components/ui/PrimaryButton'
 import { useRoutePlan } from '../context/routePlanContext'
 import { planMacroRoute } from '../lib/amap/planMacroRoute'
 import { hasAmapJsKey, hasAmapWebKey, hasFullAmapSetup, getAmapSecurityCode } from '../lib/amap/config'
-import type { RouteWaypoint } from '../types/macroRoute'
+import { TRANSPORT_OPTIONS, type RouteWaypoint, type TransportMode } from '../types/macroRoute'
 
 export function RoutePlanningPage() {
   const navigate = useNavigate()
@@ -20,6 +20,7 @@ export function RoutePlanningPage() {
   const [error, setError] = useState<string | null>(null)
   const [localPlan, setLocalPlan] = useState(macroPlan)
   const [internalModalOpen, setInternalModalOpen] = useState(false)
+  const [transportMode, setTransportMode] = useState<TransportMode>('transit')
 
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected])
   const displayPlan = localPlan ?? macroPlan
@@ -39,7 +40,7 @@ export function RoutePlanningPage() {
     setPlanning(true)
     setError(null)
     try {
-      const result = await planMacroRoute(selected, 'transit')
+      const result = await planMacroRoute(selected, transportMode)
       setLocalPlan(result)
       setMacroPlan(result)
       setActiveWaypoint(result.waypoints[0] ?? null)
@@ -91,9 +92,25 @@ export function RoutePlanningPage() {
         <DestinationSearchGrid selectedIds={selectedIds} onToggle={toggleWaypoint} />
       </section>
 
-      <p className="mb-4 font-body text-sm text-[var(--ds-muted-foreground)]">
-        已选 {selected.length} 个景点 · 默认公交地铁出行 · 顺序将自动优化
+      <p className="mb-2 font-body text-sm text-[var(--ds-muted-foreground)]">
+        已选 {selected.length} 个景点 · 顺序将自动优化
       </p>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {TRANSPORT_OPTIONS.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => setTransportMode(t.value)}
+            className={`rounded-full px-4 py-1.5 font-body text-xs font-semibold transition ${
+              transportMode === t.value
+                ? 'bg-[var(--ds-primary)] text-white'
+                : 'border border-[var(--ds-primary)]/20 bg-white text-[var(--ds-primary)]'
+            }`}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
 
       <section className="mb-6 grid min-h-[420px] gap-5 lg:grid-cols-[minmax(240px,28%)_1fr]">
         <RouteSequenceSidebar plan={displayPlan} planning={planning} />
