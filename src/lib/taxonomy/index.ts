@@ -168,9 +168,22 @@ export type FoodSortable = {
   id?: number
   tags: string[]
   cuisineTag?: string | null
+  foodType?: string | null
   heatScore?: number
   ratingScore?: number
   rating?: string
+}
+
+export function foodMatchesCuisineTag(food: FoodSortable, cuisineTag: string): boolean {
+  if (!cuisineTag.trim()) return true
+  const resolved = resolveFoodCuisineTag(food)
+  if (resolved === cuisineTag) return true
+  const dbTypes =
+    TAXONOMY.foodTypeByCuisine[cuisineTag as keyof typeof TAXONOMY.foodTypeByCuisine] ?? []
+  if (food.tags.some((t) => dbTypes.includes(t))) return true
+  const rawType = 'foodType' in food ? String((food as { foodType?: string }).foodType ?? '') : ''
+  if (rawType && dbTypes.includes(rawType)) return true
+  return false
 }
 
 export function scoreFoodItem(food: FoodSortable, sel: UserTagSelection): number {

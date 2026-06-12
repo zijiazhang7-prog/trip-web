@@ -53,6 +53,35 @@ function isRealDestination(d: Destination): boolean {
   return !isDemoDestination(d.name, d.reason)
 }
 
+function matchesDestinationKeyword(d: Destination, keyword: string): boolean {
+  const q = keyword.trim().toLowerCase()
+  if (!q) return true
+  const hay = [
+    d.name,
+    d.type,
+    d.badge,
+    d.reason,
+    d.taxonomy?.destType ?? '',
+    d.taxonomy?.apiCategory ?? '',
+    ...(d.taxonomy?.interestTags ?? []),
+    ...(d.taxonomy?.apiTags ?? []),
+  ]
+    .join(' ')
+    .toLowerCase()
+  return hay.includes(q)
+}
+
+function scoreDestinationSearchRelevance(d: Destination, keyword: string): number {
+  const q = keyword.trim().toLowerCase()
+  if (!q) return 0
+  const name = d.name.toLowerCase()
+  if (name === q) return 100
+  if (name.includes(q)) return 80
+  if (d.type.toLowerCase().includes(q) || d.badge.toLowerCase().includes(q)) return 60
+  if (d.reason.toLowerCase().includes(q)) return 40
+  return matchesDestinationKeyword(d, q) ? 20 : 0
+}
+
 function mergeDestinationLists(prev: Destination[], chunk: Destination[]): Destination[] {
   const seen = new Set<number>()
   const out: Destination[] = []
@@ -260,7 +289,9 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     [selectedDestType, selectedInterests, aiTagSelection],
   )
 
-  const tagFilterActive = !isTagSelectionEmpty(activeTagSelection) || aiRankedIds.length > 0
+  const searchActive = listMode === 'search' && !!activeSearchKeyword.trim()
+  const tagFilterActive =
+    !searchActive && (!isTagSelectionEmpty(activeTagSelection) || aiRankedIds.length > 0)
 
   useEffect(() => {
     if (!tagFilterActive) {
@@ -295,11 +326,26 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   }, [tagFilterActive, selectedDestType, selectedInterests, aiTagSelection])
 
   const sortedDestinations = useMemo(() => {
+    if (searchActive) {
+      const q = activeSearchKeyword.trim()
+      return items
+        .filter((d) => matchesVenueKind(d, venueKind) && matchesDestinationKeyword(d, q))
+        .sort((a, b) => scoreDestinationSearchRelevance(b, q) - scoreDestinationSearchRelevance(a, q))
+    }
     const pool = tagFilterActive && catalogDestinations ? catalogDestinations : items
     const filtered = pool.filter((d) => matchesVenueKind(d, venueKind))
     if (!tagFilterActive) return filtered
     return sortDestinationsByTagMatch(filtered, activeTagSelection, aiRankedIds)
-  }, [items, catalogDestinations, venueKind, activeTagSelection, aiRankedIds, tagFilterActive])
+  }, [
+    items,
+    catalogDestinations,
+    venueKind,
+    activeTagSelection,
+    aiRankedIds,
+    tagFilterActive,
+    searchActive,
+    activeSearchKeyword,
+  ])
 
   const runDestinationRanking = useCallback(async (customText: string, tags: string[]) => {
     const text = customText.trim()
@@ -499,6 +545,8 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   const handleDestinationSearch = async () => {
     const q = aiSearchText.trim()
     if (!q) {
+      setListMode('recommend')
+      setActiveSearchKeyword('')
       await resetRecommendFirstPage()
       return
     }
@@ -507,16 +555,52 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     setListMode('search')
     setActiveSearchKeyword(q)
     setPageNum(1)
+    setCatalogDestinations(null)
     try {
-      const res = await searchDestinationsPage(q, { pageNum: 1, pageSize: PAGE_SIZE })
-      setItems(mergeDestinationLists([], res.list.map(destinationVOToDestination)))
-      setTotalPages(inferTotalPages(res, PAGE_SIZE, 1))
-      setUsingFallback(false)
+      const [apiRes, catalog] = await Promise.all([
+        searchDestinationsPage(q, { pageNum: 1, pageSize: PAGE_SIZE }),
+        fetchAllDestinationsCatalog(),
+      ])
+      const apiMapped = mergeDestinationLists(
+        [],
+        (apiRes.list ?? []).map(destinationVOToDestination),
+      )
+      const clientMatches = catalog.filter(
+        (d) => isRealDestination(d) && matchesDestinationKeyword(d, q),
+      )
+      const merged = mergeDestinationLists(apiMapped, clientMatches)
+      if (merged.length) {
+        setItems(merged)
+        setTotalPages(inferTotalPages(apiRes, PAGE_SIZE, 1))
+        setUsingFallback(false)
+      } else {
+        setItems(destinationsFallback.filter((d) => matchesDestinationKeyword(d, q)))
+        setTotalPages(1)
+        setUsingFallback(true)
+        setError('未找到匹配目的地，已展示本地示例')
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '搜索失败')
-      setItems(destinationsFallback)
-      setTotalPages(1)
-      setUsingFallback(true)
+      try {
+        const catalog = await fetchAllDestinationsCatalog()
+        const clientMatches = catalog.filter(
+          (d) => isRealDestination(d) && matchesDestinationKeyword(d, q),
+        )
+        if (clientMatches.length) {
+          setItems(clientMatches)
+          setTotalPages(1)
+          setUsingFallback(false)
+        } else {
+          setError(err instanceof Error ? err.message : '搜索失败')
+          setItems(destinationsFallback.filter((d) => matchesDestinationKeyword(d, q)))
+          setTotalPages(1)
+          setUsingFallback(true)
+        }
+      } catch {
+        setError(err instanceof Error ? err.message : '搜索失败')
+        setItems(destinationsFallback)
+        setTotalPages(1)
+        setUsingFallback(true)
+      }
     } finally {
       setLoadingInitial(false)
     }
@@ -599,7 +683,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
             }}
           />
 
-          <div className="flex min-w-0 flex-1 flex-col gap-3 rounded-2xl border border-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)] bg-[color-mix(in_srgb,white_82%,var(--ds-background))] px-3 py-3 sm:flex-row sm:items-center sm:px-4 sm:py-2">
+          <div className="flex min-w-0 flex-1 flex-row items-center gap-2 rounded-2xl border border-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)] bg-[color-mix(in_srgb,white_82%,var(--ds-background))] px-3 py-2 sm:gap-3 sm:px-4">
             <svg
               width="22"
               height="22"
@@ -609,7 +693,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="mx-auto shrink-0 text-[var(--ds-primary)] sm:mx-0 sm:mt-0.5"
+              className="shrink-0 text-[var(--ds-primary)]"
               aria-hidden
             >
               <circle cx="11" cy="11" r="8" />
@@ -619,13 +703,13 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
               value={aiSearchText}
               onChange={(e) => setAiSearchText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void handleDestinationSearch()}
-              placeholder="输入地名、校区或关键词搜索目的地"
+              placeholder="输入地名、类别或关键词搜索目的地"
               className="min-w-0 flex-1 border-0 bg-transparent font-body text-base text-[var(--ds-foreground)] outline-none placeholder:text-[color-mix(in_srgb,var(--ds-muted-foreground)_75%,transparent)] focus-visible:ring-0"
             />
             <button
               type="button"
               onClick={() => void handleDestinationSearch()}
-              className="cursor-target font-body w-full shrink-0 rounded-full bg-[var(--ds-primary)] px-6 py-3 text-[15px] font-bold text-white shadow-[0_4px_18px_-4px_rgba(42,107,78,0.3)] transition duration-300 hover:scale-[1.02] hover:bg-[color-mix(in srgb, var(--ds-primary) 88%, white)] active:scale-[0.98] sm:w-auto sm:px-8 sm:py-3.5"
+              className="cursor-target shrink-0 rounded-full bg-[var(--ds-primary)] px-5 py-2.5 font-body text-sm font-bold text-white shadow-[0_4px_18px_-4px_rgba(42,107,78,0.3)] transition duration-300 hover:scale-[1.02] hover:bg-[color-mix(in srgb, var(--ds-primary) 88%, white)] active:scale-[0.98] sm:px-7 sm:py-3"
             >
               {aiSearchText.trim() ? '搜索' : '刷新推荐'}
             </button>
@@ -735,6 +819,11 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
             {loadingInitial || (tagFilterActive && loadingCatalog)
               ? Array.from({ length: 6 }).map((_, i) => <DestCardSkeleton key={`sk-${i}`} />)
               : null}
+            {searchActive && !loadingInitial ? (
+              <p className="mb-4 font-body text-xs text-[var(--ds-muted-foreground)]">
+                搜索「{activeSearchKeyword}」共 {sortedDestinations.length} 条（名称 / 类别 / 关键词）
+              </p>
+            ) : null}
             {!loadingInitial && !(tagFilterActive && loadingCatalog) && items.length === 0 && !catalogDestinations?.length ? (
               <p className="break-inside-avoid py-12 text-center font-body text-sm text-[var(--ds-muted-foreground)]">
                 暂无目的地数据。

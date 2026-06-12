@@ -38,6 +38,8 @@ export type Food = {
   tags: string[]
   /** 标准菜系标签（来自 taxonomy 映射） */
   cuisineTag?: string | null
+  /** 数据库原始 foodType */
+  foodType?: string | null
   description?: string
   lng?: number
   lat?: number

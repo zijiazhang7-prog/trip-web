@@ -137,17 +137,6 @@ export function RoutePlanningPage() {
         />
       </section>
 
-      <div className="mb-4 flex flex-wrap gap-3">
-        <button
-          type="button"
-          disabled={selected.length < 1}
-          onClick={() => setInternalPlanOpen(true)}
-          className="rounded-full border border-[var(--ds-primary)]/25 bg-white px-6 py-3 font-body text-sm font-semibold text-[var(--ds-primary)] transition hover:bg-[color-mix(in_srgb,var(--ds-primary)_6%,white)] disabled:opacity-50"
-        >
-          景区内多点路径规划
-        </button>
-      </div>
-
       <InternalRoutePlanModal
         open={internalPlanOpen}
         onClose={() => setInternalPlanOpen(false)}
@@ -161,10 +150,17 @@ export function RoutePlanningPage() {
         }}
       />
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={selected.length < 1}
+          onClick={() => setInternalPlanOpen(true)}
+          className="shrink-0 rounded-full border border-[var(--ds-primary)]/25 bg-white px-6 py-3 font-body text-sm font-semibold text-[var(--ds-primary)] transition hover:bg-[color-mix(in_srgb,var(--ds-primary)_6%,white)] disabled:opacity-50"
+        >
+          景区内多点路径规划
+        </button>
         <PrimaryButton
-          fullWidth
-          className="max-w-md py-4 text-base"
+          className="min-w-[12rem] flex-1 py-4 text-base sm:max-w-md"
           disabled={planning || selected.length < 2}
           onClick={() => void handlePlan()}
         >
@@ -174,7 +170,7 @@ export function RoutePlanningPage() {
           <button
             type="button"
             onClick={handleClear}
-            className="rounded-full border border-[color-mix(in_srgb,var(--ds-destructive)_35%,transparent)] bg-white px-6 py-4 font-body text-sm font-semibold text-[var(--ds-destructive)] transition hover:bg-[color-mix(in_srgb,var(--ds-destructive)_8%,white)]"
+            className="shrink-0 rounded-full border border-[color-mix(in_srgb,var(--ds-destructive)_35%,transparent)] bg-white px-6 py-3 font-body text-sm font-semibold text-[var(--ds-destructive)] transition hover:bg-[color-mix(in_srgb,var(--ds-destructive)_8%,white)]"
           >
             清空路线
           </button>

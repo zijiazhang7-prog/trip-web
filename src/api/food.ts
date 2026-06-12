@@ -78,6 +78,7 @@ export function foodVOToFood(vo: FoodVO): Food {
     image: normalizeAssetUrl(vo.coverUrl),
     tags,
     cuisineTag,
+    foodType: vo.foodType ?? null,
     description: vo.description?.trim(),
     lng,
     lat,

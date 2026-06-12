@@ -13,7 +13,7 @@ import {
 } from '../api/food'
 import { foodTags, foods as foodsFallback, type Food } from '../data/siteData'
 import { fetchAllFoodsCatalog } from '../lib/catalog/fetchFullCatalog'
-import { resolveCuisine, resolveFoodCuisineTag, sortFoodsByTagMatch } from '../lib/taxonomy'
+import { foodMatchesCuisineTag, resolveCuisine, sortFoodsByTagMatch } from '../lib/taxonomy'
 import { useTripContext } from '../context/tripContext'
 import { CommentSection } from '../components/ui/CommentSection'
 import { DetailOverlay } from '../components/ui/DetailOverlay'
@@ -489,7 +489,7 @@ export function FoodPage() {
         if (!cancelled) {
           const mapped = vos.map(foodVOToFood)
           setTagCatalogFoods(mapped)
-          const matched = mapped.filter((f) => resolveFoodCuisineTag(f) === selectedFoodTag).length
+          const matched = mapped.filter((f) => foodMatchesCuisineTag(f, selectedFoodTag)).length
           setTagCatalogHint(`全库 ${mapped.length} 条 · 菜系「${selectedFoodTag}」匹配 ${matched} 条`)
         }
       })
@@ -519,8 +519,9 @@ export function FoodPage() {
     })
     let sorted = [...filtered]
     if (selectedFoodTag) {
+      const matching = filtered.filter((f) => foodMatchesCuisineTag(f, selectedFoodTag))
       sorted = sortFoodsByTagMatch(
-        sorted,
+        matching,
         { destTypes: [], interestTags: [], cuisineTags: [selectedFoodTag] },
         listSort === 'rating' ? 'rating' : 'heat',
       )
@@ -830,9 +831,11 @@ export function FoodPage() {
           ) : null}
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {!loadingInitial && foods.length > 0 && filteredFoods.length === 0 ? (
+            {!loadingInitial && !loadingTagCatalog && filteredFoods.length === 0 ? (
               <p className="break-inside-avoid py-10 text-center font-body text-sm text-[#6B8076]">
-                当前筛选下没有匹配结果。
+                {selectedFoodTag
+                  ? `菜系「${selectedFoodTag}」在全库中暂无匹配美食，请换其他标签。`
+                  : '当前筛选下没有匹配结果。'}
               </p>
             ) : null}
             {filteredFoods.map((food, fi) => (
