@@ -851,3 +851,15 @@
   `topK=5` 仍返回 5 条。
 - 当前实库单个目的地最多只有 25 条美食；如需现场演示美食第 2 页，应补充某一目的地下
   超过 32 条的演示数据。
+
+## 8.5 2026-06-13 推荐标签体系与个性化排序
+
+- 新增运行时 `taxonomy.json` 和 `com.trip.taxonomy` 公共能力，不修改数据库结构。
+- `TagJsonParser` 统一支持 JSON 数组、管道分隔和单值标签，目的地推荐与日记推荐不再各自解析。
+- 目的地推荐新增 `destType/interestTags`，匿名请求可加权；登录时合并旧
+  `preferThemeList` 并映射为标准兴趣标签。
+- 美食推荐新增 `cuisineTags`，根据名称、`food_type`、店铺名运行时打标；
+  命中项优先但未命中项仍返回，避免当前 903 种自由文本 `food_type` 被错误过滤。
+- `DestinationVO` 追加 `destType/interestTags`，`FoodVO` 追加 `cuisineTags`；
+  原路径、字段、分页和显式 `topK` 兼容语义不变。
+- 已新增 taxonomy、匿名推荐、旧偏好兼容、美食标签排序测试。

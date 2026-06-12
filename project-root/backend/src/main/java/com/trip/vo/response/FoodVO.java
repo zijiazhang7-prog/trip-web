@@ -2,6 +2,7 @@ package com.trip.vo.response;
 
 import com.trip.entity.Food;
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 美食查询结果。
@@ -21,6 +22,7 @@ public class FoodVO {
     private String coverUrl;
     private BigDecimal lng;
     private BigDecimal lat;
+    private List<String> cuisineTags;
 
     public static FoodVO from(Food food) {
         FoodVO vo = new FoodVO();
@@ -142,5 +144,13 @@ public class FoodVO {
 
     public void setLat(BigDecimal lat) {
         this.lat = lat;
+    }
+
+    public List<String> getCuisineTags() {
+        return cuisineTags;
+    }
+
+    public void setCuisineTags(List<String> cuisineTags) {
+        this.cuisineTags = cuisineTags;
     }
 }

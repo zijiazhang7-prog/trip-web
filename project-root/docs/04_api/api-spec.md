@@ -528,6 +528,8 @@ Authorization: Bearer <token>
 | -------- | ------ | -: | ----------------------- |
 | type     | string |  否 | `scenic/campus`         |
 | theme    | string |  否 | 主题                      |
+| destType | string | 否 | 标准目的地类型；仅在 `sortBy=recommend` 时参与加权，不过滤未命中项 |
+| interestTags | string[] | 否 | 标准兴趣标签，可重复传参；仅在 `sortBy=recommend` 时参与加权 |
 | sortBy   | string |  否 | `heat/rating/recommend` |
 | pageNum  | int    |  否 | 页码，默认 1；未传 `topK` 时生效 |
 | pageSize | int    |  否 | 每页数量，默认 10，最大 100；未传 `topK` 时生效 |
@@ -542,6 +544,10 @@ Authorization: Bearer <token>
 - 未传 `topK` 时，对全部符合 `status=1`、`type`、`theme` 条件的候选排序后分页。
 - 传入 `topK` 时保持兼容模式，忽略 `pageNum/pageSize`，响应 `pageNum=1`、`pageSize=topK`。
 - `total` 始终表示过滤后的完整候选数量，`pages=ceil(total/pageSize)`。
+- `sortBy=recommend` 时，请求标签与当前登录用户的 `preferThemeList` 合并；匿名请求也可使用
+  `destType/interestTags`。
+- `sortBy=heat/rating` 时忽略标准标签加权，保持原排序语义。
+- `DestinationVO` 追加只读字段 `destType/interestTags`；原 `type/category/tags` 字段不变。
 
 ## 9.2 搜索目的地
 
@@ -783,6 +789,7 @@ Authorization: Bearer <token>
 | destinationId | long   |  是 | 目的地 ID                 |
 | facilityId    | long   |  否 | 所属设施 ID                |
 | foodType      | string |  否 | 菜系                     |
+| cuisineTags   | string[] | 否 | 标准口味标签，可重复传参；用于推荐排序，不作为 SQL 硬过滤条件 |
 | sortBy        | string |  否 | 当前支持 `heat/rating` |
 | pageNum       | int    |  否 | 页码，默认 1；未传 `topK` 时生效 |
 | pageSize      | int    |  否 | 每页数量，默认 10，最大 100；未传 `topK` 时生效 |
@@ -797,6 +804,9 @@ Authorization: Bearer <token>
 - 未传 `topK` 时，对目的地下全部匹配候选排序后按 `pageNum/pageSize` 分页。
 - 传入 `topK` 时保持兼容模式，忽略分页参数，只返回前 K 条。
 - `total` 表示过滤后的完整候选数量。
+- 传入 `cuisineTags` 时，名称、`foodType`、店铺名命中的条目优先，未命中条目仍保留；
+  同一匹配层级内继续使用 `sortBy=heat/rating`。
+- `FoodVO` 追加只读字段 `cuisineTags`，由运行时标签映射生成，不新增数据库列。
 
 ## 12.2 搜索美食
 
@@ -818,7 +828,8 @@ Authorization: Bearer <token>
 
 返回 `Page<FoodVO>`
 
-说明：Food 当前为 P1 基础版，先实现按目的地 / 设施 / 菜系 / 关键字召回，并复用 `RankService` 做热度、评分排序、Top-K 或分页输出；价格区间、距离联动、个性化口味推荐和详情接口后续再补。
+说明：Food 当前支持按目的地 / 设施 / 原始 `foodType` / 关键字召回，并复用
+`RankService` 做热度、评分、标准口味标签加权、Top-K 或分页输出；价格区间、距离联动和详情接口后续再补。
 
 ---
 

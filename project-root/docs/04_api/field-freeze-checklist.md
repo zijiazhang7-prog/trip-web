@@ -46,6 +46,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `/api/v1/destinations/recommend` | `type` | query | string | 目的地类型 | 强冻结 | 否 | 否 | 否 | 查询 DTO 已实现 | `DestinationRecommendQuery.java` | 值域需与数据一致 |
 | `/api/v1/destinations/recommend` | `theme` | query | string | 主题筛选 | 建议冻结 | 否 | 否 | 是 | 查询 DTO 已实现 | `DestinationRecommendQuery.java` | 与 `tag_json/tags` 映射需确认 |
+| `/api/v1/destinations/recommend` | `destType/interestTags` | query | string/string[] | 标准目的地类型和兴趣标签，仅推荐排序加权 | 建议冻结 | 否 | 否 | 否 | 前后端 taxonomy 联调字段 | `DestinationRecommendQuery.java`、`TaxonomyService.java` | 不得改成硬过滤语义 |
 | `/api/v1/destinations/recommend` | `sortBy` | query | string | 排序方式 | 强冻结 | 否 | 否 | 否 | 多模块共用排序参数 | `DestinationRecommendQuery.java` | 值域错误会影响联调 |
 | `/api/v1/destinations/recommend` | `pageNum/pageSize` | query/response.data | integer/long | 未传 `topK` 时的真实分页参数，默认 1/10，单页最大 100 | 强冻结 | 否 | 否 | 否 | 前端无限滚动依赖 | `DestinationRecommendQuery.java`、`RecommendServiceImpl.java` | 不得再次固定为第 1 页 |
 | `/api/v1/destinations/recommend` | `topK` | query | integer | Top-K 数量 | 强冻结 | 否 | 否 | 否 | 推荐核心字段 | `DestinationRecommendQuery.java` | 高风险字段 |
@@ -96,6 +97,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `/api/v1/foods/recommend` | `destinationId` | query | long | 目的地 ID | 强冻结 | 否 | 否 | 否 | 查询必需字段 | `FoodRecommendQuery.java` | 高风险字段 |
 | `/api/v1/foods/recommend` | `facilityId` | query | long | 所属设施 ID | 强冻结 | 否 | 否 | 否 | 查询 DTO 与接口文档已统一 | `FoodRecommendQuery.java`、`api-spec.md` | 不得改回未实现的 sourceNodeId |
+| `/api/v1/foods/recommend` | `cuisineTags` | query | string[] | 标准口味标签，命中项优先且保留未命中项 | 建议冻结 | 否 | 否 | 否 | 前端筛选与后端运行时 taxonomy 对齐 | `FoodRecommendQuery.java`、`FoodServiceImpl.java` | 不得直接作为 `food_type IN` 硬过滤 |
 | `/api/v1/foods/recommend` | `pageNum/pageSize` | query/response.data | integer/long | 未传 `topK` 时的真实分页参数，默认 1/10，单页最大 100 | 强冻结 | 否 | 否 | 否 | 前端美食列表分页依赖 | `FoodRecommendQuery.java`、`FoodServiceImpl.java` | 不得回退为默认 Top-10 |
 | `/api/v1/foods/recommend` | `topK` | query | integer | 显式 Top-K 兼容模式，优先于分页参数 | 强冻结 | 否 | 否 | 否 | 兼容已有调用 | `FoodRecommendQuery.java`、`FoodServiceImpl.java` | 省略时必须进入分页模式 |
 | `/api/v1/foods/search` | `keyword` | query | string | 搜索词 | 强冻结 | 否 | 否 | 否 | 搜索 DTO 已实现 | `FoodSearchQuery.java` |  |

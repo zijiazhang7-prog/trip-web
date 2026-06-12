@@ -122,6 +122,19 @@ paths:
           in: query
           schema:
             type: string
+        - name: destType
+          in: query
+          description: 标准目的地类型，仅在 sortBy=recommend 时参与加权
+          schema:
+            type: string
+        - name: interestTags
+          in: query
+          description: 标准兴趣标签，可重复传参；匹配项优先但不隐藏未命中项
+          schema:
+            type: array
+            maxItems: 12
+            items:
+              type: string
         - name: sortBy
           in: query
           schema:
@@ -463,6 +476,14 @@ paths:
           in: query
           schema:
             type: string
+        - name: cuisineTags
+          in: query
+          description: 标准口味标签，可重复传参；仅影响排序，不作为 SQL 硬过滤
+          schema:
+            type: array
+            maxItems: 10
+            items:
+              type: string
         - name: sortBy
           in: query
           schema:
@@ -2218,6 +2239,14 @@ components:
           type: array
           items:
             type: string
+        destType:
+          type: string
+          description: 运行时映射得到的标准目的地类型
+        interestTags:
+          type: array
+          description: 运行时映射得到的标准兴趣标签
+          items:
+            type: string
 
     PlaceVO:
       type: object
@@ -2328,6 +2357,11 @@ components:
         lat:
           type: number
           format: double
+        cuisineTags:
+          type: array
+          description: 根据名称、foodType、店铺名运行时解析的标准口味标签
+          items:
+            type: string
 
     DiaryMediaVO:
       type: object

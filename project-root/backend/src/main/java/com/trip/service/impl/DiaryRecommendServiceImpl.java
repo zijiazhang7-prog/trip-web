@@ -1,8 +1,6 @@
 package com.trip.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.dto.request.DiaryRecommendQuery;
 import com.trip.entity.Destination;
@@ -16,6 +14,7 @@ import com.trip.mapper.UserMapper;
 import com.trip.service.DiaryRecommendService;
 import com.trip.service.RankService;
 import com.trip.service.UserPreferenceService;
+import com.trip.taxonomy.TagJsonParser;
 import com.trip.vo.response.DiaryMediaVO;
 import com.trip.vo.response.DiaryVO;
 import com.trip.vo.response.PageResultVO;
@@ -56,9 +55,6 @@ public class DiaryRecommendServiceImpl implements DiaryRecommendService {
     private static final BigDecimal MAX_RATING = new BigDecimal("5");
     private static final BigDecimal MAX_PREFERENCE_LEVEL = new BigDecimal("5");
     private static final Pattern KEYWORD_SEPARATOR = Pattern.compile("[\\s,，、;；。.!！?？:：]+");
-    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
-    };
-
     private final DiaryMapper diaryMapper;
     private final DiaryMediaMapper diaryMediaMapper;
     private final DestinationMapper destinationMapper;
@@ -240,22 +236,11 @@ public class DiaryRecommendServiceImpl implements DiaryRecommendService {
             appendText(builder, destination.getCategory());
             appendText(builder, destination.getCity());
             appendText(builder, destination.getDescription());
-            for (String tag : parseTags(destination.getTagJson())) {
+            for (String tag : TagJsonParser.parse(destination.getTagJson(), objectMapper)) {
                 appendText(builder, tag);
             }
         }
         return builder.toString();
-    }
-
-    private List<String> parseTags(String tagJson) {
-        if (!StringUtils.hasText(tagJson)) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readValue(tagJson, STRING_LIST_TYPE);
-        } catch (JsonProcessingException exception) {
-            return List.of(tagJson);
-        }
     }
 
     private void appendText(StringBuilder builder, String value) {

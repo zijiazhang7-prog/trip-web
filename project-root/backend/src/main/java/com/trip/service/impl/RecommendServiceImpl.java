@@ -1,8 +1,6 @@
 package com.trip.service.impl;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.common.ErrorCode;
 import com.trip.dto.query.DestinationQuery;
@@ -18,15 +16,17 @@ import com.trip.service.QueryService;
 import com.trip.service.RankService;
 import com.trip.service.RecommendService;
 import com.trip.service.UserPreferenceService;
+import com.trip.taxonomy.ResolvedDestinationTags;
+import com.trip.taxonomy.TagJsonParser;
+import com.trip.taxonomy.TaxonomyService;
+import com.trip.taxonomy.UserTagSelection;
 import com.trip.vo.response.DestinationVO;
 import com.trip.vo.response.PageResultVO;
 import com.trip.vo.response.PlaceVO;
 import com.trip.vo.response.UserPreferenceVO;
 import java.math.BigDecimal;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -47,23 +47,23 @@ public class RecommendServiceImpl implements RecommendService {
     private static final BigDecimal HEAT_WEIGHT = new BigDecimal("0.6");
     private static final BigDecimal RATING_WEIGHT = new BigDecimal("3.0");
     private static final BigDecimal PREFERENCE_MATCH_WEIGHT = new BigDecimal("10.0");
-    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
-    };
-
     private final QueryService queryService;
     private final RankService rankService;
     private final UserPreferenceService userPreferenceService;
     private final ObjectMapper objectMapper;
+    private final TaxonomyService taxonomyService;
 
     public RecommendServiceImpl(
             QueryService queryService,
             RankService rankService,
             UserPreferenceService userPreferenceService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            TaxonomyService taxonomyService) {
         this.queryService = queryService;
         this.rankService = rankService;
         this.userPreferenceService = userPreferenceService;
         this.objectMapper = objectMapper;
+        this.taxonomyService = taxonomyService;
     }
 
     @Override
@@ -77,7 +77,7 @@ public class RecommendServiceImpl implements RecommendService {
         List<Destination> candidates = queryService.queryAllDestinations(destinationQuery);
         if (safeQuery.getTopK() != null && safeQuery.getTopK() > 0) {
             int limit = topK(safeQuery.getTopK());
-            List<Destination> ranked = rankForRecommend(candidates, safeQuery.getSortBy(), limit);
+            List<Destination> ranked = rankForRecommend(candidates, safeQuery, limit);
             return PageResultVO.of(
                     toDestinationVOs(ranked),
                     DEFAULT_PAGE_NUM,
@@ -88,7 +88,7 @@ public class RecommendServiceImpl implements RecommendService {
 
         int requestedPageNum = pageNum(safeQuery.getPageNum());
         int requestedPageSize = pageSize(safeQuery.getPageSize());
-        List<Destination> ranked = rankForRecommend(candidates, safeQuery.getSortBy(), null);
+        List<Destination> ranked = rankForRecommend(candidates, safeQuery, null);
         return paginateDestinations(ranked, requestedPageNum, requestedPageSize);
     }
 
@@ -126,22 +126,25 @@ public class RecommendServiceImpl implements RecommendService {
         return queryService.queryPlaces(placeQuery).stream().map(PlaceVO::from).toList();
     }
 
-    private List<Destination> rankForRecommend(List<Destination> candidates, String sortBy, Integer topK) {
-        String normalizedSortBy = normalizeRecommendSortBy(sortBy);
+    private List<Destination> rankForRecommend(
+            List<Destination> candidates,
+            DestinationRecommendQuery query,
+            Integer topK) {
+        String normalizedSortBy = normalizeRecommendSortBy(query.getSortBy());
         if (SORT_BY_RECOMMEND.equals(normalizedSortBy)) {
-            Set<String> preferenceThemes = currentPreferenceThemes();
-            if (preferenceThemes.isEmpty()) {
+            UserTagSelection selection = taxonomyService.mergeSelection(query, currentPreference());
+            if (selection.isEmpty()) {
                 return rankService.rankDestinations(candidates, SORT_BY_HEAT, topK);
             }
             if (topK == null || topK <= 0) {
                 return rankService.sortByScore(
                         candidates,
-                        destination -> recommendScore(destination, preferenceThemes),
+                        destination -> recommendScore(destination, selection),
                         true);
             }
             return rankService.topK(
                     candidates,
-                    destination -> recommendScore(destination, preferenceThemes),
+                    destination -> recommendScore(destination, selection),
                     topK,
                     true);
         }
@@ -166,50 +169,25 @@ public class RecommendServiceImpl implements RecommendService {
      * 数据结构：候选列表保存目的地，偏好集合使用 HashSet，Top-K 由 RankService 的 PriorityQueue 完成。
      * 复杂度：每个目的地做一次固定字段和标签匹配，整体约 O(n*m)，Top-K 为 O(n log k)。
      */
-    private BigDecimal recommendScore(Destination destination, Set<String> preferenceThemes) {
+    private BigDecimal recommendScore(Destination destination, UserTagSelection selection) {
         BigDecimal heatScore = scoreOf(destination.getHeatScore()).multiply(HEAT_WEIGHT);
         BigDecimal ratingScore = scoreOf(destination.getRatingScore()).multiply(RATING_WEIGHT);
-        BigDecimal preferenceScore = BigDecimal.valueOf(matchCount(destination, preferenceThemes))
+        BigDecimal preferenceScore = BigDecimal.valueOf(
+                        taxonomyService.scoreDestination(taxonomyService.resolve(destination), selection))
                 .multiply(PREFERENCE_MATCH_WEIGHT);
         return heatScore.add(ratingScore).add(preferenceScore);
     }
 
-    private int matchCount(Destination destination, Set<String> preferenceThemes) {
-        Set<String> destinationTokens = new HashSet<>(parseTags(destination.getTagJson()));
-        addIfText(destinationTokens, destination.getCategory());
-        addIfText(destinationTokens, destination.getType());
-        addIfText(destinationTokens, destination.getName());
-
-        int count = 0;
-        for (String preferenceTheme : preferenceThemes) {
-            for (String destinationToken : destinationTokens) {
-                if (destinationToken.contains(preferenceTheme) || preferenceTheme.contains(destinationToken)) {
-                    count++;
-                    break;
-                }
-            }
-        }
-        return count;
-    }
-
-    private Set<String> currentPreferenceThemes() {
+    private UserPreferenceVO currentPreference() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof JwtClaims)) {
-            return Set.of();
+            return null;
         }
 
         try {
-            UserPreferenceVO preference = userPreferenceService.getCurrentPreference();
-            if (preference.getPreferThemeList() == null || preference.getPreferThemeList().isEmpty()) {
-                return Set.of();
-            }
-            Set<String> themes = new HashSet<>();
-            for (String theme : preference.getPreferThemeList()) {
-                addIfText(themes, theme);
-            }
-            return themes;
+            return userPreferenceService.getCurrentPreference();
         } catch (BusinessException exception) {
-            return Set.of();
+            return null;
         }
     }
 
@@ -218,21 +196,13 @@ public class RecommendServiceImpl implements RecommendService {
     }
 
     private DestinationVO toDestinationVO(Destination destination) {
-        return DestinationVO.from(destination, parseTags(destination.getTagJson()));
-    }
-
-    private List<String> parseTags(String tagJson) {
-        if (!StringUtils.hasText(tagJson)) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readValue(tagJson, STRING_LIST_TYPE).stream()
-                    .map(this::normalize)
-                    .filter(StringUtils::hasText)
-                    .toList();
-        } catch (JsonProcessingException exception) {
-            return List.of(tagJson.trim());
-        }
+        ResolvedDestinationTags resolved = taxonomyService.resolve(destination);
+        DestinationVO vo = DestinationVO.from(
+                destination,
+                TagJsonParser.parse(destination.getTagJson(), objectMapper));
+        vo.setDestType(resolved.destType());
+        vo.setInterestTags(List.copyOf(resolved.interests()));
+        return vo;
     }
 
     private int pageNum(Integer pageNum) {
@@ -285,13 +255,6 @@ public class RecommendServiceImpl implements RecommendService {
 
     private BigDecimal scoreOf(BigDecimal score) {
         return score == null ? BigDecimal.ZERO : score;
-    }
-
-    private void addIfText(Set<String> values, String value) {
-        String normalized = normalize(value);
-        if (StringUtils.hasText(normalized)) {
-            values.add(normalized);
-        }
     }
 
     private String normalize(String value) {

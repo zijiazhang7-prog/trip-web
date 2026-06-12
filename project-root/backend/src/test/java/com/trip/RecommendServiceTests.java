@@ -17,6 +17,8 @@ import com.trip.service.RankService;
 import com.trip.service.UserPreferenceService;
 import com.trip.service.impl.RankServiceImpl;
 import com.trip.service.impl.RecommendServiceImpl;
+import com.trip.taxonomy.TaxonomyConfiguration;
+import com.trip.taxonomy.TaxonomyService;
 import com.trip.vo.response.PageResultVO;
 import com.trip.vo.response.UserPreferenceVO;
 import java.math.BigDecimal;
@@ -39,11 +41,16 @@ class RecommendServiceTests {
     private final QueryService queryService = mock(QueryService.class);
     private final RankService rankService = new RankServiceImpl();
     private final UserPreferenceService userPreferenceService = mock(UserPreferenceService.class);
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final TaxonomyService taxonomyService = new TaxonomyService(
+            new TaxonomyConfiguration().taxonomyCatalog(objectMapper),
+            objectMapper);
     private final RecommendServiceImpl recommendService = new RecommendServiceImpl(
             queryService,
             rankService,
             userPreferenceService,
-            new ObjectMapper());
+            objectMapper,
+            taxonomyService);
 
     @AfterEach
     void clearSecurityContext() {
@@ -94,6 +101,42 @@ class RecommendServiceTests {
     }
 
     @Test
+    void anonymousRequestTagsShouldAffectRecommendOrder() {
+        when(queryService.queryAllDestinations(any(DestinationQuery.class))).thenReturn(List.of(
+                destinationWithCategory(1L, "历史馆", "历史古迹", 20, 4.0, "历史建筑|网红打卡"),
+                destinationWithCategory(2L, "热门广场", "城市公园", 90, 4.0, "休闲娱乐")));
+
+        DestinationRecommendQuery query = new DestinationRecommendQuery();
+        query.setSortBy("recommend");
+        query.setDestType("历史人文");
+        query.setInterestTags(List.of("历史文化"));
+        query.setTopK(2);
+
+        PageResultVO<?> result = recommendService.recommendDestinations(query);
+
+        assertEquals(List.of(1L, 2L), destinationIds(result));
+        com.trip.vo.response.DestinationVO first =
+                (com.trip.vo.response.DestinationVO) result.getList().get(0);
+        assertEquals("历史人文", first.getDestType());
+        assertEquals(true, first.getInterestTags().contains("历史文化"));
+        assertEquals(List.of("历史建筑", "网红打卡"), first.getTags());
+    }
+
+    @Test
+    void heatSortShouldIgnoreRequestTags() {
+        when(queryService.queryAllDestinations(any(DestinationQuery.class))).thenReturn(List.of(
+                destinationWithCategory(1L, "历史馆", "历史古迹", 20, 4.0, "历史建筑"),
+                destinationWithCategory(2L, "热门广场", "城市公园", 90, 4.0, "休闲")));
+
+        DestinationRecommendQuery query = new DestinationRecommendQuery();
+        query.setSortBy("heat");
+        query.setInterestTags(List.of("历史文化"));
+        query.setTopK(2);
+
+        assertEquals(List.of(2L, 1L), destinationIds(recommendService.recommendDestinations(query)));
+    }
+
+    @Test
     void personalizedRecommendShouldSupportPagingWithoutTopK() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 new JwtClaims(9L, "alice", "user", 1L, 2L),
@@ -115,7 +158,7 @@ class RecommendServiceTests {
 
         PageResultVO<?> result = recommendService.recommendDestinations(query);
 
-        assertEquals(List.of(2L, 1L), destinationIds(result));
+        assertEquals(List.of(2L, 3L), destinationIds(result));
         assertEquals(3, result.getTotal());
         assertEquals(2, result.getPages());
     }
@@ -226,11 +269,21 @@ class RecommendServiceTests {
     }
 
     private Destination destination(Long id, String name, int heatScore, double ratingScore, String tagJson) {
+        return destinationWithCategory(id, name, "校园", heatScore, ratingScore, tagJson);
+    }
+
+    private Destination destinationWithCategory(
+            Long id,
+            String name,
+            String category,
+            int heatScore,
+            double ratingScore,
+            String tagJson) {
         Destination destination = new Destination();
         destination.setId(id);
         destination.setName(name);
         destination.setType("campus");
-        destination.setCategory("校园");
+        destination.setCategory(category);
         destination.setCity("北京");
         destination.setDescription("测试目的地");
         destination.setHeatScore(BigDecimal.valueOf(heatScore));

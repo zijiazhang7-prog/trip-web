@@ -19,6 +19,8 @@ public class DestinationVO {
     private BigDecimal ratingScore;
     private String coverUrl;
     private List<String> tags;
+    private String destType;
+    private List<String> interestTags;
 
     public static DestinationVO from(Destination destination, List<String> tags) {
         DestinationVO vo = new DestinationVO();
@@ -113,5 +115,21 @@ public class DestinationVO {
 
     public void setTags(List<String> tags) {
         this.tags = tags;
+    }
+
+    public String getDestType() {
+        return destType;
+    }
+
+    public void setDestType(String destType) {
+        this.destType = destType;
+    }
+
+    public List<String> getInterestTags() {
+        return interestTags;
+    }
+
+    public void setInterestTags(List<String> interestTags) {
+        this.interestTags = interestTags;
     }
 }

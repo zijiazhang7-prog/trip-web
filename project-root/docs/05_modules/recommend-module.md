@@ -348,7 +348,9 @@
 ### V2：简单综合评分版（P1）
 - 将热度、评分、偏好匹配做简单加权
 - 支持推荐排序
-- 可引入自由偏好描述作为辅助信息
+- 已引入运行时 taxonomy，将数据库 `category/tag_json` 转换为标准目的地类型和兴趣标签
+- 请求 `destType/interestTags` 与登录用户旧 `preferThemeList` 合并后参与排序
+- `tag_json` 同时兼容 JSON 数组、管道分隔和单值格式
 
 ### V3：增强推荐版（P2）
 - 引入浏览、评分、日记热度等多源特征
@@ -390,11 +392,13 @@
 1. 用户进入推荐页
 2. 前端传入筛选条件和排序方式
 3. 若用户已登录，系统读取当前用户偏好
-4. RecommendController 接收请求
-5. RecommendService 调用 QueryService 查询候选目的地
-6. RecommendService 调用 RankService 计算排序 / Top-K
-7. 返回推荐结果列表
-8. 前端展示卡片结果
+4. TaxonomyService 将旧偏好和请求标签归一化
+5. RecommendController 接收请求
+6. RecommendService 调用 QueryService 查询候选目的地
+7. RecommendService 调用 TaxonomyService 计算标签匹配分
+8. RecommendService 调用 RankService 计算排序 / Top-K
+9. 返回推荐结果列表
+10. 前端展示卡片结果
 
 ---
 
@@ -430,6 +434,8 @@
 请求参数建议：
 - `type`
 - `theme`
+- `destType`
+- `interestTags`
 - `sortBy`
 - `pageNum`
 - `pageSize`
@@ -445,7 +451,10 @@
   `pageNum/pageSize` 切片，支持前端无限滚动。
 - 传入 `topK` 时使用小顶堆选出前 K 条，并忽略分页参数。
 - 单页和 Top-K 最大为 100；该上限不再限制候选召回总量。
-- 总数
+- `destType/interestTags` 只在 `sortBy=recommend` 时参与综合分，不过滤未命中候选。
+- 匿名用户可直接通过请求标签获得加权结果；登录用户会额外合并已保存偏好。
+- `sortBy=heat/rating` 不使用标签分，保持排序语义稳定。
+- 响应追加标准化后的 `destType/interestTags`，原字段保持兼容。
 
 ---
 

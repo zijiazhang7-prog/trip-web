@@ -47,7 +47,7 @@
 | 当前用户 | `/api/v1/auth/me` | GET | Auth | 是 | 是 | 已可用 | Header `Authorization` | `UserVO` | `AuthController.java` | `SecurityConfig.java`、`api-spec.md` 7.3 | 需要 Bearer token |
 | 获取当前用户偏好 | `/api/v1/user-preferences/me` | GET | UserPreference | 是 | 是 | 已可用 | 无 | `UserPreferenceVO` | `UserPreferenceController.java` | `api-spec.md` 8.1 | 需要登录 |
 | 保存/更新当前用户偏好 | `/api/v1/user-preferences/me` | PUT | UserPreference | 是 | 是 | 已可用 | `UserPreferenceRequest` | `UserPreferenceVO` | `UserPreferenceController.java` | `api-spec.md` 8.2 | 需要登录 |
-| 推荐目的地 | `/api/v1/destinations/recommend` | GET | Recommend | 是 | 是 | 已可用 | `DestinationRecommendQuery` | `PageResultVO<DestinationVO>` | `DestinationController.java` | `api-spec.md` 9.1 | 公开接口；支持真分页与显式 Top-K 兼容模式 |
+| 推荐目的地 | `/api/v1/destinations/recommend` | GET | Recommend | 是 | 是 | 已可用 | `DestinationRecommendQuery` | `PageResultVO<DestinationVO>` | `DestinationController.java`、`RecommendServiceImpl.java`、`TaxonomyService.java` | `api-spec.md` 9.1 | 公开接口；支持真分页、Top-K、匿名标准标签和登录偏好合并加权 |
 | 搜索目的地 | `/api/v1/destinations/search` | GET | Recommend | 是 | 是 | 已可用 | `DestinationSearchQuery` | `PageResultVO<DestinationVO>` | `DestinationController.java` | `api-spec.md` 9.2 | 公开接口 |
 | 目的地详情 | `/api/v1/destinations/{id}` | GET | Recommend | 是 | 是 | 已可用 | path `id` | `DestinationVO` | `DestinationController.java` | `api-spec.md` 9.3 | 公开接口 |
 | 目的地下场所列表 | `/api/v1/destinations/{id}/places` | GET | Recommend/Place | 是 | 是 | 已可用 | path `id` + `DestinationPlacesQuery` | `List<PlaceVO>` | `DestinationController.java` | `api-spec.md` 9.4 | 公开接口 |
@@ -58,7 +58,7 @@
 | 路线历史详情 | `/api/v1/routes/history/{id}` | GET | Route | 是 | 是 | 已可用 | path `id` | `RouteHistoryVO` | `RouteController.java`、`RouteServiceImpl.java` | `api-spec.md` 10.4 | 读取历史 JSON 快照，不重新规划；越权按不存在处理 |
 | 附近设施 | `/api/v1/facilities/nearby` | GET | Facility | 是 | 是 | 已可用 | `NearbyFacilityQuery` | `PageResultVO<NearbyFacilityVO>` | `FacilityController.java` | `api-spec.md` 11.1 | 公开接口，基于图上可达距离 |
 | 搜索设施 | `/api/v1/facilities/search` | GET | Facility | 否 | 是 | 文档有但代码未找到 | 文档定义 query | `Page<FacilityVO>` | 未找到 Controller 入口 | `api-spec.md` 11.2、`swagger-draft.yaml` | 当前只有 nearby |
-| 美食推荐 | `/api/v1/foods/recommend` | GET | Food | 是 | 是 | 已可用 | `FoodRecommendQuery` | `PageResultVO<FoodVO>` | `FoodController.java` | `api-spec.md` 12.1 | 公开接口；支持真分页与显式 Top-K 兼容模式 |
+| 美食推荐 | `/api/v1/foods/recommend` | GET | Food | 是 | 是 | 已可用 | `FoodRecommendQuery` | `PageResultVO<FoodVO>` | `FoodController.java`、`FoodServiceImpl.java`、`TaxonomyService.java` | `api-spec.md` 12.1 | 公开接口；标准口味标签仅加权排序，不过滤未命中条目 |
 | 美食搜索 | `/api/v1/foods/search` | GET | Food | 是 | 是 | 已可用 | `FoodSearchQuery` | `PageResultVO<FoodVO>` | `FoodController.java` | `api-spec.md` 12.2 | 公开接口 |
 | 发布日记 | `/api/v1/diaries` | POST | Diary | 是 | 是 | 已可用 | `DiaryCreateRequest` | `DiaryCreateResponse` | `DiaryController.java` | `api-spec.md` 13.1 | 需要登录 |
 | 日记列表/按目的地名称查询 | `/api/v1/diaries` | GET | Diary | 是 | 是 | 已可用 | `DiaryListQuery` | `PageResultVO<DiaryVO>` | `DiaryController.java`、`DiaryServiceImpl.java`、`QueryServiceImpl.java` | `api-spec.md` 13.2 | 公开接口；可选 `destinationKeyword`，支持按热度/评分/时间排序 |

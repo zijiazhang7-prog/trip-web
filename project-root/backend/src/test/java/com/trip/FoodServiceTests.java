@@ -7,14 +7,18 @@ import com.trip.dto.request.FoodSearchQuery;
 import com.trip.entity.Food;
 import com.trip.exception.BusinessException;
 import com.trip.service.QueryService;
+import com.trip.service.UserPreferenceService;
 import com.trip.service.impl.FoodServiceImpl;
 import com.trip.service.impl.RankServiceImpl;
+import com.trip.taxonomy.TaxonomyConfiguration;
+import com.trip.taxonomy.TaxonomyService;
 import com.trip.vo.response.FoodVO;
 import com.trip.vo.response.PageResultVO;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,7 +30,16 @@ import static org.mockito.Mockito.when;
 class FoodServiceTests {
 
     private final QueryService queryService = mock(QueryService.class);
-    private final FoodServiceImpl foodService = new FoodServiceImpl(queryService, new RankServiceImpl());
+    private final UserPreferenceService userPreferenceService = mock(UserPreferenceService.class);
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final TaxonomyService taxonomyService = new TaxonomyService(
+            new TaxonomyConfiguration().taxonomyCatalog(objectMapper),
+            objectMapper);
+    private final FoodServiceImpl foodService = new FoodServiceImpl(
+            queryService,
+            new RankServiceImpl(),
+            userPreferenceService,
+            taxonomyService);
 
     @Test
     void recommendShouldReturnTopKByHeat() {
@@ -65,6 +78,23 @@ class FoodServiceTests {
         assertEquals(101L, captor.getValue().getDestinationId());
         assertEquals(20L, captor.getValue().getFacilityId());
         assertEquals("面食", captor.getValue().getFoodType());
+    }
+
+    @Test
+    void cuisineTagsShouldRankMatchesFirstWithoutFilteringCandidates() {
+        when(queryService.queryFoods(any(FoodQuery.class))).thenReturn(List.of(
+                food(1L, "高热度沙拉", "轻食", 100, 4.9),
+                food(2L, "牛肉面", "地方风味", 10, 4.0),
+                food(3L, "普通套餐", "套餐", 50, 4.5)));
+
+        FoodRecommendQuery query = recommendQuery(1, 10);
+        query.setCuisineTags(List.of("汤粥面点"));
+
+        PageResultVO<FoodVO> result = foodService.recommendFoods(query);
+
+        assertEquals(List.of(2L, 1L, 3L), result.getList().stream().map(FoodVO::getId).toList());
+        assertEquals(3, result.getTotal());
+        assertEquals(true, result.getList().get(0).getCuisineTags().contains("汤粥面点"));
     }
 
     @Test

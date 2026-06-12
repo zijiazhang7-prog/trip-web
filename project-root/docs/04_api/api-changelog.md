@@ -565,3 +565,11 @@
 - `interest` 综合使用当前用户偏好、日记及目的地文本、实时浏览热度和评分；无有效文本偏好时降级为热度 Top-K。
 - 返回继续复用 `PageResultVO<DiaryVO>`，没有增加推荐分或推荐理由字段。
 - 未修改数据库结构、现有日记接口和字段语义。
+## 21. 2026-06-13 推荐 taxonomy 兼容扩展
+
+- **接口**：`GET /api/v1/destinations/recommend`、`GET /api/v1/foods/recommend`
+- **变更内容**：目的地追加 `destType/interestTags`，美食追加 `cuisineTags`；
+  响应分别追加标准化标签字段。
+- **兼容性**：仅追加可选查询参数和响应字段；未修改路径、原字段、分页、Top-K 或响应包装。
+- **语义**：标准标签只参与推荐排序，不硬过滤未命中候选；`heat/rating` 原排序在未传标签时不变。
+- **实现证据**：`TaxonomyService.java`、`RecommendServiceImpl.java`、`FoodServiceImpl.java`。

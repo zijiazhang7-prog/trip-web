@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 
 /**
  * 美食推荐查询参数。
@@ -20,6 +21,9 @@ public class FoodRecommendQuery {
 
     @Size(max = 50)
     private String foodType;
+
+    @Size(max = 10)
+    private List<@Size(max = 30) String> cuisineTags;
 
     @Pattern(regexp = "^(heat|rating)$", message = "必须是 heat/rating")
     private String sortBy;
@@ -65,6 +69,14 @@ public class FoodRecommendQuery {
 
     public void setSortBy(String sortBy) {
         this.sortBy = sortBy;
+    }
+
+    public List<String> getCuisineTags() {
+        return cuisineTags;
+    }
+
+    public void setCuisineTags(List<String> cuisineTags) {
+        this.cuisineTags = cuisineTags;
     }
 
     public Integer getPageNum() {

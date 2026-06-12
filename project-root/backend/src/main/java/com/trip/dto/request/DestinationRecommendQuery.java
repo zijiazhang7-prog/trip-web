@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 
 /**
  * 目的地推荐查询参数。
@@ -15,6 +16,12 @@ public class DestinationRecommendQuery {
 
     @Size(max = 50)
     private String theme;
+
+    @Size(max = 30)
+    private String destType;
+
+    @Size(max = 12)
+    private List<@Size(max = 30) String> interestTags;
 
     @Pattern(regexp = "^(heat|rating|recommend)$", message = "必须是 heat/rating/recommend")
     private String sortBy;
@@ -52,6 +59,22 @@ public class DestinationRecommendQuery {
 
     public void setSortBy(String sortBy) {
         this.sortBy = sortBy;
+    }
+
+    public String getDestType() {
+        return destType;
+    }
+
+    public void setDestType(String destType) {
+        this.destType = destType;
+    }
+
+    public List<String> getInterestTags() {
+        return interestTags;
+    }
+
+    public void setInterestTags(List<String> interestTags) {
+        this.interestTags = interestTags;
     }
 
     public Integer getPageNum() {

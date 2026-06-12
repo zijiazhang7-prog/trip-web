@@ -6,15 +6,23 @@ import com.trip.dto.request.FoodRecommendQuery;
 import com.trip.dto.request.FoodSearchQuery;
 import com.trip.entity.Food;
 import com.trip.exception.BusinessException;
+import com.trip.security.JwtClaims;
 import com.trip.service.FoodService;
 import com.trip.service.QueryService;
 import com.trip.service.RankService;
+import com.trip.service.UserPreferenceService;
+import com.trip.taxonomy.ResolvedFoodTags;
+import com.trip.taxonomy.TaxonomyService;
+import com.trip.taxonomy.UserTagSelection;
 import com.trip.vo.response.FoodVO;
 import com.trip.vo.response.PageResultVO;
+import com.trip.vo.response.UserPreferenceVO;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -29,13 +37,22 @@ public class FoodServiceImpl implements FoodService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final String SORT_BY_HEAT = "heat";
     private static final String SORT_BY_RATING = "rating";
+    private static final BigDecimal CUISINE_MATCH_BUCKET = new BigDecimal("1000000000");
 
     private final QueryService queryService;
     private final RankService rankService;
+    private final UserPreferenceService userPreferenceService;
+    private final TaxonomyService taxonomyService;
 
-    public FoodServiceImpl(QueryService queryService, RankService rankService) {
+    public FoodServiceImpl(
+            QueryService queryService,
+            RankService rankService,
+            UserPreferenceService userPreferenceService,
+            TaxonomyService taxonomyService) {
         this.queryService = queryService;
         this.rankService = rankService;
+        this.userPreferenceService = userPreferenceService;
+        this.taxonomyService = taxonomyService;
     }
 
     @Override
@@ -45,9 +62,10 @@ public class FoodServiceImpl implements FoodService {
         }
 
         List<Food> candidates = queryService.queryFoods(toFoodQuery(query));
+        UserTagSelection selection = taxonomyService.foodSelection(query.getCuisineTags(), currentPreference());
         if (query.getTopK() != null && query.getTopK() > 0) {
             int limit = topK(query.getTopK());
-            List<Food> ranked = rankFoods(candidates, query.getSortBy(), limit);
+            List<Food> ranked = rankFoods(candidates, query.getSortBy(), limit, selection);
             return PageResultVO.of(
                     toFoodVOs(ranked),
                     DEFAULT_PAGE_NUM,
@@ -56,7 +74,7 @@ public class FoodServiceImpl implements FoodService {
                     pages(candidates.size(), limit));
         }
 
-        List<Food> ranked = rankFoods(candidates, query.getSortBy(), null);
+        List<Food> ranked = rankFoods(candidates, query.getSortBy(), null, selection);
         return page(ranked, pageNum(query.getPageNum()), pageSize(query.getPageSize()));
     }
 
@@ -70,22 +88,32 @@ public class FoodServiceImpl implements FoodService {
         }
 
         List<Food> candidates = queryService.queryFoods(toFoodQuery(query));
-        List<Food> ranked = rankFoods(candidates, query.getSortBy(), null);
+        List<Food> ranked = rankFoods(candidates, query.getSortBy(), null, UserTagSelection.empty());
         return page(ranked, pageNum(query.getPageNum()), pageSize(query.getPageSize()));
     }
 
     /**
      * 数据结构：候选美食列表承接召回结果，排序阶段复用 RankService 的比较器 / Top-K 堆。
-     * 算法：先 O(n) 过滤召回，再按热度或评分排序；Top-K 场景由 RankService 控制堆大小。
+     * 算法：先 O(n) 召回；有口味标签时按匹配层级和基础分排序，Top-K 由 RankService 控制堆大小。
      * 复杂度：全量排序 O(n log n)，Top-K 为 O(n log k)，空间复杂度 O(n) 或 O(k)。
      * 适用范围：适合 P1 基础演示和中小规模样例数据，全文检索后续交给 SearchService。
      */
-    private List<Food> rankFoods(List<Food> candidates, String sortBy, Integer topK) {
+    private List<Food> rankFoods(
+            List<Food> candidates,
+            String sortBy,
+            Integer topK,
+            UserTagSelection selection) {
         Function<Food, BigDecimal> scoreExtractor = switch (normalizeSortBy(sortBy)) {
             case SORT_BY_HEAT -> Food::getHeatScore;
             case SORT_BY_RATING -> Food::getRatingScore;
             default -> throw new BusinessException(ErrorCode.COMMON_008);
         };
+        if (!selection.cuisineTags().isEmpty()) {
+            Function<Food, BigDecimal> baseExtractor = scoreExtractor;
+            scoreExtractor = food -> scoreOf(baseExtractor.apply(food))
+                    .add(CUISINE_MATCH_BUCKET.multiply(BigDecimal.valueOf(
+                            taxonomyService.scoreFood(taxonomyService.resolveFood(food), selection))));
+        }
         if (topK == null || topK <= 0) {
             return rankService.sortByScore(candidates, scoreExtractor, true);
         }
@@ -120,7 +148,26 @@ public class FoodServiceImpl implements FoodService {
     }
 
     private List<FoodVO> toFoodVOs(List<Food> foods) {
-        return foods.stream().map(FoodVO::from).toList();
+        return foods.stream().map(this::toFoodVO).toList();
+    }
+
+    private FoodVO toFoodVO(Food food) {
+        FoodVO vo = FoodVO.from(food);
+        ResolvedFoodTags resolved = taxonomyService.resolveFood(food);
+        vo.setCuisineTags(List.copyOf(resolved.cuisineTags()));
+        return vo;
+    }
+
+    private UserPreferenceVO currentPreference() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof JwtClaims)) {
+            return null;
+        }
+        try {
+            return userPreferenceService.getCurrentPreference();
+        } catch (BusinessException exception) {
+            return null;
+        }
     }
 
     private long pages(long total, long pageSize) {
@@ -162,5 +209,9 @@ public class FoodServiceImpl implements FoodService {
 
     private String normalize(String value) {
         return value == null ? null : value.trim();
+    }
+
+    private BigDecimal scoreOf(BigDecimal score) {
+        return score == null ? BigDecimal.ZERO : score;
     }
 }
