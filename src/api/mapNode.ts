@@ -15,6 +15,8 @@ export type MapNodeOption = {
   lng: number
   lat: number
   placeType?: string
+  /** 展示用铺点坐标，规划路线前需地理编码 */
+  needsGeocode?: boolean
 }
 
 function nodeCoords(
@@ -84,45 +86,51 @@ export async function fetchDestinationMapNodes(destinationId: number): Promise<M
   return { nodes: placesToNodeOptions(places), usedPlaceFallback: true }
 }
 
-/** 景区内部导航：将示意坐标转为高德可用的 GPS（按节点名地理编码） */
-export async function enrichMapNodesGpsCoords(
+/** 快速把示意坐标铺到景区中心附近，供地图即时展示（不阻塞网络） */
+export function quickDisplayGpsCoords(
   nodes: MapNodeOption[],
+  centerHint: { lng: number; lat: number } = BEIJING_DEFAULT_CENTER,
+): MapNodeOption[] {
+  return nodes.map((n, i) => {
+    if (isBeijingAreaCoord(n.lng, n.lat) && !n.needsGeocode) {
+      return { ...n, needsGeocode: false }
+    }
+    const fb = scatterAroundCenter(centerHint, i, nodes.length)
+    return { ...n, lng: fb.lng, lat: fb.lat, needsGeocode: true }
+  })
+}
+
+/** 单节点：非 GPS 时尝试地理编码，失败则落在景区中心附近 */
+export async function ensureNodeGpsCoords(
+  node: MapNodeOption,
   destinationHint?: string,
   centerHint?: { lng: number; lat: number },
-): Promise<MapNodeOption[]> {
+  index = 0,
+  total = 1,
+): Promise<MapNodeOption> {
+  if (isBeijingAreaCoord(node.lng, node.lat) && !node.needsGeocode) {
+    return { ...node, needsGeocode: false }
+  }
+
   const hint = destinationHint?.trim() || '北京'
   const scatterCenter = centerHint ?? BEIJING_DEFAULT_CENTER
-  const out: MapNodeOption[] = []
-  for (let i = 0; i < nodes.length; i++) {
-    const n = nodes[i]
-    if (isBeijingAreaCoord(n.lng, n.lat)) {
-      out.push(n)
-      continue
-    }
-    const queries = [
-      `${hint} ${n.nodeName}`,
-      `北京环球度假区 ${n.nodeName}`,
-      `北京${hint}${n.nodeName}`,
-      `北京${n.nodeName}`,
-      n.nodeName,
-    ]
-    let resolved: { lng: number; lat: number } | null = null
-    for (const q of queries) {
-      try {
-        resolved = await resolveDestinationCoords(q, '北京')
-        if (resolved && isBeijingAreaCoord(resolved.lng, resolved.lat)) break
-        resolved = null
-      } catch {
-        /* 尝试下一个查询词 */
+  const queries = [
+    `${hint} ${node.nodeName}`,
+    `北京环球度假区 ${node.nodeName}`,
+    `北京${hint}${node.nodeName}`,
+    `北京${node.nodeName}`,
+    node.nodeName,
+  ]
+  for (const q of queries) {
+    try {
+      const resolved = await resolveDestinationCoords(q, '北京')
+      if (resolved && isBeijingAreaCoord(resolved.lng, resolved.lat)) {
+        return { ...node, lng: resolved.lng, lat: resolved.lat, needsGeocode: false }
       }
+    } catch {
+      /* 尝试下一个查询词 */
     }
-    if (resolved) {
-      out.push({ ...n, lng: resolved.lng, lat: resolved.lat })
-    } else {
-      const fb = scatterAroundCenter(scatterCenter, i, nodes.length)
-      out.push({ ...n, lng: fb.lng, lat: fb.lat })
-    }
-    await new Promise((r) => window.setTimeout(r, 80))
   }
-  return out
+  const fb = scatterAroundCenter(scatterCenter, index, Math.max(total, 1))
+  return { ...node, lng: fb.lng, lat: fb.lat, needsGeocode: true }
 }

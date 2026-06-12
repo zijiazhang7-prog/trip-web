@@ -22,6 +22,8 @@ type AmapMapViewProps = {
   defaultCenter?: [number, number]
   defaultZoom?: number
   routeStrokeColor?: string
+  /** 起终点模式：仅 2 个途经点时显示「起」「终」标记 */
+  endpointMarkers?: boolean
   className?: string
 }
 
@@ -116,6 +118,7 @@ export function AmapMapView({
   defaultCenter,
   defaultZoom = 17,
   routeStrokeColor = '#5d7052',
+  endpointMarkers = false,
   className = '',
 }: AmapMapViewProps) {
   const minZoomAfterFit = maxFitZoom >= 16 ? 14 : 11
@@ -291,17 +294,28 @@ export function AmapMapView({
         next.push(line)
       }
 
-      for (const wp of waypoints) {
-        if (!isValidCoord(wp.lng, wp.lat)) continue
+      const validWaypoints = waypoints.filter((wp) => isValidCoord(wp.lng, wp.lat))
+      const useEndpointMarkers = endpointMarkers && validWaypoints.length === 2
+
+      for (let i = 0; i < validWaypoints.length; i++) {
+        const wp = validWaypoints[i]
         const isActive = activeId != null && String(activeId) === String(wp.id)
         const safeName = escapeHtml(wp.name)
+        const isStart = i === 0
+        const endpointBg = isStart ? '#3d9a5a' : '#d94a4a'
+        const endpointLabel = isStart ? '起' : '终'
         const marker = new AMap.Marker({
           position: new AMap.LngLat(wp.lng, wp.lat),
           title: wp.name,
-          label: {
-            content: `<div style="padding:2px 6px;border-radius:8px;background:${isActive ? '#5d7052' : '#fff'};color:${isActive ? '#fff' : '#2c2c24'};font-size:11px;border:1px solid #5d7052">${safeName}</div>`,
-            direction: 'top',
-          },
+          label: useEndpointMarkers
+            ? {
+                content: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:28px;height:28px;border-radius:50%;background:${endpointBg};color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25)">${endpointLabel}</div><div style="padding:2px 6px;border-radius:8px;background:#fff;color:#2c2c24;font-size:10px;border:1px solid ${endpointBg};max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${safeName}</div></div>`,
+                direction: 'top',
+              }
+            : {
+                content: `<div style="padding:2px 6px;border-radius:8px;background:${isActive ? '#5d7052' : '#fff'};color:${isActive ? '#fff' : '#2c2c24'};font-size:11px;border:1px solid #5d7052">${safeName}</div>`,
+                direction: 'top',
+              },
         })
         if (stableOnSelect) {
           marker.on('click', () => stableOnSelect(wp))
@@ -330,8 +344,6 @@ export function AmapMapView({
           }
         })
       }
-
-      const validWaypoints = waypoints.filter((wp) => isValidCoord(wp.lng, wp.lat))
 
       if (next.length) {
         map.add(next)
@@ -374,6 +386,7 @@ export function AmapMapView({
     defaultCenter,
     defaultZoom,
     routeStrokeColor,
+    endpointMarkers,
   ])
 
   if (!hasAmapJsKey()) {

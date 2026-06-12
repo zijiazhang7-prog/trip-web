@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  enrichMapNodesGpsCoords,
+  ensureNodeGpsCoords,
   fetchDestinationMapNodes,
+  quickDisplayGpsCoords,
   type MapNodeOption,
 } from '../../api/mapNode'
 import {
@@ -15,7 +16,7 @@ import { macroPlanFromRoutePlanVO } from '../../lib/route/backendRoutePlan'
 import { isBeijingAreaCoord } from '../../lib/geo/beijingCoord'
 import { resolveDestinationCoords } from '../../lib/geo/resolveCoords'
 import {
-  enrichInternalRoutePolyline,
+  buildInternalWalkingPolyline,
   filterBeijingPolyline,
 } from '../../lib/route/internalRoutePolyline'
 import { AmapMapView } from './AmapMapView'
@@ -85,11 +86,11 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
     void (async () => {
       try {
         const res = await fetchDestinationMapNodes(destinationId)
-        const gpsNodes = await enrichMapNodesGpsCoords(res.nodes, waypoint.name, center)
+        const displayNodes = quickDisplayGpsCoords(res.nodes, center)
         if (cancelled) return
-        setNodes(gpsNodes)
-        setStartNodeId(gpsNodes[0]?.nodeId ?? null)
-        setTargetNodeId(gpsNodes[1]?.nodeId ?? gpsNodes[0]?.nodeId ?? null)
+        setNodes(displayNodes)
+        setStartNodeId(displayNodes[0]?.nodeId ?? null)
+        setTargetNodeId(displayNodes[1]?.nodeId ?? displayNodes[0]?.nodeId ?? null)
       } catch (err) {
         if (!cancelled) {
           setNodes([])
@@ -102,19 +103,19 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
     return () => {
       cancelled = true
     }
-  }, [destinationId, waypoint.name])
+  }, [destinationId, waypoint.name, scenicCenter])
 
   useEffect(() => {
-    if (!modalOpen || loading || nodes.length === 0) {
+    if (!modalOpen) {
       setMapMounted(false)
       return undefined
     }
-    const timer = window.setTimeout(() => setMapMounted(true), 300)
+    const timer = window.setTimeout(() => setMapMounted(true), 120)
     return () => {
       window.clearTimeout(timer)
       setMapMounted(false)
     }
-  }, [modalOpen, loading, nodes.length, destinationId])
+  }, [modalOpen])
 
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.nodeId, n])), [nodes])
 
@@ -124,14 +125,25 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
   )
 
   const mapWaypoints = useMemo((): RouteWaypoint[] => {
-    return nodes.map((n) => ({
-      id: n.nodeId,
-      name: n.nodeName,
-      lng: n.lng,
-      lat: n.lat,
-      destinationId,
-    }))
-  }, [nodes, destinationId])
+    if (previewPlan?.waypoints.length) return previewPlan.waypoints
+
+    const markers: RouteWaypoint[] = []
+    const push = (id: number | null) => {
+      if (id == null) return
+      const n = nodeById.get(id)
+      if (!n || !isValidCoord(n.lng, n.lat)) return
+      markers.push({
+        id: n.nodeId,
+        name: n.nodeName,
+        lng: n.lng,
+        lat: n.lat,
+        destinationId,
+      })
+    }
+    push(startNodeId)
+    if (targetNodeId != null && targetNodeId !== startNodeId) push(targetNodeId)
+    return markers
+  }, [previewPlan, nodeById, startNodeId, targetNodeId, destinationId])
 
   const handlePlan = async () => {
     if (!hasStoredToken()) {
@@ -156,32 +168,39 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
         { ...vo, transportType: toBackendTransport(transport) },
         nodeById,
       )
-      const startNode = nodeById.get(startNodeId)
-      const endNode = nodeById.get(targetNodeId)
-      if (!startNode || !endNode) {
+      const rawStart = nodeById.get(startNodeId)
+      const rawEnd = nodeById.get(targetNodeId)
+      if (!rawStart || !rawEnd) {
         throw new Error('起点或终点坐标缺失')
       }
-      const enriched = await enrichInternalRoutePolyline(macro)
-      const roadLine = filterBeijingPolyline(enriched.polyline)
+      const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
+      const [startNode, endNode] = await Promise.all([
+        ensureNodeGpsCoords(rawStart, waypoint.name, center, 0, 2),
+        ensureNodeGpsCoords(rawEnd, waypoint.name, center, 1, 2),
+      ])
+      const roadLine = filterBeijingPolyline(
+        await buildInternalWalkingPolyline(startNode, endNode, macro.transportMode),
+      )
+      const routeWaypoints: RouteWaypoint[] = [
+        {
+          id: startNodeId,
+          name: startNode.nodeName,
+          lng: startNode.lng,
+          lat: startNode.lat,
+          destinationId,
+        },
+        {
+          id: targetNodeId,
+          name: endNode.nodeName,
+          lng: endNode.lng,
+          lat: endNode.lat,
+          destinationId,
+        },
+      ]
       setPreviewPlan({
-        ...enriched,
-        waypoints: [
-          {
-            id: startNodeId,
-            name: startNode.nodeName,
-            lng: startNode.lng,
-            lat: startNode.lat,
-            destinationId,
-          },
-          {
-            id: targetNodeId,
-            name: endNode.nodeName,
-            lng: endNode.lng,
-            lat: endNode.lat,
-            destinationId,
-          },
-        ],
-        polyline: roadLine.length >= 2 ? roadLine : filterBeijingPolyline(macro.polyline),
+        ...macro,
+        waypoints: routeWaypoints,
+        polyline: roadLine,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : '内部路线失败')
@@ -284,10 +303,11 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
             maxFitZoom={18}
             singlePointZoom={17}
             routeStrokeColor="#2f7fd4"
+            endpointMarkers={Boolean(previewPlan?.polyline?.length)}
           />
         ) : (
           <div className="flex h-full min-h-[min(48vh,420px)] items-center justify-center text-xs text-[var(--ds-muted-foreground)]">
-            {loading ? '正在加载景区地图…' : '准备景区地图…'}
+            {loading ? '正在加载节点…' : '准备景区地图…'}
           </div>
         )}
       </div>
