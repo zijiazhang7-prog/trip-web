@@ -270,6 +270,29 @@ const POI_TYPE_FILTER: Record<string, string> = {
   '': '',
 }
 
+export async function searchTextPois(keyword: string, city = '北京', pageSize = 20): Promise<NearbyPoiResult[]> {
+  const data = await amapGet<AroundResponse>('/v3/place/text', {
+    keywords: keyword.trim(),
+    city,
+    citylimit: 'true',
+    offset: String(Math.min(pageSize, 25)),
+    page: '1',
+    extensions: 'base',
+  })
+  return (data.pois ?? []).map((p) => {
+    const [plng, plat] = p.location.split(',').map(Number)
+    return {
+      id: p.id,
+      name: p.name,
+      type: p.type,
+      address: p.address,
+      distance: 0,
+      lng: plng,
+      lat: plat,
+    }
+  })
+}
+
 export async function fetchAroundPois(
   lng: number,
   lat: number,

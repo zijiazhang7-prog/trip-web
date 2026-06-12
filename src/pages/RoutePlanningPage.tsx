@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AmapMapView } from '../components/route/AmapMapView'
 import { DestinationPickerScroll } from '../components/route/DestinationPickerScroll'
+import { BuildingIndoorNavModal } from '../components/route/BuildingIndoorNavModal'
 import { InternalRoutePlanModal } from '../components/route/InternalRoutePlanModal'
 import { RouteSequenceSidebar } from '../components/route/RouteSequenceSidebar'
 import { InlineNotice } from '../components/ui/InlineNotice'
@@ -22,6 +23,7 @@ export function RoutePlanningPage() {
   const [localPlan, setLocalPlan] = useState(macroPlan)
   const [transportMode, setTransportMode] = useState<TransportMode>('transit')
   const [internalPlanOpen, setInternalPlanOpen] = useState(false)
+  const [indoorNavOpen, setIndoorNavOpen] = useState(false)
 
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected])
   const displayPlan = localPlan ?? macroPlan
@@ -150,7 +152,16 @@ export function RoutePlanningPage() {
         }}
       />
 
+      <BuildingIndoorNavModal open={indoorNavOpen} onClose={() => setIndoorNavOpen(false)} />
+
       <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setIndoorNavOpen(true)}
+          className="shrink-0 rounded-full border border-[var(--ds-primary)]/25 bg-white px-6 py-3 font-body text-sm font-semibold text-[var(--ds-primary)] transition hover:bg-[color-mix(in_srgb,var(--ds-primary)_6%,white)]"
+        >
+          朝阳大悦城 · 室内导航
+        </button>
         <button
           type="button"
           disabled={selected.length < 1}

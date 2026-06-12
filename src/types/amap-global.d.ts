@@ -65,6 +65,19 @@ declare global {
           onError: (err: { message: string }) => void,
         ) => void
       }
+      IndoorMap: new (opts?: Record<string, unknown>) => {
+        showIndoorMap: (indoorid: string, floor?: number, shopid?: string) => void
+        showFloorBar?: () => void
+        showFloor?: (floor: number) => void
+        getSelectedBuilding?: () => {
+          id?: string
+          name?: string
+          floor?: number
+          floor_details?: { floor_indexs?: number[]; floor_names?: string[] }
+        }
+        setMap?: (map: unknown) => void
+      }
+      createDefaultLayer: () => unknown
     }
     _AMapSecurityConfig?: { securityJsCode: string }
   }
