@@ -29,6 +29,35 @@ function toCoord(v: number | string | undefined): number | undefined {
   return Number.isFinite(n) ? (n as number) : undefined
 }
 
+/** 店铺名规范化：跨目的地、跨 foodId 时仍能识别为同一家店 */
+export function normalizeFoodShopLabel(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[（）]/g, (c) => (c === '（' ? '(' : ')'))
+}
+
+/** 全局去重键：优先设施/店名，避免同一店铺挂多个 destinationId 时重复展示 */
+export function foodVODedupeKey(vo: FoodVO): string {
+  if (vo.facilityId != null && vo.facilityId > 0) return `facility:${vo.facilityId}`
+  const shop = normalizeFoodShopLabel(vo.shopName || vo.name || '')
+  if (shop.length >= 2) return `shop:${shop}`
+  const cover = (vo.coverUrl || '').trim().toLowerCase()
+  if (cover) return `cover:${cover}`
+  if (vo.id != null) return `id:${vo.id}`
+  return `row:${vo.destinationId}:${vo.foodType ?? ''}:${vo.name ?? ''}`
+}
+
+export function foodDedupeKey(f: Food): string {
+  const shop = normalizeFoodShopLabel(f.name || '')
+  if (shop.length >= 2) return `shop:${shop}`
+  const cover = (f.image || '').trim().toLowerCase()
+  if (cover && !cover.includes('auth-bg-login')) return `cover:${cover}`
+  if (f.id != null) return `id:${f.id}`
+  return `row:${f.name}-${f.dish}`
+}
+
 export function foodVOToFood(vo: FoodVO): Food {
   const rating =
     vo.ratingScore != null ? String(vo.ratingScore) : vo.heatScore != null ? String(vo.heatScore) : '—'
@@ -63,8 +92,6 @@ export async function searchFoodsAcrossDestinations(
   const concurrency = 8
   const seen = new Set<string>()
   const out: FoodVO[] = []
-  const rowKey = (row: FoodVO) =>
-    row.id != null ? `i:${row.id}` : `n:${row.destinationId}:${row.name}:${row.shopName ?? ''}`
   for (let i = 0; i < destinationIds.length; i += concurrency) {
     const slice = destinationIds.slice(i, i + concurrency)
     const batches = await Promise.all(
@@ -74,7 +101,7 @@ export async function searchFoodsAcrossDestinations(
     )
     for (const list of batches) {
       for (const row of list) {
-        const k = rowKey(row)
+        const k = foodVODedupeKey(row)
         if (seen.has(k)) continue
         seen.add(k)
         out.push(row)

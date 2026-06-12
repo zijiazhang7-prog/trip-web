@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchNonDemoDestinationIds } from '../api/destinationAnchors'
 import { fetchRecommendedDestinationsPage, type PageResult } from '../api/destination'
 import { inferTotalPages } from '../api/pagination'
@@ -6,7 +6,9 @@ import type { FoodVO } from '../api/food'
 import {
   fetchRecommendedFoods,
   fetchRecommendedFoodsPage,
+  foodDedupeKey,
   foodVOToFood,
+  foodVODedupeKey,
   searchFoodsAcrossDestinations,
 } from '../api/food'
 import { foodTags, foods as foodsFallback, type Food } from '../data/siteData'
@@ -39,14 +41,10 @@ const BROWSE_PUMP_MAX_ITERATIONS = 24
 const FOOD_ANCHOR_PROBE_MAX = 120
 const FOOD_ANCHOR_CHUNK = 10
 const PROBE_CACHE_KEY = 'trip_food_anchor_ids_v2'
-const DESTINATION_ID_SCAN_PAGES = 12
+/** 首屏只扫少量目的地做锚点探测，更多在下滑时懒加载 */
+const DESTINATION_ID_SCAN_PAGES_INITIAL = 3
+const DESTINATION_ID_SCAN_PAGES_STEP = 2
 const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1000
-/** 首屏预取页数（与后端 pageSize 联调） */
-const INITIAL_ANCHOR_PREFETCH_PAGES = 3
-/** 后台为锚点连续预取的上限页数 */
-const BACKGROUND_ANCHOR_PREFETCH_PAGES = 8
-/** 单次「加载更多」只为锚点目的地连续请求几页 */
-const ANCHOR_PAGES_PER_LOAD_MORE = 6
 
 async function probeFoodAnchoredDestinationIds(candidateIds: number[]): Promise<number[]> {
   const found: number[] = []
@@ -71,49 +69,12 @@ async function probeFoodAnchoredDestinationIds(candidateIds: number[]): Promise<
   return [...new Set(found)].sort((a, b) => a - b)
 }
 
-async function resolveFoodAnchorIds(): Promise<number[]> {
-  const cached = readSessionCache<number[]>(PROBE_CACHE_KEY, PROBE_CACHE_TTL_MS)
-  if (cached?.length) return cached
-  const destinationIds = await fetchNonDemoDestinationIds(DESTINATION_ID_SCAN_PAGES, 50)
+async function resolveFoodAnchorIds(scanPages: number): Promise<number[]> {
+  const destinationIds = await fetchNonDemoDestinationIds(scanPages, 50)
   const fallbackIds = destinationIds.length
     ? destinationIds
     : Array.from({ length: FOOD_ANCHOR_PROBE_MAX }, (_, i) => i + 1)
-  const anchored = await probeFoodAnchoredDestinationIds(fallbackIds)
-  if (anchored.length) writeSessionCache(PROBE_CACHE_KEY, anchored)
-  return anchored
-}
-
-async function prefetchAnchorFoodPages(
-  anchored: number[],
-  fromPage: number,
-  toPage: number,
-  appendFoodVOs: (vos: FoodVO[]) => number,
-  anchorNextFoodPageRef: MutableRefObject<Map<number, number>>,
-): Promise<void> {
-  await Promise.all(
-    anchored.map(async (id) => {
-      for (let p = fromPage; p <= toPage; p++) {
-        const res = await fetchRecommendedFoodsPage(id, {
-          pageNum: p,
-          pageSize: FOOD_PAGE_SIZE,
-          sortBy: 'heat',
-        }).catch(() => null)
-        if (!res || res.list.length === 0) {
-          anchorNextFoodPageRef.current.delete(id)
-          break
-        }
-        appendFoodVOs(res.list)
-        const cap = inferTotalPages(
-          { list: res.list, pageNum: res.pageNum, pageSize: res.pageSize, total: res.total, pages: res.pages },
-          res.pageSize || FOOD_PAGE_SIZE,
-          p,
-        )
-        const advanced = p + 1
-        if (advanced > cap) anchorNextFoodPageRef.current.delete(id)
-        else anchorNextFoodPageRef.current.set(id, advanced)
-      }
-    }),
-  )
+  return probeFoodAnchoredDestinationIds(fallbackIds)
 }
 
 function FoodCardSkeleton() {
@@ -127,13 +88,6 @@ function FoodCardSkeleton() {
       </div>
     </article>
   )
-}
-
-function foodVODedupeKey(vo: FoodVO): string {
-  if (vo.id != null) return `id:${vo.id}`
-  const shop = (vo.shopName?.trim() || vo.name?.trim() || '').toLowerCase()
-  if (shop) return `shop:${shop}:${vo.destinationId ?? 0}`
-  return `k:${vo.destinationId}:${vo.foodType ?? ''}`
 }
 
 function foodKey(f: Food) {
@@ -179,6 +133,9 @@ export function FoodPage() {
   const foodAnchorIdSetRef = useRef<Set<number>>(new Set())
   /** destinationId -> 下一页 pageNum */
   const anchorNextFoodPageRef = useRef<Map<number, number>>(new Map())
+  const anchorRoundRobinRef = useRef(0)
+  const destIdScanPagesRef = useRef(DESTINATION_ID_SCAN_PAGES_INITIAL)
+  const knownAnchorIdsRef = useRef<number[]>([])
   /** 浏览扫描因 wave 上限已终止；此时若锚点也无下一页才算真正耗尽 */
   const browseFeedTerminatedRef = useRef(false)
 
@@ -204,46 +161,88 @@ export function FoodPage() {
     return fresh.length
   }, [])
 
-  const pumpNextAnchorFoodPage = useCallback(async (): Promise<boolean> => {
-    let progressed = false
-    outer: for (const id of foodAnchorIdsRef.current) {
-      for (let slot = 0; slot < ANCHOR_PAGES_PER_LOAD_MORE; slot++) {
-        const next = anchorNextFoodPageRef.current.get(id)
-        if (next == null) continue outer
+  const initFoodAnchors = useCallback((anchors: number[]) => {
+    const unique = [...new Set(anchors)].filter((id) => id > 0).sort((a, b) => a - b)
+    foodAnchorIdsRef.current = unique
+    foodAnchorIdSetRef.current = new Set(unique)
+    anchorNextFoodPageRef.current = new Map(unique.map((id) => [id, 1]))
+    anchorRoundRobinRef.current = 0
+    knownAnchorIdsRef.current = unique
+    if (unique.length) writeSessionCache(PROBE_CACHE_KEY, unique)
+  }, [])
 
-        const res = await fetchRecommendedFoodsPage(id, {
-          pageNum: next,
-          pageSize: FOOD_PAGE_SIZE,
-          sortBy: 'heat',
-        })
+  const extendFoodAnchors = useCallback(async (): Promise<boolean> => {
+    destIdScanPagesRef.current += DESTINATION_ID_SCAN_PAGES_STEP
+    const nextAnchors = await resolveFoodAnchorIds(destIdScanPagesRef.current)
+    const merged = [...new Set([...knownAnchorIdsRef.current, ...nextAnchors])].sort((a, b) => a - b)
+    if (merged.length <= knownAnchorIdsRef.current.length) return false
+    initFoodAnchors(merged)
+    return true
+  }, [initFoodAnchors])
 
-        const pageEnvelope: PageResult<FoodVO> = {
-          list: res.list,
-          pageNum: res.pageNum,
-          pageSize: res.pageSize,
-          total: res.total,
-          pages: res.pages,
+  /** 与景点一致：每批最多追加 targetAdded 条，轮询各目的地单页请求 */
+  const pumpIncrementalFoodBatch = useCallback(
+    async (targetAdded: number): Promise<boolean> => {
+      const anchors = foodAnchorIdsRef.current
+      if (!anchors.length) return false
+
+      let added = 0
+      let idlePasses = 0
+      const maxIdlePasses = anchors.length + 2
+
+      while (added < targetAdded && idlePasses < maxIdlePasses) {
+        if (anchorNextFoodPageRef.current.size === 0) break
+
+        let progressed = false
+        for (let step = 0; step < anchors.length; step++) {
+          const id = anchors[(anchorRoundRobinRef.current + step) % anchors.length]
+          const next = anchorNextFoodPageRef.current.get(id)
+          if (next == null) continue
+
+          const res = await fetchRecommendedFoodsPage(id, {
+            pageNum: next,
+            pageSize: FOOD_PAGE_SIZE,
+            sortBy: 'heat',
+          }).catch(() => null)
+
+          anchorRoundRobinRef.current = (anchorRoundRobinRef.current + step + 1) % anchors.length
+
+          if (!res || res.list.length === 0) {
+            anchorNextFoodPageRef.current.delete(id)
+            continue
+          }
+
+          const pageEnvelope: PageResult<FoodVO> = {
+            list: res.list,
+            pageNum: res.pageNum,
+            pageSize: res.pageSize,
+            total: res.total,
+            pages: res.pages,
+          }
+          const cap = inferTotalPages(pageEnvelope, res.pageSize || FOOD_PAGE_SIZE, next)
+          const advanced = next + 1
+          if (advanced > cap) anchorNextFoodPageRef.current.delete(id)
+          else anchorNextFoodPageRef.current.set(id, advanced)
+
+          const batchAdded = appendFoodVOs(res.list)
+          if (batchAdded > 0) {
+            added += batchAdded
+            progressed = true
+            if (added >= targetAdded) break
+          } else if (res.list.length > 0) {
+            progressed = true
+          }
+          break
         }
-        const cap = inferTotalPages(pageEnvelope, res.pageSize || FOOD_PAGE_SIZE, next)
 
-        if (res.list.length === 0 || next > cap) {
-          anchorNextFoodPageRef.current.delete(id)
-          continue outer
-        }
-
-        const added = appendFoodVOs(res.list)
-        if (added > 0) progressed = true
-
-        const advanced = next + 1
-        if (advanced > cap) {
-          anchorNextFoodPageRef.current.delete(id)
-          continue outer
-        }
-        anchorNextFoodPageRef.current.set(id, advanced)
+        if (progressed) idlePasses = 0
+        else idlePasses += 1
       }
-    }
-    return progressed
-  }, [appendFoodVOs])
+
+      return added > 0 || anchorNextFoodPageRef.current.size > 0
+    },
+    [appendFoodVOs],
+  )
 
   const resetBrowseRefs = () => {
     destIdsRef.current = []
@@ -256,6 +255,9 @@ export function FoodPage() {
     foodAnchorIdsRef.current = []
     foodAnchorIdSetRef.current.clear()
     anchorNextFoodPageRef.current.clear()
+    anchorRoundRobinRef.current = 0
+    destIdScanPagesRef.current = DESTINATION_ID_SCAN_PAGES_INITIAL
+    knownAnchorIdsRef.current = []
   }
 
   const fetchNextDestinationBatch = useCallback(async (): Promise<boolean> => {
@@ -355,16 +357,18 @@ export function FoodPage() {
       setLoadingMore(true)
       try {
         if (mode === 'browse') {
-          /** 主路径：锚点目的地分页（同一 total 下的后续页），单次最多 ANCHOR_PAGES_PER_LOAD_MORE 个 foods 请求 */
-          await pumpNextAnchorFoodPage()
-          if (anchorNextFoodPageRef.current.size === 0) {
-            if (foodAnchorIdsRef.current.length > 0) {
-              setMoreAvailable(false)
-            } else {
-              /** 未发现锚点时：仅退回少量跨目的地扫描（与首屏同一上限），避免一页打出数百请求 */
-              const progressed = await pumpBrowseBatch()
-              if (!progressed) setMoreAvailable(false)
+          let progressed = await pumpIncrementalFoodBatch(FOOD_PAGE_SIZE)
+          if (!progressed && anchorNextFoodPageRef.current.size === 0) {
+            progressed = await extendFoodAnchors()
+            if (progressed) {
+              progressed = await pumpIncrementalFoodBatch(FOOD_PAGE_SIZE)
             }
+          }
+          if (!progressed && anchorNextFoodPageRef.current.size === 0) {
+            const fallback = await pumpBrowseBatch()
+            setMoreAvailable(fallback)
+          } else {
+            setMoreAvailable(anchorNextFoodPageRef.current.size > 0 || foodAnchorIdsRef.current.length > 0)
           }
           return
         }
@@ -383,7 +387,8 @@ export function FoodPage() {
     moreAvailable,
     pumpBrowseBatch,
     pumpSearchBatch,
-    pumpNextAnchorFoodPage,
+    pumpIncrementalFoodBatch,
+    extendFoodAnchors,
   ])
 
   useEffect(() => {
@@ -482,7 +487,14 @@ export function FoodPage() {
     } else {
       sorted.sort((a, b) => (b.heatScore ?? 0) - (a.heatScore ?? 0))
     }
-    return sorted.map((f) => {
+    const seen = new Set<string>()
+    const unique = sorted.filter((f) => {
+      const k = foodDedupeKey(f)
+      if (seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+    return unique.map((f) => {
       if (listSort !== 'distance' || !anchorCoords || f.lng == null || f.lat == null) return f
       const m = haversineMeters(anchorCoords.lng, anchorCoords.lat, f.lng, f.lat)
       return { ...f, distance: formatDistanceMeters(m) }
@@ -549,64 +561,27 @@ export function FoodPage() {
       resetBrowseRefs()
       try {
         if (!scopeAll && scopeDestinationId) {
-          foodAnchorIdsRef.current = [scopeDestinationId]
-          foodAnchorIdSetRef.current = new Set([scopeDestinationId])
-          anchorNextFoodPageRef.current.clear()
-          await prefetchAnchorFoodPages(
-            [scopeDestinationId],
-            1,
-            INITIAL_ANCHOR_PREFETCH_PAGES,
-            appendFoodVOs,
-            anchorNextFoodPageRef,
-          )
-          setMoreAvailable(true)
+          initFoodAnchors([scopeDestinationId])
+          const progressed = await pumpIncrementalFoodBatch(FOOD_PAGE_SIZE)
+          setMoreAvailable(progressed)
           setUsingFallback(false)
           setLoadingInitial(false)
-          void prefetchAnchorFoodPages(
-            [scopeDestinationId],
-            INITIAL_ANCHOR_PREFETCH_PAGES + 1,
-            BACKGROUND_ANCHOR_PREFETCH_PAGES,
-            appendFoodVOs,
-            anchorNextFoodPageRef,
-          )
           return
         }
 
-        const anchored = await resolveFoodAnchorIds()
-        foodAnchorIdsRef.current = anchored
-        foodAnchorIdSetRef.current = new Set(anchored)
-        anchorNextFoodPageRef.current.clear()
+        const cached = readSessionCache<number[]>(PROBE_CACHE_KEY, PROBE_CACHE_TTL_MS)
+        const anchored =
+          cached?.length ? cached : await resolveFoodAnchorIds(DESTINATION_ID_SCAN_PAGES_INITIAL)
+        initFoodAnchors(anchored)
 
-        if (anchored.length > 0) {
-          await prefetchAnchorFoodPages(
-            anchored,
-            1,
-            INITIAL_ANCHOR_PREFETCH_PAGES,
-            appendFoodVOs,
-            anchorNextFoodPageRef,
-          )
-        }
+        const progressed =
+          anchored.length > 0 ? await pumpIncrementalFoodBatch(FOOD_PAGE_SIZE) : await pumpBrowseBatch()
 
-        setMoreAvailable(anchored.length > 0 || destIdsRef.current.length > 0)
+        setMoreAvailable(
+          progressed || anchorNextFoodPageRef.current.size > 0 || destIdsRef.current.length > 0,
+        )
         setUsingFallback(false)
         setLoadingInitial(false)
-
-        void (async () => {
-          if (anchored.length > 0 && BACKGROUND_ANCHOR_PREFETCH_PAGES > INITIAL_ANCHOR_PREFETCH_PAGES) {
-            await prefetchAnchorFoodPages(
-              anchored,
-              INITIAL_ANCHOR_PREFETCH_PAGES + 1,
-              BACKGROUND_ANCHOR_PREFETCH_PAGES,
-              appendFoodVOs,
-              anchorNextFoodPageRef,
-            )
-          }
-          for (let attempt = 0; attempt < 2; attempt++) {
-            const before = seenFoodKeysRef.current.size
-            await pumpBrowseBatch()
-            if (seenFoodKeysRef.current.size > before) break
-          }
-        })()
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载失败')
         setFoods(foodsFallback)
@@ -671,7 +646,7 @@ export function FoodPage() {
           美食推荐
         </h1>
         <p className="mt-3 font-body text-[15.5px] text-[#6B8076]">
-          瀑布流懒加载：滑到底部自动向后台拉取更多数据；支持关键词检索。
+          瀑布流懒加载：首屏约 32 条，滑到底部再分批加载；支持关键词检索。
         </p>
         {!scopeAll && scopeDestinationId ? (
           <div className="mt-4 flex flex-wrap items-center gap-2">
