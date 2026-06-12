@@ -6,6 +6,7 @@ const routes = [
   { to: '/food', label: '美食推荐' },
   { to: '/community', label: '社群分享' },
   { to: '/diary', label: '旅游日记' },
+  { to: '/aigc', label: 'AI 动画' },
 ] as const
 
 function navClass(active: boolean) {

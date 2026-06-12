@@ -20,6 +20,9 @@ const CommunityPage = lazy(() =>
 const DiaryPage = lazy(() =>
   import('./pages/DiaryPage').then((m) => ({ default: m.DiaryPage })),
 )
+const AigcPage = lazy(() =>
+  import('./pages/AigcPage').then((m) => ({ default: m.AigcPage })),
+)
 
 function PageFallback() {
   return (
@@ -91,6 +94,14 @@ function App() {
                     }
                   >
                     <DiaryPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/aigc"
+                element={
+                  <Suspense fallback={<PageFallback />}>
+                    <AigcPage />
                   </Suspense>
                 }
               />

@@ -10,6 +10,7 @@ export {
   hasDeepSeekKey,
   hasDoubaoKey,
   hasGlmKey,
+  hasGlmVisionKey,
 } from '../lib/llm/config'
 export {
   explainRecommendation,
@@ -19,3 +20,9 @@ export {
 } from '../lib/llm/deepseek'
 export { generateDiaryDayLayout, polishDiaryText } from '../lib/llm/glm'
 export { describeTravelImage, fileToDataUrl } from '../lib/llm/doubaoVision'
+export {
+  buildAigcStoryboard,
+  describeTravelImageGlm,
+  describeTravelVideoGlm,
+} from '../lib/llm/glmVision'
+export type { AigcStoryboard } from '../lib/llm/glmVision'

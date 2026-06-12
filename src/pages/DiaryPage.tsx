@@ -4,10 +4,13 @@ import { getAiApi } from '../api/ai'
 import { getDiaryApi } from '../api/diary'
 import {
   describeTravelImage,
+  describeTravelImageGlm,
+  describeTravelVideoGlm,
   fileToDataUrl,
   generateDiaryDayLayout,
   hasDoubaoKey,
   hasGlmKey,
+  hasGlmVisionKey,
   polishDiaryText,
 } from '../api/llm'
 import { appendLayoutBlock, readLayoutFromBlocks } from '../features/diary/layoutPersist'
@@ -651,11 +654,31 @@ export function DiaryPage() {
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
+  const appendCaptionLayer = (caption: string, sticker: { left: number; top: number; rotate: number }) => {
+    const textId = uid('layer')
+    const topZ = textLayers.reduce((max, it) => Math.max(max, it.z), 0)
+    setTextLayers((prev) => [
+      ...prev,
+      {
+        id: textId,
+        value: caption,
+        left: Math.min(88, sticker.left + 10),
+        top: sticker.top,
+        scale: 0.95,
+        rotate: sticker.rotate,
+        z: topZ + 1,
+      },
+    ])
+    setActiveTextLayerId(textId)
+    setActiveStickerId(null)
+    pendingTextFocusRef.current = textId
+  }
+
   const runAiForMediaSticker = async (stickerId: string) => {
     const sticker = stickerLayers.find((item) => item.id === stickerId)
     if (!sticker?.blockId || sticker.kind !== 'image' || !selectedBook || !selectedEntry || aiBusy) return
-    if (!hasDoubaoKey()) {
-      setAiError('未配置豆包 API Key，请在 .env 设置 VITE_DOUBAO_API_KEY（与后端无关）')
+    if (!hasGlmVisionKey() && !hasDoubaoKey()) {
+      setAiError('请配置 VITE_GLM_API_KEY 或 VITE_DOUBAO_API_KEY 以使用 AI 配文')
       return
     }
     setAiBusy(true)
@@ -671,27 +694,11 @@ export function DiaryPage() {
               { type: 'image/jpeg' },
             ),
           )
-      const caption = await describeTravelImage({
-        imageDataUrl: dataUrl,
-        context: `为旅行手账「${entryTitle}」写 2-3 句读图配文，温馨具体，适合放在图片旁边。`,
-      })
-      const textId = uid('layer')
-      const topZ = textLayers.reduce((max, it) => Math.max(max, it.z), 0)
-      setTextLayers((prev) => [
-        ...prev,
-        {
-          id: textId,
-          value: caption,
-          left: Math.min(88, sticker.left + 10),
-          top: sticker.top,
-          scale: 0.95,
-          rotate: sticker.rotate,
-          z: topZ + 1,
-        },
-      ])
-      setActiveTextLayerId(textId)
-      setActiveStickerId(null)
-      pendingTextFocusRef.current = textId
+      const context = `为旅行手账「${entryTitle}」写 2-3 句读图配文，温馨具体，适合放在图片旁边。`
+      const caption = hasGlmVisionKey()
+        ? await describeTravelImageGlm({ imageDataUrl: dataUrl, context })
+        : await describeTravelImage({ imageDataUrl: dataUrl, context })
+      appendCaptionLayer(caption, sticker)
 
       const next = await diaryApi.upsertEntry(selectedBook.id, {
         dayIndex: selectedEntry.dayIndex,
@@ -705,11 +712,47 @@ export function DiaryPage() {
       setBookEntries((prev) => prev.map((entry) => (entry.id === next.id ? next : entry)))
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'AI 配文失败'
-      setAiError(
-        msg.includes('fetch') || msg.includes('Failed')
-          ? '豆包识图 API 请求失败，请检查 VITE_DOUBAO_API_KEY 与网络（非后端接口问题）'
-          : msg,
-      )
+      setAiError(msg)
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  const runAiForVideoSticker = async (stickerId: string) => {
+    const sticker = stickerLayers.find((item) => item.id === stickerId)
+    if (!sticker?.blockId || sticker.kind !== 'video' || !selectedBook || !selectedEntry || aiBusy) return
+    if (!hasGlmVisionKey()) {
+      setAiError('未配置 VITE_GLM_API_KEY，视频 AI 配文需要 GLM-4.6V-Flash')
+      return
+    }
+    setAiBusy(true)
+    setAiError(null)
+    try {
+      const cached = uploadFileCacheRef.current.get(sticker.blockId)
+      const blob = cached
+        ? cached
+        : await (await fetch(sticker.url)).blob()
+      if (blob.size > 20 * 1024 * 1024) {
+        throw new Error('视频超过 20MB，请使用更短的片段（智谱视频理解限制）')
+      }
+      const dataUrl = await fileToDataUrl(new File([blob], 'clip.mp4', { type: blob.type || 'video/mp4' }))
+      const caption = await describeTravelVideoGlm({
+        videoDataUrl: dataUrl,
+        context: `为旅行手账「${entryTitle}」写 2-3 句视频读图配文，温馨具体。`,
+      })
+      appendCaptionLayer(caption, sticker)
+      const next = await diaryApi.upsertEntry(selectedBook.id, {
+        dayIndex: selectedEntry.dayIndex,
+        title: entryTitle,
+        entryDate: selectedEntry.entryDate,
+        blocks: selectedEntry.blocks.map((block) =>
+          block.id === sticker.blockId && block.type === 'video' ? { ...block, caption } : block,
+        ),
+      })
+      setSelectedEntry(next)
+      setBookEntries((prev) => prev.map((entry) => (entry.id === next.id ? next : entry)))
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : '视频 AI 配文失败')
     } finally {
       setAiBusy(false)
     }
@@ -1479,12 +1522,23 @@ export function DiaryPage() {
                                       >
                                         上移
                                       </button>
-                                      {sticker.kind === 'image' && hasDoubaoKey() ? (
+                                      {sticker.kind === 'image' && (hasGlmVisionKey() || hasDoubaoKey()) ? (
                                         <button
                                           type="button"
                                           disabled={aiBusy}
                                           onMouseDown={(e) => e.preventDefault()}
                                           onClick={() => void runAiForMediaSticker(sticker.id)}
+                                          className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-2 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm disabled:opacity-50"
+                                        >
+                                          AI 配文
+                                        </button>
+                                      ) : null}
+                                      {sticker.kind === 'video' && hasGlmVisionKey() ? (
+                                        <button
+                                          type="button"
+                                          disabled={aiBusy}
+                                          onMouseDown={(e) => e.preventDefault()}
+                                          onClick={() => void runAiForVideoSticker(sticker.id)}
                                           className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-2 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm disabled:opacity-50"
                                         >
                                           AI 配文
