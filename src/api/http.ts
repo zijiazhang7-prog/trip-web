@@ -30,16 +30,21 @@ export function hasStoredToken(): boolean {
   return Boolean(getStoredToken())
 }
 
-export async function httpRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export type HttpRequestInit = RequestInit & { timeoutMs?: number }
+
+export async function httpRequest<T>(path: string, init: HttpRequestInit = {}): Promise<T> {
+  const { timeoutMs: customTimeout, ...fetchInit } = init
   const token = getStoredToken()
-  const headers = new Headers(init.headers)
-  if (!headers.has('Content-Type') && init.body) headers.set('Content-Type', 'application/json')
+  const headers = new Headers(fetchInit.headers)
+  if (!headers.has('Content-Type') && fetchInit.body && !(fetchInit.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`)
 
   const timeoutMs =
-    typeof init.signal === 'object' && init.signal != null
+    typeof fetchInit.signal === 'object' && fetchInit.signal != null
       ? undefined
-      : DEFAULT_TIMEOUT_MS
+      : (customTimeout ?? DEFAULT_TIMEOUT_MS)
 
   const controller = timeoutMs ? new AbortController() : null
   const timer =
@@ -49,9 +54,9 @@ export async function httpRequest<T>(path: string, init: RequestInit = {}): Prom
 
   try {
     const response = await fetch(path, {
-      ...init,
+      ...fetchInit,
       headers,
-      signal: controller?.signal ?? init.signal,
+      signal: controller?.signal ?? fetchInit.signal,
     })
     let payload: ApiEnvelope<T> | null
     try {

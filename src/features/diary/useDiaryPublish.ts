@@ -37,11 +37,7 @@ export function useDiaryPublish() {
           visibility,
           fileCache,
         })
-        setPublishMsg(
-          visibility === 'public'
-            ? `已发布到手账社群（#${diaryId}），可在社群页查看`
-            : `已保存为私密手账（#${diaryId}）`,
-        )
+        setPublishMsg(visibility === 'public' ? `已发布（#${diaryId}）` : '已保存')
         return diaryId
       } catch (err) {
         setPublishError(err instanceof Error ? err.message : '发布失败')

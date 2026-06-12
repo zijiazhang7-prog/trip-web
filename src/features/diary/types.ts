@@ -37,12 +37,42 @@ export type DiaryPaperStyleBlock = {
   paperUrl: string
 }
 
+export type DiaryLayoutTextLayer = {
+  id: string
+  value: string
+  top: number
+  left: number
+  scale: number
+  rotate: number
+  z: number
+}
+
+export type DiaryLayoutStickerLayer = {
+  id: string
+  url: string
+  left: number
+  top: number
+  scale: number
+  rotate: number
+  z: number
+  kind?: 'sticker' | 'image' | 'video'
+  blockId?: string
+}
+
+export type DiaryLayoutBlock = {
+  id: string
+  type: 'layout'
+  textLayers: DiaryLayoutTextLayer[]
+  stickerLayers: DiaryLayoutStickerLayer[]
+}
+
 export type DiaryContentBlock =
   | DiaryTextBlock
   | DiaryImageBlock
   | DiaryVideoBlock
   | DiaryPaperStyleBlock
   | DiaryRouteSketchBlock
+  | DiaryLayoutBlock
 
 export type DiaryBook = {
   id: string

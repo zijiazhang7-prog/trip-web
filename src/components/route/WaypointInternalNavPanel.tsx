@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchDestinationMapNodes, type MapNodeOption } from '../../api/mapNode'
+import {
+  enrichMapNodesGpsCoords,
+  fetchDestinationMapNodes,
+  type MapNodeOption,
+} from '../../api/mapNode'
 import {
   planSingleRoute,
   toBackendTransport,
@@ -8,9 +12,16 @@ import {
 } from '../../api/route'
 import { hasStoredToken } from '../../api/http'
 import { macroPlanFromRoutePlanVO } from '../../lib/route/backendRoutePlan'
+import { isBeijingAreaCoord } from '../../lib/geo/beijingCoord'
+import { resolveDestinationCoords } from '../../lib/geo/resolveCoords'
+import {
+  enrichInternalRoutePolyline,
+  filterBeijingPolyline,
+} from '../../lib/route/internalRoutePolyline'
 import { AmapMapView } from './AmapMapView'
-import { RoutePathSvg } from './RoutePathSvg'
 import type { MacroRoutePlan, RouteWaypoint } from '../../types/macroRoute'
+
+const UNIVERSAL_STUDIOS_CENTER: [number, number] = [116.681128, 39.852226]
 
 const STRATEGIES: { value: RouteStrategyType; label: string }[] = [
   { value: 'shortest_distance', label: '最短距离' },
@@ -26,13 +37,16 @@ const TRANSPORTS: { value: RouteTransportType; label: string }[] = [
 
 type WaypointInternalNavPanelProps = {
   waypoint: RouteWaypoint
-  onApplyPlan?: (plan: MacroRoutePlan) => void
+  modalOpen?: boolean
 }
 
-export function WaypointInternalNavPanel({ waypoint, onApplyPlan }: WaypointInternalNavPanelProps) {
+function isValidCoord(lng: number, lat: number): boolean {
+  return Number.isFinite(lng) && Number.isFinite(lat) && !(lng === 0 && lat === 0)
+}
+
+export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: WaypointInternalNavPanelProps) {
   const destinationId = waypoint.destinationId
   const [nodes, setNodes] = useState<MapNodeOption[]>([])
-  const [usedPlaceFallback, setUsedPlaceFallback] = useState(false)
   const [loading, setLoading] = useState(false)
   const [startNodeId, setStartNodeId] = useState<number | null>(null)
   const [targetNodeId, setTargetNodeId] = useState<number | null>(null)
@@ -41,7 +55,25 @@ export function WaypointInternalNavPanel({ waypoint, onApplyPlan }: WaypointInte
   const [planning, setPlanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewPlan, setPreviewPlan] = useState<MacroRoutePlan | null>(null)
-  const [mapMode, setMapMode] = useState<'scenic' | 'indoor'>('scenic')
+  const [scenicCenter, setScenicCenter] = useState<[number, number]>(UNIVERSAL_STUDIOS_CENTER)
+  const [mapMounted, setMapMounted] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      if (isValidCoord(waypoint.lng, waypoint.lat) && isBeijingAreaCoord(waypoint.lng, waypoint.lat)) {
+        if (!cancelled) setScenicCenter([waypoint.lng, waypoint.lat])
+        return
+      }
+      const geo = await resolveDestinationCoords(waypoint.name, '北京')
+      if (!cancelled && geo && isBeijingAreaCoord(geo.lng, geo.lat)) {
+        setScenicCenter([geo.lng, geo.lat])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [waypoint.lng, waypoint.lat, waypoint.name])
 
   useEffect(() => {
     if (typeof destinationId !== 'number' || destinationId <= 0) return
@@ -49,14 +81,15 @@ export function WaypointInternalNavPanel({ waypoint, onApplyPlan }: WaypointInte
     setLoading(true)
     setError(null)
     setPreviewPlan(null)
+    const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
     void (async () => {
       try {
         const res = await fetchDestinationMapNodes(destinationId)
+        const gpsNodes = await enrichMapNodesGpsCoords(res.nodes, waypoint.name, center)
         if (cancelled) return
-        setNodes(res.nodes)
-        setUsedPlaceFallback(res.usedPlaceFallback)
-        setStartNodeId(res.nodes[0]?.nodeId ?? null)
-        setTargetNodeId(res.nodes[1]?.nodeId ?? res.nodes[0]?.nodeId ?? null)
+        setNodes(gpsNodes)
+        setStartNodeId(gpsNodes[0]?.nodeId ?? null)
+        setTargetNodeId(gpsNodes[1]?.nodeId ?? gpsNodes[0]?.nodeId ?? null)
       } catch (err) {
         if (!cancelled) {
           setNodes([])
@@ -69,12 +102,28 @@ export function WaypointInternalNavPanel({ waypoint, onApplyPlan }: WaypointInte
     return () => {
       cancelled = true
     }
-  }, [destinationId])
+  }, [destinationId, waypoint.name])
+
+  useEffect(() => {
+    if (!modalOpen || loading || nodes.length === 0) {
+      setMapMounted(false)
+      return undefined
+    }
+    const timer = window.setTimeout(() => setMapMounted(true), 300)
+    return () => {
+      window.clearTimeout(timer)
+      setMapMounted(false)
+    }
+  }, [modalOpen, loading, nodes.length, destinationId])
 
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.nodeId, n])), [nodes])
 
+  const mapPolyline = useMemo(
+    () => filterBeijingPolyline(previewPlan?.polyline ?? []),
+    [previewPlan?.polyline],
+  )
+
   const mapWaypoints = useMemo((): RouteWaypoint[] => {
-    if (previewPlan?.waypoints.length) return previewPlan.waypoints
     return nodes.map((n) => ({
       id: n.nodeId,
       name: n.nodeName,
@@ -82,7 +131,7 @@ export function WaypointInternalNavPanel({ waypoint, onApplyPlan }: WaypointInte
       lat: n.lat,
       destinationId,
     }))
-  }, [previewPlan, nodes, destinationId])
+  }, [nodes, destinationId])
 
   const handlePlan = async () => {
     if (!hasStoredToken()) {
@@ -107,8 +156,33 @@ export function WaypointInternalNavPanel({ waypoint, onApplyPlan }: WaypointInte
         { ...vo, transportType: toBackendTransport(transport) },
         nodeById,
       )
-      setPreviewPlan(macro)
-      onApplyPlan?.(macro)
+      const startNode = nodeById.get(startNodeId)
+      const endNode = nodeById.get(targetNodeId)
+      if (!startNode || !endNode) {
+        throw new Error('起点或终点坐标缺失')
+      }
+      const enriched = await enrichInternalRoutePolyline(macro)
+      const roadLine = filterBeijingPolyline(enriched.polyline)
+      setPreviewPlan({
+        ...enriched,
+        waypoints: [
+          {
+            id: startNodeId,
+            name: startNode.nodeName,
+            lng: startNode.lng,
+            lat: startNode.lat,
+            destinationId,
+          },
+          {
+            id: targetNodeId,
+            name: endNode.nodeName,
+            lng: endNode.lng,
+            lat: endNode.lat,
+            destinationId,
+          },
+        ],
+        polyline: roadLine.length >= 2 ? roadLine : filterBeijingPolyline(macro.polyline),
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : '内部路线失败')
       setPreviewPlan(null)
@@ -127,34 +201,12 @@ export function WaypointInternalNavPanel({ waypoint, onApplyPlan }: WaypointInte
 
   return (
     <div className="mt-3 space-y-3 rounded-xl border border-[var(--ds-primary)]/15 bg-[var(--ds-muted)]/30 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-body text-xs font-semibold text-[var(--ds-foreground)]">
-          {waypoint.name} · 景区 / 室内导航
-        </p>
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={() => setMapMode('scenic')}
-            className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-              mapMode === 'scenic' ? 'bg-[var(--ds-primary)] text-white' : 'border border-[var(--ds-primary)]/25 text-[var(--ds-primary)]'
-            }`}
-          >
-            道路图
-          </button>
-          <button
-            type="button"
-            onClick={() => setMapMode('indoor')}
-            className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-              mapMode === 'indoor' ? 'bg-[var(--ds-primary)] text-white' : 'border border-[var(--ds-primary)]/25 text-[var(--ds-primary)]'
-            }`}
-          >
-            高德室内
-          </button>
-        </div>
-      </div>
+      <p className="font-body text-xs font-semibold text-[var(--ds-foreground)]">
+        {waypoint.name} · 高德景区地图
+      </p>
 
       {loading ? (
-        <p className="text-xs text-[var(--ds-muted-foreground)]">加载景区节点…</p>
+        <p className="text-xs text-[var(--ds-muted-foreground)]">加载景区节点并定位…</p>
       ) : nodes.length === 0 ? (
         <p className="text-xs text-[var(--ds-muted-foreground)]">暂无节点数据</p>
       ) : (
@@ -219,32 +271,26 @@ export function WaypointInternalNavPanel({ waypoint, onApplyPlan }: WaypointInte
         ))}
       </div>
 
-      <div className="h-[200px] overflow-hidden rounded-xl border border-[var(--ds-border)]/40 bg-white">
-        {usedPlaceFallback && mapMode === 'scenic' ? (
-          <RoutePathSvg
-            pathNodes={nodes.map((n) => ({ nodeId: n.nodeId, nodeName: n.nodeName }))}
-            nodeCatalog={nodes}
-            className="h-full p-2"
+      <div className="h-[min(48vh,420px)] overflow-hidden rounded-xl border border-[var(--ds-border)]/40 bg-white">
+        {mapMounted ? (
+          <AmapMapView
+            key={`internal-amap-${destinationId}`}
+            className="h-full min-h-[min(48vh,420px)] rounded-xl"
+            waypoints={mapWaypoints}
+            polyline={mapPolyline}
+            activeId={startNodeId}
+            defaultCenter={scenicCenter}
+            defaultZoom={17}
+            maxFitZoom={18}
+            singlePointZoom={17}
+            routeStrokeColor="#2f7fd4"
           />
         ) : (
-          <AmapMapView
-            className="h-full min-h-[200px]"
-            waypoints={mapWaypoints}
-            polyline={previewPlan?.polyline}
-            activeId={startNodeId}
-            showIndoorMap={mapMode === 'indoor'}
-            indoorZoom={18}
-            maxFitZoom={18}
-            singlePointZoom={18}
-          />
+          <div className="flex h-full min-h-[min(48vh,420px)] items-center justify-center text-xs text-[var(--ds-muted-foreground)]">
+            {loading ? '正在加载景区地图…' : '准备景区地图…'}
+          </div>
         )}
       </div>
-
-      {mapMode === 'indoor' ? (
-        <p className="font-body text-[10px] text-[var(--ds-muted-foreground)]">
-          高德室内图在 zoom≥17 时自动显示；商场/场馆等有官方室内数据，景区以道路图节点为主。
-        </p>
-      ) : null}
 
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
 

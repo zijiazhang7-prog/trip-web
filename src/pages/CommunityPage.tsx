@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
+  deleteCommunityDiary,
   fetchCommunityFeed,
   fetchCommunityDiaryDetail,
   fetchDiariesByDestination,
@@ -8,6 +9,7 @@ import {
   searchCommunityByTitle,
   type CommunityFeedItem,
 } from '../api/community'
+import { getCurrentUser } from '../api/auth'
 import { getDiaryApi } from '../api/diary'
 import { hasStoredToken } from '../api/http'
 import { useTripContext } from '../context/tripContext'
@@ -15,10 +17,11 @@ import { communityPosts } from '../data/siteData'
 import { entryPlainText, publishHandAccountWithCustomText } from '../features/diary/publish'
 import type { DiaryBook, DiaryEntry } from '../features/diary/types'
 import { CommentSection } from '../components/ui/CommentSection'
+import { DetailOverlay } from '../components/ui/DetailOverlay'
 import { InlineNotice } from '../components/ui/InlineNotice'
 import { PageHeader } from '../components/ui/PageHeader'
-import { StarRatingInput } from '../components/ui/StarRatingInput'
-import { fetchMyDiaryRating, submitDiaryRating } from '../api/rating'
+import { HandAccountBookViewer } from '../components/diary/HandAccountBookViewer'
+import { RatingPanel } from '../components/ui/RatingPanel'
 
 const glass =
   'ds-card-lift ds-glass-panel mb-6 break-inside-avoid rounded-[32px] p-7 last:mb-0 hover:-translate-y-1'
@@ -54,12 +57,8 @@ export function CommunityPage() {
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null)
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
   const [revealedIds, setRevealedIds] = useState<Set<number>>(new Set())
-  const [detailRating, setDetailRating] = useState<{
-    userScore: number | null
-    ratingScore: number | null
-    ratingCount: number
-  } | null>(null)
-  const [ratingBusy, setRatingBusy] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null)
+  const [deletingPostId, setDeletingPostId] = useState<number | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   const applyFeedPosts = (nextPosts: CommunityFeedItem[]) => {
@@ -67,6 +66,48 @@ export function CommunityPage() {
     setVisibleCount(INITIAL_VISIBLE)
     setRevealedIds(new Set())
   }
+
+  const handleDeletePost = async (postId: number) => {
+    if (!hasStoredToken()) {
+      setError('请先登录后再删除')
+      return
+    }
+    if (!window.confirm('确定删除这条手账？删除后不可恢复。')) return
+    setDeletingPostId(postId)
+    setError(null)
+    try {
+      await deleteCommunityDiary(postId)
+      setPosts((prev) => prev.filter((p) => p.id !== postId))
+      if (selectedPostId === postId) {
+        setDetailOpen(false)
+        setSelectedPost(null)
+        setSelectedPostId(null)
+      }
+      setPublishMsg('已删除你的手账')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除失败')
+    } finally {
+      setDeletingPostId(null)
+    }
+  }
+
+  useEffect(() => {
+    if (!hasStoredToken()) {
+      setCurrentUserId(null)
+      return
+    }
+    let cancelled = false
+    void getCurrentUser()
+      .then((user) => {
+        if (!cancelled) setCurrentUserId(user.id)
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentUserId(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -312,38 +353,11 @@ export function CommunityPage() {
     }
   }
 
-  const loadDetailRating = (id: number, fallback?: CommunityFeedItem | null) => {
-    if (!hasStoredToken()) {
-      setDetailRating({
-        userScore: null,
-        ratingScore: fallback?.ratingScore ?? null,
-        ratingCount: fallback?.ratingCount ?? 0,
-      })
-      return
-    }
-    void fetchMyDiaryRating(id)
-      .then((r) =>
-        setDetailRating({
-          userScore: r.userScore,
-          ratingScore: r.ratingScore,
-          ratingCount: r.ratingCount,
-        }),
-      )
-      .catch(() =>
-        setDetailRating({
-          userScore: null,
-          ratingScore: fallback?.ratingScore ?? null,
-          ratingCount: fallback?.ratingCount ?? 0,
-        }),
-      )
-  }
-
   const openDetail = (id: number) => {
     const cached = posts.find((p) => p.id === id) ?? null
     setDetailOpen(true)
     setSelectedPostId(id)
     setSelectedPost(cached)
-    loadDetailRating(id, cached)
     if (cached?.fullText?.trim()) {
       setDetailLoading(false)
       return
@@ -352,7 +366,6 @@ export function CommunityPage() {
     void fetchCommunityDiaryDetail(id)
       .then((detail) => {
         setSelectedPost(detail)
-        loadDetailRating(id, detail)
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : '加载详情失败')
@@ -551,25 +564,37 @@ export function CommunityPage() {
                 } duration-500`}
                 style={{ transitionProperty: 'opacity, transform, box-shadow' }}
               >
-            {post.handAccount && (post.coverUrl || post.imgs[0]) ? (
-              <div
-                className="relative mb-4 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] shadow-md"
-                style={{ minHeight: 200 }}
-              >
-                <img
-                  src={post.coverUrl || post.imgs[0]}
-                  alt=""
-                  className="img-warm h-48 w-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[color-mix(in_srgb,var(--ds-foreground)_75%,transparent)] via-transparent to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-4">
-                  <p className="font-display text-lg font-bold text-white drop-shadow">{post.bookTitle || post.title}</p>
-                  {post.days ? (
-                    <span className="mt-1 inline-block rounded-full bg-white/20 px-2 py-0.5 text-xs text-white backdrop-blur">
-                      {post.days} 天旅程
-                    </span>
-                  ) : null}
-                </div>
+            {post.handAccount ? (
+              <div className="relative mb-4 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] shadow-md">
+                {post.coverUrl ? (
+                  <img
+                    src={post.coverUrl}
+                    alt=""
+                    className="img-warm aspect-[3/4] max-h-56 w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex aspect-[3/4] max-h-56 w-full flex-col justify-end bg-gradient-to-b from-[#f7f2ea] via-[#efe6d8] to-[#e5d9c8] p-4">
+                    <p className="font-display text-lg font-bold text-[var(--ds-foreground)]">
+                      {post.bookTitle || post.title}
+                    </p>
+                    {post.days ? (
+                      <p className="mt-1 text-xs text-[var(--ds-muted-foreground)]">{post.days} 天旅程</p>
+                    ) : null}
+                  </div>
+                )}
+                {post.coverUrl ? (
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-t from-[color-mix(in_srgb,var(--ds-foreground)_55%,transparent)] via-transparent to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-4">
+                      <p className="font-display text-lg font-bold text-white drop-shadow">{post.bookTitle || post.title}</p>
+                      {post.days ? (
+                        <span className="mt-1 inline-block rounded-full bg-white/20 px-2 py-0.5 text-xs text-white backdrop-blur">
+                          {post.days} 天旅程
+                        </span>
+                      ) : null}
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : null}
             <div className="mb-3 flex items-center gap-3">
@@ -603,8 +628,18 @@ export function CommunityPage() {
                 ))}
               </div>
             ) : null}
-            <div className="border-t border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] pt-3 text-xs text-[var(--ds-muted-foreground)]">
-              热度 {post.likes}
+            <div className="flex items-center justify-between border-t border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] pt-3 text-xs text-[var(--ds-muted-foreground)]">
+              <span>热度 {post.likes}</span>
+              {currentUserId != null && post.userId === currentUserId ? (
+                <button
+                  type="button"
+                  disabled={deletingPostId === post.id}
+                  className="rounded-full border border-[color-mix(in_srgb,var(--ds-destructive)_35%,transparent)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--ds-destructive)] disabled:opacity-50"
+                  onClick={() => void handleDeletePost(post.id)}
+                >
+                  {deletingPostId === post.id ? '删除中…' : '删除'}
+                </button>
+              ) : null}
             </div>
               </article>
             ))}
@@ -621,101 +656,49 @@ export function CommunityPage() {
       </div>
 
       {detailOpen ? (
-        <div
-          className="fixed inset-0 z-[280] flex items-center justify-center bg-black/35 p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDetailOpen(false)
-          }}
+        <DetailOverlay
+          open={detailOpen}
+          title="手账详情"
+          onClose={() => setDetailOpen(false)}
+          onPrev={() => stepDetail(-1)}
+          onNext={() => stepDetail(1)}
+          indexLabel={
+            selectedPost
+              ? `${Math.max(0, posts.findIndex((p) => p.id === selectedPost.id)) + 1} / ${posts.length}`
+              : undefined
+          }
         >
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/60 bg-white p-5 shadow-xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[#2C3E36]">手账详情</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="rounded-full border border-[var(--ds-primary)]/20 px-3 py-1 text-xs text-[var(--ds-primary)]"
-                  onClick={() => stepDetail(-1)}
-                >
-                  上一条
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-[var(--ds-primary)]/20 px-3 py-1 text-xs text-[var(--ds-primary)]"
-                  onClick={() => stepDetail(1)}
-                >
-                  下一条
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-[var(--ds-primary)]/20 px-3 py-1 text-xs text-[var(--ds-primary)]"
-                  onClick={() => setDetailOpen(false)}
-                >
-                  关闭
-                </button>
-              </div>
-            </div>
             {detailLoading ? (
               <p className="text-sm text-[#6B8076]">加载中...</p>
             ) : selectedPost ? (
-              <div className="space-y-4">
-                <p className="text-sm text-[#6B8076]">作者：{selectedPost.name} · {selectedPost.location}</p>
+              <div className="space-y-5">
                 {selectedPost.handAccount ? (
-                  <div className="grid gap-4 rounded-2xl border border-[color-mix(in_srgb,var(--ds-border)_40%,transparent)] bg-[color-mix(in_srgb,var(--ds-accent)_35%,white)] p-4 sm:grid-cols-2">
-                    <div className="rounded-xl bg-[color-mix(in_srgb,white_85%,var(--ds-background))] p-4 shadow-inner">
-                      <p className="font-display text-lg font-semibold text-[var(--ds-foreground)]">
-                        {selectedPost.bookTitle || selectedPost.title}
-                      </p>
-                      <p className="mt-2 text-sm leading-relaxed text-[var(--ds-muted-foreground)] whitespace-pre-wrap">
-                        {(selectedPost.fullText || '').replace(/^[^\n]*\n+/, '').split('\n\n')[0] || selectedPost.excerpt}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-[color-mix(in_srgb,white_85%,var(--ds-background))] p-4 shadow-inner">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--ds-muted-foreground)]">续页</p>
-                      <p className="mt-2 text-sm leading-relaxed text-[var(--ds-muted-foreground)] whitespace-pre-wrap">
-                        {(selectedPost.fullText || '').replace(/^[^\n]*\n+/, '').split('\n\n').slice(1).join('\n\n') || '—'}
-                      </p>
-                    </div>
-                  </div>
+                  <HandAccountBookViewer post={selectedPost} />
                 ) : (
-                  <p className="text-sm leading-relaxed text-[#4f655c]">{selectedPost.fullText || selectedPost.excerpt}</p>
+                  <div className="space-y-4">
+                    <p className="text-sm text-[#6B8076]">作者：{selectedPost.name} · {selectedPost.location}</p>
+                    <p className="text-sm leading-relaxed text-[#4f655c]">{selectedPost.fullText || selectedPost.excerpt}</p>
+                    {selectedPost.imgs.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {selectedPost.imgs.map((img) => (
+                          <img key={img} src={img} alt="" className="h-32 w-full rounded-lg object-cover" />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 )}
-                {selectedPost.imgs.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {selectedPost.imgs.map((img) => (
-                      <img key={img} src={img} alt="" className="h-24 w-full rounded-lg object-cover" />
-                    ))}
-                  </div>
-                ) : null}
-                {selectedPost.videos && selectedPost.videos.length > 0 ? (
-                  <div className="space-y-2">
-                    {selectedPost.videos.map((v) => (
-                      <video key={v} src={v} controls className="w-full rounded-lg" />
-                    ))}
-                  </div>
-                ) : null}
-                <StarRatingInput
-                  value={detailRating?.userScore ?? null}
-                  average={detailRating?.ratingScore ?? selectedPost.ratingScore}
-                  count={detailRating?.ratingCount ?? selectedPost.ratingCount}
-                  disabled={ratingBusy || !hasStoredToken()}
-                  onChange={(score) => {
-                    if (!hasStoredToken()) return
-                    setRatingBusy(true)
-                    void submitDiaryRating(selectedPost.id, score)
-                      .then(() => loadDetailRating(selectedPost.id, selectedPost))
-                      .catch((err) =>
-                        setError(err instanceof Error ? err.message : '评分失败'),
-                      )
-                      .finally(() => setRatingBusy(false))
-                  }}
+                <RatingPanel
+                  targetType="diary"
+                  targetId={selectedPost.id}
+                  average={selectedPost.ratingScore}
+                  count={selectedPost.ratingCount}
                 />
                 <CommentSection targetType="diary" targetId={selectedPost.id} title="手账评论" />
               </div>
             ) : (
               <p className="text-sm text-[#6B8076]">暂无详情</p>
             )}
-          </div>
-        </div>
+        </DetailOverlay>
       ) : null}
     </div>
   )

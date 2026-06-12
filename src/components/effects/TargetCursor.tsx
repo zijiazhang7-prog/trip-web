@@ -67,7 +67,8 @@ export function TargetCursor({
     }
 
     const prevCursor = document.body.style.cursor
-    if (hideDefaultCursor) document.body.style.cursor = 'none'
+    const overlayOpen = () => document.body.classList.contains('overlay-cursor-auto')
+    if (hideDefaultCursor && !overlayOpen()) document.body.style.cursor = 'none'
 
     gsap.set(inner, { x: mouseRef.current.x, y: mouseRef.current.y })
 

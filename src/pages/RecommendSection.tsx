@@ -8,6 +8,8 @@ import {
 } from '../api/destination'
 import { fetchDiariesByDestination, type CommunityFeedItem } from '../api/community'
 import { CommentSection } from '../components/ui/CommentSection'
+import { DetailOverlay } from '../components/ui/DetailOverlay'
+import { RatingPanel } from '../components/ui/RatingPanel'
 import { Top10Strip } from '../components/ui/Top10Strip'
 import { inferTotalPages } from '../api/pagination'
 import { useTripContext } from '../context/tripContext'
@@ -31,7 +33,7 @@ const waterfallCard =
 const sidebarTitle =
   "mb-5 flex items-center gap-2.5 text-[13px] font-bold uppercase tracking-[0.12em] text-[var(--ds-accent-foreground)] before:block before:h-[18px] before:w-1 before:rounded-full before:bg-gradient-to-b before:from-[var(--ds-primary)] before:to-[color-mix(in_srgb,var(--ds-secondary)_55%,var(--ds-primary))] font-body"
 
-const PAGE_SIZE = 16
+const PAGE_SIZE = 32
 
 function mergeDestinationLists(prev: Destination[], chunk: Destination[]): Destination[] {
   const seen = new Set<number>()
@@ -181,7 +183,6 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   const [relatedDiaries, setRelatedDiaries] = useState<CommunityFeedItem[]>([])
   const [loadingRelatedDiaries, setLoadingRelatedDiaries] = useState(false)
   const [relatedDiariesOpen, setRelatedDiariesOpen] = useState(false)
-  const [detailTarget, setDetailTarget] = useState<Destination | null>(null)
 
   useEffect(() => {
     itemsRef.current = items
@@ -449,7 +450,6 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   }
 
   const openDetail = (dest: Destination) => {
-    setDetailTarget(dest)
     const idx = filteredDestinations.findIndex((d) => destKey(d) === destKey(dest))
     setDetailIndex(idx >= 0 ? idx : 0)
     setAiReason(null)
@@ -462,7 +462,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     setDetailIndex((i) => Math.max(0, Math.min(filteredDestinations.length - 1, i + dir)))
   }
 
-  const detailDest = detailTarget ?? filteredDestinations[detailIndex] ?? null
+  const detailDest = detailOpen ? (filteredDestinations[detailIndex] ?? null) : null
 
   return (
     <div className="relative z-[1] mx-auto max-w-7xl px-2 pb-16 pt-2 md:px-4 md:pb-20">
@@ -654,7 +654,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
             })}
           </div>
 
-          <div className="columns-1 gap-x-6 md:columns-2 xl:columns-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {loadingInitial
               ? Array.from({ length: 6 }).map((_, i) => <DestCardSkeleton key={`sk-${i}`} />)
               : null}
@@ -689,56 +689,34 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       </div>
 
       {detailOpen && detailDest ? (
-        <div
-          className="fixed inset-0 z-[280] flex items-center justify-center bg-black/35 p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDetailOpen(false)
-          }}
+        <DetailOverlay
+          open={detailOpen}
+          title="目的地详情"
+          onClose={() => setDetailOpen(false)}
+          onPrev={() => stepDetail(-1)}
+          onNext={() => stepDetail(1)}
+          indexLabel={`${detailIndex + 1} / ${filteredDestinations.length}`}
         >
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/60 bg-white p-5 shadow-xl">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-lg font-semibold text-[#2C3E36]">目的地详情</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  className="rounded-full border border-[var(--ds-primary)]/20 px-3 py-1 text-xs text-[var(--ds-primary)]"
-                  onClick={() => stepDetail(-1)}
-                >
-                  上一条
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-[var(--ds-primary)]/20 px-3 py-1 text-xs text-[var(--ds-primary)]"
-                  onClick={() => stepDetail(1)}
-                >
-                  下一条
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-[var(--ds-primary)]/20 px-3 py-1 text-xs text-[var(--ds-primary)]"
-                  onClick={() => setDetailOpen(false)}
-                >
-                  关闭
-                </button>
-              </div>
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="overflow-hidden rounded-2xl bg-[#edf4ef]">
+              <img
+                src={detailDest.image}
+                alt=""
+                className="max-h-[min(52vh,480px)] w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
-            <div className="space-y-3">
-              <div className="overflow-hidden rounded-xl bg-[#edf4ef]">
-                <img
-                  src={detailDest.image}
-                  alt=""
-                  className="max-h-56 w-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </div>
+            <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-[#6B8076]">
                 <span className="rounded-full bg-[#E8F3EE] px-2 py-0.5">{detailDest.type}</span>
                 <span className="rounded-full bg-[#E8F3EE] px-2 py-0.5">{detailDest.badge}</span>
-                <span>评分 {detailDest.rating}</span>
                 <span>{detailDest.price}</span>
               </div>
-              <p className="text-xl font-semibold text-[#2C3E36]">{detailDest.name}</p>
+              <p className="font-display text-2xl font-semibold text-[#2C3E36]">{detailDest.name}</p>
+              {detailDest.id != null ? (
+                <RatingPanel targetType="destination" targetId={detailDest.id} average={detailDest.rating} />
+              ) : null}
               <p className="text-sm leading-relaxed text-[#4f655c]">{detailDest.reason}</p>
               {hasDeepSeekKey() ? (
                 <div className="rounded-xl border border-[#d8ebe3] bg-[#f4faf7] px-3 py-2">
@@ -768,9 +746,6 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
                   {aiReason ? <p className="mt-2 text-sm leading-relaxed text-[#3d5c50]">{aiReason}</p> : null}
                 </div>
               ) : null}
-              <p className="text-xs text-[#8ca49a]">
-                {detailIndex + 1} / {filteredDestinations.length}
-              </p>
               {detailDest.id != null ? (
                 <CommentSection
                   targetType="destination"
@@ -835,7 +810,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
               </div>
             </div>
           </div>
-        </div>
+        </DetailOverlay>
       ) : null}
 
       {relatedDiariesOpen ? (

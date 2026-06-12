@@ -9,6 +9,7 @@ type DiaryMedia = {
 
 type DiaryItem = {
   id: number
+  userId?: number
   username?: string
   destinationName?: string
   title?: string
@@ -46,6 +47,7 @@ type PageResult<T> = {
 
 export type CommunityFeedItem = {
   id: number
+  userId?: number
   name: string
   location: string
   excerpt: string
@@ -74,16 +76,20 @@ function normalizeAssetUrl(url: string): string {
 
 function toFeedItem(item: DiaryItem): CommunityFeedItem {
   const meta = parseHandAccountMeta(item.contentText)
-  const cover = meta?.coverUrl ? normalizeAssetUrl(meta.coverUrl) : undefined
   const mediaImgs = (item.mediaList || [])
     .filter((m) => m.mediaType !== 'video')
     .map((media) => normalizeAssetUrl(media.fileUrl))
+  const coverFromMeta = meta?.coverUrl ? normalizeAssetUrl(meta.coverUrl) : undefined
+  const cover =
+    coverFromMeta ||
+    (meta && mediaImgs[0] ? mediaImgs[0] : undefined)
   const videos = (item.mediaList || [])
     .filter((m) => m.mediaType === 'video')
     .map((media) => normalizeAssetUrl(media.fileUrl))
   const imgs = cover ? [cover, ...mediaImgs.filter((u) => u !== cover)].slice(0, 3) : mediaImgs.slice(0, 3)
   return {
     id: item.id,
+    userId: item.userId,
     name: item.username || '旅行者',
     location: item.destinationName || '未知地点',
     excerpt: excerptFromContent(item.contentText, item.title),
@@ -131,10 +137,14 @@ export async function searchCommunityByKeyword(keyword: string): Promise<Communi
   return (page.list || []).map(toFeedItem)
 }
 
-export async function publishCommunityDiary(input: CreateDiaryRequest): Promise<number> {
+export async function publishCommunityDiary(
+  input: CreateDiaryRequest,
+  timeoutMs = 60_000,
+): Promise<number> {
   const data = await httpRequest<CreateDiaryResponse>('/api/v1/diaries', {
     method: 'POST',
     body: JSON.stringify(input),
+    timeoutMs,
   })
   return data.diaryId
 }
@@ -160,7 +170,15 @@ export async function fetchDiariesByDestination(
   return (page.list || []).map(toFeedItem)
 }
 
-export async function uploadCommunityMedia(file: File, refId?: number): Promise<string> {
+export async function deleteCommunityDiary(diaryId: number): Promise<boolean> {
+  return httpRequest<boolean>(`/api/v1/diaries/${diaryId}`, { method: 'DELETE' })
+}
+
+export async function uploadCommunityMedia(
+  file: File,
+  refId?: number,
+  timeoutMs = 90_000,
+): Promise<string> {
   const form = new FormData()
   form.append('file', file)
   form.append('bizType', 'diary')
@@ -168,6 +186,7 @@ export async function uploadCommunityMedia(file: File, refId?: number): Promise<
   const data = await httpRequest<UploadFileResponse>('/api/v1/files/upload', {
     method: 'POST',
     body: form,
+    timeoutMs,
   })
   return data.fileUrl
 }

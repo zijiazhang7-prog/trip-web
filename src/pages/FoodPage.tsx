@@ -11,6 +11,8 @@ import {
 import { foodTags, foods as foodsFallback, type Food } from '../data/siteData'
 import { useTripContext } from '../context/tripContext'
 import { CommentSection } from '../components/ui/CommentSection'
+import { DetailOverlay } from '../components/ui/DetailOverlay'
+import { RatingPanel } from '../components/ui/RatingPanel'
 import { Top10Strip } from '../components/ui/Top10Strip'
 import { BEIJING_ATTRACTIONS } from '../data/beijingDestinations'
 import { formatDistanceMeters, haversineMeters } from '../lib/geo/haversine'
@@ -25,16 +27,16 @@ const waterfallCard =
 const sidebarTitle =
   "mb-5 flex items-center gap-2.5 text-[13px] font-bold uppercase tracking-[0.12em] text-[var(--ds-accent-foreground)] before:block before:h-[18px] before:w-1 before:rounded-full before:bg-gradient-to-b before:from-[var(--ds-primary)] before:to-[#6B8076] font-body"
 
-const DEST_BATCH = 24
+const DEST_BATCH = 40
 /** 首屏轻量扫目的地时的并行度（下滑加载不再走此路径，避免数百次 foods/recommend） */
-const DEST_PARALLEL_CHUNK = 4
-const FOOD_PAGE_SIZE = 24
-const MAX_FOOD_WAVE = 8
+const DEST_PARALLEL_CHUNK = 6
+const FOOD_PAGE_SIZE = 32
+const MAX_FOOD_WAVE = 24
 /** 仅首屏 runFoodFeed 内：浏览扫描最大步数 */
-const BROWSE_PUMP_MAX_ITERATIONS = 16
+const BROWSE_PUMP_MAX_ITERATIONS = 24
 /** 探测哪些 destinationId 上挂了美食（缩小范围减请求） */
-const FOOD_ANCHOR_PROBE_MAX = 20
-const FOOD_ANCHOR_CHUNK = 6
+const FOOD_ANCHOR_PROBE_MAX = 80
+const FOOD_ANCHOR_CHUNK = 10
 const PROBE_CACHE_KEY = 'trip_food_anchor_ids_v1'
 const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 /** 首屏只拉第 1 页，其余页后台预取 */
@@ -120,9 +122,11 @@ function FoodCardSkeleton() {
 }
 
 function foodVODedupeKey(vo: FoodVO): string {
+  const shop = (vo.shopName?.trim() || vo.name?.trim() || '').toLowerCase()
+  if (shop) return `shop:${shop}`
   return vo.id != null
     ? `id:${vo.id}`
-    : `k:${vo.destinationId}:${vo.shopName ?? ''}:${vo.name}:${vo.foodType ?? ''}`
+    : `k:${vo.destinationId}:${vo.foodType ?? ''}`
 }
 
 function foodKey(f: Food) {
@@ -774,7 +778,7 @@ export function FoodPage() {
             </p>
           ) : null}
           {loadingInitial ? (
-            <div className="columns-1 gap-x-5 md:columns-2 xl:columns-3">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <FoodCardSkeleton key={`sk-${i}`} />
               ))}
@@ -784,7 +788,7 @@ export function FoodPage() {
             <p className="mb-4 font-body text-sm text-[#6B8076]">暂无美食数据，请下滑加载或更换关键词。</p>
           ) : null}
 
-          <div className="columns-1 gap-x-5 md:columns-2 xl:columns-3">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {!loadingInitial && foods.length > 0 && filteredFoods.length === 0 ? (
               <p className="break-inside-avoid py-10 text-center font-body text-sm text-[#6B8076]">
                 当前筛选下没有匹配结果。
@@ -859,70 +863,52 @@ export function FoodPage() {
       </div>
 
       {detailOpen && detailFood ? (
-        <div
-          className="fixed inset-0 z-[280] flex items-center justify-center bg-black/35 p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDetailOpen(false)
-          }}
+        <DetailOverlay
+          open={detailOpen}
+          title="美食详情"
+          onClose={() => setDetailOpen(false)}
+          onPrev={() => stepDetail(-1)}
+          onNext={() => stepDetail(1)}
+          indexLabel={`${detailIndex + 1} / ${filteredFoods.length}`}
         >
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/60 bg-white p-5 shadow-xl">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-lg font-semibold text-[#2C3E36]">美食详情</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  className="rounded-full border border-[var(--ds-primary)]/20 px-3 py-1 text-xs text-[var(--ds-primary)]"
-                  onClick={() => stepDetail(-1)}
-                >
-                  上一条
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-[var(--ds-primary)]/20 px-3 py-1 text-xs text-[var(--ds-primary)]"
-                  onClick={() => stepDetail(1)}
-                >
-                  下一条
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-[var(--ds-primary)]/20 px-3 py-1 text-xs text-[var(--ds-primary)]"
-                  onClick={() => setDetailOpen(false)}
-                >
-                  关闭
-                </button>
-              </div>
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="overflow-hidden rounded-2xl bg-[#edf4ef]">
+              <img
+                src={detailFood.image}
+                alt=""
+                className="max-h-[min(52vh,480px)] w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
-            <div className="space-y-3">
-              <div className="overflow-hidden rounded-xl bg-[#edf4ef]">
-                <img
-                  src={detailFood.image}
-                  alt=""
-                  className="max-h-56 w-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </div>
-              <p className="text-xl font-semibold text-[#2C3E36]">{detailFood.name}</p>
+            <div className="space-y-4">
+              <p className="font-display text-2xl font-semibold text-[#2C3E36]">{detailFood.name}</p>
               <p className="text-sm text-[#6B8076]">招牌：{detailFood.dish}</p>
               <div className="flex flex-wrap gap-3 text-sm text-[var(--ds-accent-foreground)]">
                 <span>人均 {detailFood.price}</span>
-                <span>评分 {detailFood.rating}</span>
                 <span>{detailFood.distance}</span>
               </div>
+              {detailFood.id != null ? (
+                <RatingPanel
+                  targetType="food"
+                  targetId={detailFood.id}
+                  average={
+                    detailFood.ratingScore ??
+                    (Number.isFinite(Number(detailFood.rating)) ? Number(detailFood.rating) : null)
+                  }
+                />
+              ) : null}
               {detailFood.description ? (
                 <p className="text-sm leading-relaxed text-[#4f655c]">{detailFood.description}</p>
               ) : (
                 <p className="text-sm text-[#8ca49a]">暂无更多文案描述。</p>
               )}
-              <p className="text-xs text-[#8ca49a]">
-                {detailIndex + 1} / {filteredFoods.length}
-              </p>
               {detailFood.id != null ? (
                 <CommentSection targetType="food" targetId={detailFood.id} title="美食评论" />
               ) : null}
             </div>
           </div>
-        </div>
+        </DetailOverlay>
       ) : null}
     </div>
   )

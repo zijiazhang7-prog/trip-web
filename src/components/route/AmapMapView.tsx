@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { BEIJING_CENTER, BEIJING_DEFAULT_ZOOM } from '../../types/macroRoute'
 import type { RouteWaypoint } from '../../types/macroRoute'
+import { isBeijingAreaCoord } from '../../lib/geo/beijingCoord'
 import { getAmapSecurityCode, hasAmapJsKey } from '../../lib/amap/config'
 import { loadAmap } from '../../lib/amap/loader'
 import { RoutePathSvg } from './RoutePathSvg'
@@ -17,6 +18,10 @@ type AmapMapViewProps = {
   /** 启用高德室内地图图层（zoom≥17 自动展示商场/场馆室内图） */
   showIndoorMap?: boolean
   indoorZoom?: number
+  /** 无路线时默认视野（景区内部导航） */
+  defaultCenter?: [number, number]
+  defaultZoom?: number
+  routeStrokeColor?: string
   className?: string
 }
 
@@ -60,9 +65,12 @@ function applyMapViewport(
   maxFitZoom: number,
   singlePointZoom: number,
   minZoomAfterFit: number,
+  defaultCenter?: [number, number],
+  defaultZoom?: number,
 ): void {
   if (safeLine.length >= 2 && overlays.length > 0) {
-    map.setFitView(overlays, false, [48, 48, 48, 48], maxFitZoom)
+    const routeOverlays = overlays.length > 1 ? [overlays[0]] : overlays
+    map.setFitView(routeOverlays, false, [48, 48, 48, 48], maxFitZoom)
     window.setTimeout(() => {
       const z = map.getZoom?.()
       if (typeof z === 'number' && z < minZoomAfterFit) map.setZoom(minZoomAfterFit)
@@ -85,6 +93,12 @@ function applyMapViewport(
     return
   }
 
+  if (defaultCenter && isValidCoord(defaultCenter[0], defaultCenter[1])) {
+    map.setCenter(defaultCenter)
+    map.setZoom(defaultZoom ?? 17)
+    return
+  }
+
   map.setCenter(BEIJING_CENTER)
   map.setZoom(BEIJING_DEFAULT_ZOOM)
 }
@@ -99,6 +113,9 @@ export function AmapMapView({
   singlePointZoom = SINGLE_POINT_ZOOM,
   showIndoorMap = false,
   indoorZoom = 18,
+  defaultCenter,
+  defaultZoom = 17,
+  routeStrokeColor = '#5d7052',
   className = '',
 }: AmapMapViewProps) {
   const minZoomAfterFit = maxFitZoom >= 16 ? 14 : 11
@@ -113,6 +130,7 @@ export function AmapMapView({
     setZoom: (zoom: number) => void
     getZoom?: () => number
     clearMap?: () => void
+    resize?: () => void
   } | null>(null)
   const overlaysRef = useRef<unknown[]>([])
   const geoMarkerRef = useRef<unknown | null>(null)
@@ -144,16 +162,32 @@ export function AmapMapView({
         }
 
         const initialCenter: [number, number] =
-          waypoints.length && isValidCoord(waypoints[0].lng, waypoints[0].lat)
-            ? [waypoints[0].lng, waypoints[0].lat]
-            : BEIJING_CENTER
+          defaultCenter && isValidCoord(defaultCenter[0], defaultCenter[1])
+            ? defaultCenter
+            : waypoints.length && isValidCoord(waypoints[0].lng, waypoints[0].lat)
+              ? [waypoints[0].lng, waypoints[0].lat]
+              : BEIJING_CENTER
+
+        const initialZoom = showIndoorMap
+          ? indoorZoom
+          : defaultCenter
+            ? defaultZoom
+            : BEIJING_DEFAULT_ZOOM
 
         const map = new AMap.Map(container, {
-          zoom: showIndoorMap ? indoorZoom : BEIJING_DEFAULT_ZOOM,
+          zoom: initialZoom,
           center: initialCenter,
           viewMode: '2D',
           zooms: [10, 20],
           showIndoorMap,
+        })
+        const mapWithComplete = map as { on?: (event: string, cb: () => void) => void }
+        mapWithComplete.on?.('complete', () => {
+          try {
+            map.resize?.()
+          } catch {
+            /* ignore */
+          }
         })
         if (showIndoorMap) {
           const mapWithEvents = map as {
@@ -169,8 +203,14 @@ export function AmapMapView({
           })
         }
         mapRef.current = map
-        window.setTimeout(() => map.resize?.(), 120)
-        setMapReady(true)
+        window.setTimeout(() => {
+          try {
+            map.resize?.()
+          } catch {
+            /* ignore */
+          }
+          setMapReady(true)
+        }, 220)
       } catch (err) {
         setMapError(err instanceof Error ? err.message : '地图加载失败')
       }
@@ -194,6 +234,22 @@ export function AmapMapView({
       if (container) container.innerHTML = ''
     }
   }, [instanceId, showIndoorMap, indoorZoom])
+
+  useEffect(() => {
+    const container = containerRef.current
+    const map = mapRef.current
+    if (!container || !map || !mapReady) return
+    const ro = new ResizeObserver(() => {
+      try {
+        map.resize?.()
+      } catch {
+        /* ignore */
+      }
+    })
+    ro.observe(container)
+    window.setTimeout(() => map.resize?.(), 80)
+    return () => ro.disconnect()
+  }, [mapReady])
 
   useEffect(() => {
     const map = mapRef.current
@@ -220,12 +276,14 @@ export function AmapMapView({
       }
 
       const next: unknown[] = []
-      const safeLine = simplifyPolyline(polyline.filter(([lng, lat]) => isValidCoord(lng, lat)))
+      const safeLine = simplifyPolyline(
+        polyline.filter(([lng, lat]) => isValidCoord(lng, lat) && isBeijingAreaCoord(lng, lat)),
+      )
 
       if (safeLine.length >= 2) {
         const line = new AMap.Polyline({
           path: safeLine.map(([lng, lat]) => new AMap.LngLat(lng, lat)),
-          strokeColor: '#5d7052',
+          strokeColor: routeStrokeColor,
           strokeWeight: 6,
           strokeOpacity: 0.85,
           lineJoin: 'round',
@@ -288,7 +346,17 @@ export function AmapMapView({
         maxFitZoom,
         singlePointZoom,
         minZoomAfterFit,
+        defaultCenter,
+        defaultZoom,
       )
+
+      window.setTimeout(() => {
+        try {
+          map.resize?.()
+        } catch {
+          /* ignore */
+        }
+      }, 80)
     } catch (err) {
       const msg = err instanceof Error ? err.message : '地图渲染失败'
       queueMicrotask(() => setMapError(msg))
@@ -303,6 +371,9 @@ export function AmapMapView({
     maxFitZoom,
     singlePointZoom,
     minZoomAfterFit,
+    defaultCenter,
+    defaultZoom,
+    routeStrokeColor,
   ])
 
   if (!hasAmapJsKey()) {

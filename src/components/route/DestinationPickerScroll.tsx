@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchRecommendedDestinationsPage,
   searchDestinationsPage,
@@ -6,6 +6,7 @@ import {
 } from '../../api/destination'
 import { fetchRecommendedFoodsPage } from '../../api/food'
 import { BEIJING_ATTRACTIONS, type BeijingAttraction } from '../../data/beijingDestinations'
+import { resolveCoordsFromLocal, resolveDestinationCoords } from '../../lib/geo/resolveCoords'
 import type { RouteWaypoint } from '../../types/macroRoute'
 import { InlineNotice } from '../ui/InlineNotice'
 
@@ -16,24 +17,23 @@ function isBeijingRow(city?: string, name?: string): boolean {
   return hay.includes('北京') || BEIJING_ATTRACTIONS.some((a) => a.name === name)
 }
 
-function resolveCoords(vo: DestinationVO): { lng: number; lat: number } {
-  const fb = BEIJING_ATTRACTIONS.find((a) => a.name === vo.name || vo.name.includes(a.name) || a.name.includes(vo.name))
-  return { lng: fb?.lng ?? 116.397428, lat: fb?.lat ?? 39.90923 }
+function resolveCoords(vo: DestinationVO): { lng: number; lat: number } | null {
+  return resolveCoordsFromLocal(vo.name)
 }
 
 function voToPickerItem(vo: DestinationVO): PickerItem | null {
   const id = vo.id
   if (typeof id !== 'number' || id <= 0) return null
   if (!isBeijingRow(vo.city, vo.name)) return null
-  const { lng, lat } = resolveCoords(vo)
+  const coords = resolveCoords(vo)
   const fb = BEIJING_ATTRACTIONS.find((a) => a.name === vo.name)
   return {
     id,
     destinationId: id,
     name: vo.name,
     city: vo.city ?? '北京',
-    lng,
-    lat,
+    lng: coords?.lng ?? 0,
+    lat: coords?.lat ?? 0,
     reason: vo.description?.trim() || vo.tags?.join('、') || '北京市内目的地',
     rating: vo.ratingScore ?? 4.5,
     badge: vo.category || vo.tags?.[0] || '推荐',
@@ -74,6 +74,7 @@ export function DestinationPickerScroll({
   const [foodTypes, setFoodTypes] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [usingFallback, setUsingFallback] = useState(false)
+  const geocodeAttemptedRef = useRef<Set<number>>(new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -123,6 +124,36 @@ export function DestinationPickerScroll({
       window.clearTimeout(timer)
     }
   }, [keyword])
+
+  useEffect(() => {
+    if (!items.length) return undefined
+    let cancelled = false
+    const pending = items.filter((it) => {
+      if (geocodeAttemptedRef.current.has(it.destinationId)) return false
+      if (resolveCoordsFromLocal(it.name)) return false
+      return it.lng === 0 || it.lat === 0
+    })
+    if (!pending.length) return undefined
+
+    void (async () => {
+      for (const item of pending) {
+        geocodeAttemptedRef.current.add(item.destinationId)
+        if (cancelled) return
+        const coords = await resolveDestinationCoords(item.name, item.city)
+        if (!coords) continue
+        setItems((prev) =>
+          prev.map((row) =>
+            row.destinationId === item.destinationId ? { ...row, lng: coords.lng, lat: coords.lat } : row,
+          ),
+        )
+        await new Promise((r) => window.setTimeout(r, 150))
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [items])
 
   useEffect(() => {
     let cancelled = false

@@ -1,3 +1,17 @@
+/** 解析单段 polyline：支持 "lng,lat;lng,lat" 明文或编码串 */
+export function parseAmapStepPolyline(raw: string): [number, number][] {
+  if (!raw?.trim()) return []
+  if (raw.includes(';')) {
+    const coords: [number, number][] = []
+    for (const pair of raw.split(';')) {
+      const [lng, lat] = pair.split(',').map(Number)
+      if (Number.isFinite(lng) && Number.isFinite(lat)) coords.push([lng, lat])
+    }
+    if (coords.length >= 2) return coords
+  }
+  return decodeAmapPolyline(raw)
+}
+
 /** 解码高德返回的 polyline 编码串为 [lng, lat][] */
 export function decodeAmapPolyline(encoded: string): [number, number][] {
   const coords: [number, number][] = []

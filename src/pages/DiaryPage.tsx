@@ -10,6 +10,7 @@ import {
   hasGlmKey,
   polishDiaryText,
 } from '../api/llm'
+import { appendLayoutBlock, readLayoutFromBlocks } from '../features/diary/layoutPersist'
 import { useDiaryPublish } from '../features/diary/useDiaryPublish'
 import type { DiaryBook, DiaryContentBlock, DiaryEntry } from '../features/diary/types'
 import { InlineNotice } from '../components/ui/InlineNotice'
@@ -91,7 +92,9 @@ export function DiaryPage() {
   const navigate = useNavigate()
   const diaryApi = useMemo(() => getDiaryApi(), [])
   const aiApi = useMemo(() => getAiApi(), [])
-  const { publish, publishing, publishMsg, publishError } = useDiaryPublish()
+  const { publish, publishing, publishMsg, publishError, clearPublishFeedback } = useDiaryPublish()
+  const [saveToast, setSaveToast] = useState(false)
+  const layoutBlockIdRef = useRef<string>(uid('blk_layout'))
   const [books, setBooks] = useState<DiaryBook[]>([])
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null)
   const [selectedBook, setSelectedBook] = useState<DiaryBook | null>(null)
@@ -183,10 +186,35 @@ export function DiaryPage() {
     setLeftPageText(pages.left)
     setRightPageText(pages.right)
     const paperBlock = entry?.blocks.find((block): block is Extract<DiaryContentBlock, { type: 'paperStyle' }> => block.type === 'paperStyle')
-    setSelectedPaper(paperBlock?.paperUrl ?? paperAssets[0] ?? null)
-    setTextLayers([])
+    setSelectedPaper(paperBlock?.paperUrl ?? paperAssetsRef.current[0] ?? null)
+    const layout = readLayoutFromBlocks(entry?.blocks ?? [])
+    const layoutBlock = entry?.blocks.find((block): block is Extract<DiaryContentBlock, { type: 'layout' }> => block.type === 'layout')
+    layoutBlockIdRef.current = layoutBlock?.id ?? uid('blk_layout')
+    setTextLayers(layout.textLayers)
     setActiveTextLayerId(null)
-    setStickerLayers([])
+    if (layout.stickerLayers.length > 0) {
+      setStickerLayers(layout.stickerLayers)
+    } else {
+      const mediaLayers: StickerLayer[] = []
+      let z = 1
+      for (const block of entry?.blocks ?? []) {
+        if (block.type !== 'image' && block.type !== 'video') continue
+        const url = block.assetUrl
+        if (!url) continue
+        mediaLayers.push({
+          id: uid('media_restore'),
+          url,
+          kind: block.type,
+          blockId: block.id,
+          left: 34 + (mediaLayers.length % 4) * 7,
+          top: 42 + (mediaLayers.length % 3) * 5,
+          scale: block.type === 'video' ? 1.15 : 1,
+          rotate: 0,
+          z: z++,
+        })
+      }
+      setStickerLayers(mediaLayers)
+    }
     setActiveStickerId(null)
   }
 
@@ -326,20 +354,7 @@ export function DiaryPage() {
         setBookEntries(orderedEntries)
         const first = orderedEntries[0] ?? null
         setCurrentEntryIndex(0)
-        setSelectedEntry(first)
-        setEntryTitle(first?.title ?? '新的旅程')
-        const textBlock = first?.blocks.find((block) => block.type === 'text')
-        const pages = splitPages(textBlock?.type === 'text' ? textBlock.text : '')
-        setLeftPageText(pages.left)
-        setRightPageText(pages.right)
-        const paperBlock = first?.blocks.find(
-          (block): block is Extract<DiaryContentBlock, { type: 'paperStyle' }> => block.type === 'paperStyle',
-        )
-        setSelectedPaper(paperBlock?.paperUrl ?? paperAssetsRef.current[0] ?? null)
-        setTextLayers([])
-        setActiveTextLayerId(null)
-        setStickerLayers([])
-        setActiveStickerId(null)
+        applyEntryToEditor(first)
         if (isShelfCollapsed && detail.book) setBookOpened(true)
       } finally {
         if (!cancelled) setLoadingBook(false)
@@ -356,26 +371,64 @@ export function DiaryPage() {
     [selectedEntry],
   )
 
-  const saveCurrentEntry = async () => {
-    if (!selectedBook || !selectedEntry) return
+  const buildEntryBlocksForSave = (): DiaryContentBlock[] => {
+    if (!selectedEntry) return []
     const mergedText = mergePages(leftPageText, rightPageText)
     const textMergedBlocks = selectedEntry.blocks.some((block) => block.type === 'text')
       ? selectedEntry.blocks.map((block) => (block.type === 'text' ? { ...block, text: mergedText } : block))
       : [{ id: uid('blk_txt'), type: 'text', text: mergedText } as DiaryContentBlock, ...selectedEntry.blocks]
-    const nextBlocks = selectedPaper
+    const withPaper = selectedPaper
       ? textMergedBlocks.some((block) => block.type === 'paperStyle')
         ? textMergedBlocks.map((block) => (block.type === 'paperStyle' ? { ...block, paperUrl: selectedPaper } : block))
         : [{ id: uid('blk_paper'), type: 'paperStyle', paperUrl: selectedPaper } as DiaryContentBlock, ...textMergedBlocks]
       : textMergedBlocks
+    return appendLayoutBlock(
+      withPaper,
+      layoutBlockIdRef.current,
+      textLayers.map((layer) => ({ ...layer })),
+      stickerLayers.map((layer) => ({ ...layer })),
+    )
+  }
 
-    const saved = await diaryApi.upsertEntry(selectedBook.id, {
-      dayIndex: selectedEntry.dayIndex,
-      title: entryTitle,
-      entryDate: selectedEntry.entryDate,
-      blocks: nextBlocks,
-    })
-    setSelectedEntry(saved)
-    setBookEntries((prev) => prev.map((entry) => (entry.id === saved.id ? saved : entry)))
+  useEffect(() => {
+    if (!saveToast) return undefined
+    const timer = window.setTimeout(() => setSaveToast(false), 1800)
+    return () => window.clearTimeout(timer)
+  }, [saveToast])
+
+  useEffect(() => {
+    if (!publishMsg) return undefined
+    const timer = window.setTimeout(() => clearPublishFeedback(), 2200)
+    return () => window.clearTimeout(timer)
+  }, [publishMsg, clearPublishFeedback])
+
+  /** 保存当前手账本：当前页 + 图层 + 封面等，写入本地书架（按登录账号隔离） */
+  const saveCurrentBook = async (opts?: { toast?: boolean }) => {
+    if (!selectedBook || !selectedEntry) return
+    const showToast = opts?.toast !== false
+    try {
+      const nextBlocks = buildEntryBlocksForSave()
+      const saved = await diaryApi.upsertEntry(selectedBook.id, {
+        dayIndex: selectedEntry.dayIndex,
+        title: entryTitle,
+        entryDate: selectedEntry.entryDate,
+        blocks: nextBlocks,
+      })
+      setSelectedEntry(saved)
+      setBookEntries((prev) => prev.map((entry) => (entry.id === saved.id ? saved : entry)))
+      applyEntryToEditor(saved)
+      const updatedBook = await diaryApi.updateBook(selectedBook.id, {
+        title: selectedBook.title,
+        coverAssetUrl: selectedBook.coverAssetUrl,
+        days: selectedBook.days,
+        startDate: selectedBook.startDate,
+      })
+      setSelectedBook(updatedBook)
+      setBooks((prev) => prev.map((book) => (book.id === updatedBook.id ? updatedBook : book)))
+      if (showToast) setSaveToast(true)
+    } catch {
+      /* 静默失败，避免误提示已保存 */
+    }
   }
 
   const createBook = async () => {
@@ -404,9 +457,47 @@ export function DiaryPage() {
 
   const onPickCover = async (url: string) => {
     if (!selectedBook) return
+    try {
+      const blob = await fetch(url).then((res) => res.blob())
+      if (blob.size > 0) {
+        const ext = blob.type.includes('png') ? 'png' : 'jpg'
+        uploadFileCacheRef.current.set(
+          `cover-${selectedBook.id}`,
+          new File([blob], `cover-${selectedBook.id}.${ext}`, { type: blob.type || 'image/jpeg' }),
+        )
+      }
+    } catch {
+      /* 发布时再尝试上传 */
+    }
     const updated = await diaryApi.updateBook(selectedBook.id, { coverAssetUrl: url })
     setSelectedBook(updated)
     setBooks((prev) => prev.map((book) => (book.id === updated.id ? updated : book)))
+  }
+
+  const movePageLayer = (kind: 'text' | 'sticker', id: string, direction: 'up' | 'down') => {
+    const stack = [
+      ...textLayers.map((t) => ({ kind: 'text' as const, id: t.id, z: t.z })),
+      ...stickerLayers.map((s) => ({ kind: 'sticker' as const, id: s.id, z: s.z })),
+    ].sort((a, b) => a.z - b.z)
+    const idx = stack.findIndex((item) => item.kind === kind && item.id === id)
+    const swapIdx = direction === 'up' ? idx + 1 : idx - 1
+    if (idx < 0 || swapIdx < 0 || swapIdx >= stack.length) return
+    const curZ = stack[idx].z
+    const swapZ = stack[swapIdx].z
+    setTextLayers((prev) =>
+      prev.map((layer) => {
+        if (layer.id === id && kind === 'text') return { ...layer, z: swapZ }
+        if (stack[swapIdx].kind === 'text' && layer.id === stack[swapIdx].id) return { ...layer, z: curZ }
+        return layer
+      }),
+    )
+    setStickerLayers((prev) =>
+      prev.map((layer) => {
+        if (layer.id === id && kind === 'sticker') return { ...layer, z: swapZ }
+        if (stack[swapIdx].kind === 'sticker' && layer.id === stack[swapIdx].id) return { ...layer, z: curZ }
+        return layer
+      }),
+    )
   }
 
   const addMediaLayer = (url: string, kind: 'image' | 'video', blockId: string) => {
@@ -673,7 +764,7 @@ export function DiaryPage() {
           .filter(Boolean)
           .join('\n\n'),
       )
-      await saveCurrentEntry()
+      await saveCurrentBook({ toast: false })
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'AI 排版失败')
     } finally {
@@ -1148,9 +1239,9 @@ export function DiaryPage() {
                               setLeftPageText(e.target.value)
                               autoResizeTextarea(e.target)
                             }}
-                            onBlur={() => void saveCurrentEntry()}
+                            onBlur={() => void saveCurrentBook({ toast: false })}
                             rows={4}
-                            className="min-h-[6rem] w-full resize-none overflow-hidden rounded-xl border border-white/55 bg-white/20 p-2.5 text-[14px] leading-6 text-[var(--ds-foreground)] outline-none"
+                            className="min-h-[6rem] w-full resize-none overflow-hidden rounded-xl border-0 bg-transparent p-2.5 text-[14px] leading-6 text-[var(--ds-foreground)] outline-none transition focus:border focus:border-white/55 focus:bg-white/20"
                             placeholder="左页：可书写内容..."
                           />
                           <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-[var(--ds-muted-foreground)]/80">P.1</div>
@@ -1169,7 +1260,7 @@ export function DiaryPage() {
                           <input
                             value={entryTitle}
                             onChange={(e) => setEntryTitle(e.target.value)}
-                            onBlur={() => void saveCurrentEntry()}
+                            onBlur={() => void saveCurrentBook({ toast: false })}
                             className="w-full bg-transparent text-lg font-semibold text-[var(--ds-foreground)] outline-none"
                             placeholder="Day 标题"
                           />
@@ -1180,9 +1271,9 @@ export function DiaryPage() {
                               setRightPageText(e.target.value)
                               autoResizeTextarea(e.target)
                             }}
-                            onBlur={() => void saveCurrentEntry()}
+                            onBlur={() => void saveCurrentBook({ toast: false })}
                             rows={6}
-                            className="mt-2 min-h-[8rem] w-full resize-none overflow-hidden rounded-xl border border-white/55 bg-white/20 p-2.5 text-[14px] leading-6 text-[var(--ds-foreground)] outline-none"
+                            className="mt-2 min-h-[8rem] w-full resize-none overflow-hidden rounded-xl border-0 bg-transparent p-2.5 text-[14px] leading-6 text-[var(--ds-foreground)] outline-none transition focus:border focus:border-white/55 focus:bg-white/20"
                             placeholder="在透明文本框中写下旅行故事..."
                           />
                           <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-[var(--ds-muted-foreground)]/80">P.2</div>
@@ -1225,7 +1316,7 @@ export function DiaryPage() {
                                 width: boxW,
                                 transform: `translate(-50%, -50%) rotate(${layer.rotate}deg)`,
                                 transformOrigin: 'center',
-                                zIndex: 15 + layer.z,
+                                zIndex: 10 + layer.z,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -1275,7 +1366,23 @@ export function DiaryPage() {
                                       onPointerDown={(e) => onTextLayerResizePointerDown(e, layer.id)}
                                       className="absolute bottom-0 right-0 h-2.5 w-2.5 translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded-sm border border-[color-mix(in_srgb,var(--ds-primary)_55%,transparent)] bg-white/90"
                                     />
-                                    <div className="absolute -bottom-7 left-0 flex items-center gap-1.5">
+                                    <div className="absolute -bottom-7 left-0 flex flex-wrap items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => movePageLayer('text', layer.id, 'down')}
+                                        className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-1.5 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm"
+                                      >
+                                        下移
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => movePageLayer('text', layer.id, 'up')}
+                                        className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-1.5 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm"
+                                      >
+                                        上移
+                                      </button>
                                       <button
                                         type="button"
                                         disabled={aiBusy}
@@ -1320,7 +1427,7 @@ export function DiaryPage() {
                                 height: box,
                                 transform: `translate(-50%, -50%) rotate(${sticker.rotate}deg)`,
                                 transformOrigin: 'center',
-                                zIndex: 20 + sticker.z,
+                                zIndex: 10 + sticker.z,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -1330,7 +1437,11 @@ export function DiaryPage() {
                                 <div
                                   role="presentation"
                                   onPointerDown={(e) => onStickerBodyPointerDown(e, sticker.id)}
-                                  className={`h-full w-full cursor-grab overflow-hidden rounded-md border bg-white/15 p-1 active:cursor-grabbing ${active ? 'border-[var(--ds-primary)]' : 'border-white/70'}`}
+                                  className={`h-full w-full cursor-grab overflow-hidden rounded-md p-1 active:cursor-grabbing ${
+                                    active
+                                      ? 'border border-[var(--ds-primary)] bg-white/15'
+                                      : 'border-0 bg-transparent'
+                                  }`}
                                 >
                                   {sticker.kind === 'video' ? (
                                     <video src={sticker.url} className="h-full w-full object-contain" controls draggable={false} />
@@ -1351,17 +1462,35 @@ export function DiaryPage() {
                                       onPointerDown={(e) => onStickerResizePointerDown(e, sticker.id)}
                                       className="absolute bottom-0 right-0 h-3 w-3 translate-x-1/2 translate-y-1/2 cursor-nwse-resize rounded-sm border-2 border-[var(--ds-primary)] bg-white shadow-sm"
                                     />
-                                    {sticker.kind === 'image' && hasDoubaoKey() ? (
+                                    <div className="absolute -bottom-7 left-0 flex flex-wrap items-center gap-1">
                                       <button
                                         type="button"
-                                        disabled={aiBusy}
                                         onMouseDown={(e) => e.preventDefault()}
-                                        onClick={() => void runAiForMediaSticker(sticker.id)}
-                                        className="absolute -bottom-7 left-0 rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-2 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm disabled:opacity-50"
+                                        onClick={() => movePageLayer('sticker', sticker.id, 'down')}
+                                        className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-1.5 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm"
                                       >
-                                        AI 配文
+                                        下移
                                       </button>
-                                    ) : null}
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => movePageLayer('sticker', sticker.id, 'up')}
+                                        className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-1.5 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm"
+                                      >
+                                        上移
+                                      </button>
+                                      {sticker.kind === 'image' && hasDoubaoKey() ? (
+                                        <button
+                                          type="button"
+                                          disabled={aiBusy}
+                                          onMouseDown={(e) => e.preventDefault()}
+                                          onClick={() => void runAiForMediaSticker(sticker.id)}
+                                          className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_45%,transparent)] bg-white/88 px-2 py-0.5 text-[10px] text-[var(--ds-muted-foreground)] shadow-sm disabled:opacity-50"
+                                        >
+                                          AI 配文
+                                        </button>
+                                      ) : null}
+                                    </div>
                                     <button
                                       type="button"
                                       aria-label="删除"
@@ -1559,9 +1688,9 @@ export function DiaryPage() {
                     <button
                       type="button"
                       className="w-full rounded-xl bg-gradient-to-br from-[var(--ds-primary)] to-[var(--ds-forest)] px-3 py-2 text-xs font-semibold text-white"
-                      onClick={() => void saveCurrentEntry()}
+                      onClick={() => void saveCurrentBook({ toast: true })}
                     >
-                      保存内页
+                      保存
                     </button>
                     <button
                       type="button"
@@ -1598,7 +1727,7 @@ export function DiaryPage() {
                       className="w-full rounded-xl bg-gradient-to-br from-[var(--ds-primary)] to-[var(--ds-forest)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
                       onClick={async () => {
                         if (!selectedBook || !selectedEntry) return
-                        await saveCurrentEntry()
+                        await saveCurrentBook({ toast: false })
                         const id = await publish(
                           selectedBook,
                           selectedEntry,
@@ -1618,7 +1747,7 @@ export function DiaryPage() {
                       className="w-full rounded-xl border border-[color-mix(in_srgb,var(--ds-border)_55%,transparent)] bg-white/80 px-3 py-2 text-xs font-semibold text-[var(--ds-foreground)] disabled:opacity-60"
                       onClick={async () => {
                         if (!selectedBook || !selectedEntry) return
-                        await saveCurrentEntry()
+                        await saveCurrentBook({ toast: false })
                         await publish(
                           selectedBook,
                           selectedEntry,
@@ -1642,6 +1771,9 @@ export function DiaryPage() {
                   <div className="mt-2">
                     <InlineNotice variant="error">{publishError}</InlineNotice>
                   </div>
+                ) : null}
+                {saveToast ? (
+                  <p className="mt-2 text-center font-body text-xs font-semibold text-[var(--ds-primary)]">已保存</p>
                 ) : null}
                 {publishMsg ? (
                   <div className="mt-2">

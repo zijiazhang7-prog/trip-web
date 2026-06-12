@@ -8,6 +8,7 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { PrimaryButton } from '../components/ui/PrimaryButton'
 import { useRoutePlan } from '../context/routePlanContext'
 import { planMacroRoute } from '../lib/amap/planMacroRoute'
+import { enrichWaypointCoords } from '../lib/geo/resolveCoords'
 import { hasAmapJsKey, hasAmapWebKey, hasFullAmapSetup, getAmapSecurityCode } from '../lib/amap/config'
 import { TRANSPORT_OPTIONS, type RouteWaypoint, type TransportMode } from '../types/macroRoute'
 
@@ -26,6 +27,9 @@ export function RoutePlanningPage() {
   const addWaypoint = (wp: RouteWaypoint) => {
     setSelected((prev) => (prev.some((p) => p.id === wp.id) ? prev : [...prev, wp]))
     setLocalPlan(null)
+    void enrichWaypointCoords(wp).then((enriched) => {
+      setSelected((prev) => prev.map((p) => (p.id === enriched.id ? enriched : p)))
+    })
   }
 
   const removeWaypoint = (id: string | number) => {
@@ -63,7 +67,7 @@ export function RoutePlanningPage() {
       <PageHeader
         eyebrow="Beijing Route"
         title="北京市内 · 多景点路径规划"
-        description="横向滑动选点加入路线；在左侧路线列表点击站点可展开景区内部 / 高德室内导航。"
+        description="横向滑动选点加入路线；点击左侧站点可打开大屏内部导航（景区路线 + 室内地图）。"
       />
 
       {!hasFullAmapSetup() ? (
@@ -121,11 +125,6 @@ export function RoutePlanningPage() {
           selected={displayPlan ? undefined : selected}
           planning={planning}
           onRemoveSelected={removeWaypoint}
-          onApplyInternalPlan={(plan) => {
-            setLocalPlan(plan)
-            setMacroPlan(plan)
-            setActiveWaypoint(plan.waypoints[0] ?? null)
-          }}
         />
         <AmapMapView
           key="route-plan-map"

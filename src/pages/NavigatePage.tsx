@@ -61,7 +61,6 @@ function NavigatePageContent() {
   const { macroPlan, activeWaypoint, setActiveWaypoint, setMacroPlan } = useRoutePlan()
   const [facilityType, setFacilityType] = useState('')
   const [facilityKeyword, setFacilityKeyword] = useState('')
-  const [facilitySource, setFacilitySource] = useState<'graph' | 'amap'>('graph')
   const [facilities, setFacilities] = useState<FacilityRow[]>([])
   const [loadingFac, setLoadingFac] = useState(false)
   const [facError, setFacError] = useState<string | null>(null)
@@ -85,20 +84,25 @@ function NavigatePageContent() {
       setLoadingFac(true)
       setFacError(null)
       try {
-        if (facilitySource === 'graph' && typeof wp.destinationId === 'number') {
+        if (typeof wp.destinationId === 'number') {
           const sourceNodeId = await resolveSourceNodeId(wp.destinationId, wp.name)
           if (sourceNodeId != null) {
-            const page = await fetchNearbyFacilities({
-              destinationId: wp.destinationId,
-              sourceNodeId,
-              facilityType: facilityType || undefined,
-              sortBy: 'distance',
-              pageSize: 20,
-            })
-            const rows = (page.list ?? []).map(mapGraphFacility)
-            setFacilities(rows)
-            if (!rows.length) setFacError('图距离范围内暂无匹配设施')
-            return
+            try {
+              const page = await fetchNearbyFacilities({
+                destinationId: wp.destinationId,
+                sourceNodeId,
+                facilityType: facilityType || undefined,
+                sortBy: 'distance',
+                pageSize: 20,
+              })
+              const rows = (page.list ?? []).map(mapGraphFacility)
+              if (rows.length) {
+                setFacilities(rows)
+                return
+              }
+            } catch {
+              /* 图设施不可用时回退高德周边 */
+            }
           }
         }
 
@@ -127,7 +131,7 @@ function NavigatePageContent() {
         setLoadingFac(false)
       }
     },
-    [facilityType, facilitySource],
+    [facilityType],
   )
 
   useEffect(() => {
@@ -212,30 +216,14 @@ function NavigatePageContent() {
               : '请点击时间轴上的目的地'}
           </p>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setFacilitySource('graph')}
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                facilitySource === 'graph'
-                  ? 'bg-[var(--ds-primary)] text-white'
-                  : 'border border-[var(--ds-primary)]/20 text-[var(--ds-primary)]'
-              }`}
-            >
-              道路距离
-            </button>
-            <button
-              type="button"
-              onClick={() => setFacilitySource('amap')}
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                facilitySource === 'amap'
-                  ? 'bg-[var(--ds-primary)] text-white'
-                  : 'border border-[var(--ds-primary)]/20 text-[var(--ds-primary)]'
-              }`}
-            >
-              高德周边
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => focusWaypoint && void loadFacilities(focusWaypoint)}
+            disabled={!focusWaypoint || loadingFac}
+            className="mt-3 rounded-full bg-[var(--ds-primary)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            显示周边
+          </button>
 
           <select
             value={facilityType}

@@ -1,6 +1,6 @@
 import type { NavStep } from '../../types/macroRoute'
 import { getAmapWebKey } from './config'
-import { decodeAmapPolyline } from './polyline'
+import { parseAmapStepPolyline } from './polyline'
 
 type DirectionMode = 'driving' | 'walking' | 'bicycling'
 
@@ -107,7 +107,7 @@ export async function fetchDirectionLeg(
 
   const polyline: [number, number][] = []
   for (const step of path.steps ?? []) {
-    if (step.polyline) polyline.push(...decodeAmapPolyline(step.polyline))
+    if (step.polyline) polyline.push(...parseAmapStepPolyline(step.polyline))
   }
 
   const steps = stepsFromPath(path, mode)
@@ -184,7 +184,7 @@ export async function fetchTransitLeg(
   for (const seg of transit.segments ?? []) {
     if (seg.walking?.steps?.length) {
       for (const w of seg.walking.steps) {
-        if (w.polyline) polyline.push(...decodeAmapPolyline(w.polyline))
+        if (w.polyline) polyline.push(...parseAmapStepPolyline(w.polyline))
         steps.push({
           type: 'walking',
           instruction: w.instruction?.replace(/<[^>]+>/g, '') || '步行',

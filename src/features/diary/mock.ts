@@ -8,6 +8,7 @@ import type {
   UpsertDiaryEntryRequest,
   UploadAssetRequest,
 } from './contracts'
+import { loadDiaryStoreSnapshot, persistDiaryStoreSnapshot } from './localStore'
 import type { DiaryBook, DiaryEntry, RouteSketchTask } from './types'
 
 function uid(prefix: string): string {
@@ -17,6 +18,19 @@ function uid(prefix: string): string {
 const booksStore: DiaryBook[] = []
 const entriesStore: DiaryEntry[] = []
 const routeTasksStore: RouteSketchTask[] = []
+
+function hydrateStoreFromDisk() {
+  const snap = loadDiaryStoreSnapshot()
+  if (!snap) return
+  booksStore.splice(0, booksStore.length, ...snap.books)
+  entriesStore.splice(0, entriesStore.length, ...snap.entries)
+}
+
+function flushStoreToDisk() {
+  persistDiaryStoreSnapshot([...booksStore], [...entriesStore])
+}
+
+hydrateStoreFromDisk()
 
 function delay(ms = 120): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -46,6 +60,7 @@ export async function createDiaryBookMock(input: CreateDiaryBookRequest): Promis
     entryDate: input.startDate,
     blocks: [{ id: uid('blk_txt'), type: 'text', text: '' }],
   })
+  flushStoreToDisk()
   return created
 }
 
@@ -57,6 +72,7 @@ export async function deleteDiaryBookMock(bookId: string): Promise<void> {
   for (let i = entriesStore.length - 1; i >= 0; i -= 1) {
     if (entriesStore[i].bookId === bookId) entriesStore.splice(i, 1)
   }
+  flushStoreToDisk()
 }
 
 export async function getDiaryBookDetailMock(bookId: string): Promise<GetDiaryBookDetailResponse> {
@@ -74,6 +90,7 @@ export async function updateDiaryBookMock(bookId: string, patch: UpdateDiaryBook
   const idx = booksStore.findIndex((it) => it.id === bookId)
   if (idx < 0) throw new Error('Diary book not found')
   booksStore[idx] = { ...booksStore[idx], ...patch }
+  flushStoreToDisk()
   return booksStore[idx]
 }
 
@@ -96,6 +113,7 @@ export async function upsertDiaryEntryMock(
   } else {
     entriesStore.push(next)
   }
+  flushStoreToDisk()
   return next
 }
 

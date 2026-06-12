@@ -2,6 +2,19 @@ import type { MapNodeOption } from '../../api/mapNode'
 import type { RoutePlanVO } from '../../api/route'
 import type { MacroRoutePlan, RouteWaypoint, TransportMode } from '../../types/macroRoute'
 
+function isTechnicalNodeName(name: string | undefined | null): boolean {
+  if (!name?.trim()) return true
+  return /^OSM/i.test(name.trim())
+}
+
+function friendlyNodeName(rawName: string | undefined | null, catalog?: MapNodeOption): string {
+  const catalogName = catalog?.nodeName?.trim()
+  if (catalogName && !isTechnicalNodeName(catalogName)) return catalogName
+  const name = rawName?.trim()
+  if (name && !isTechnicalNodeName(name)) return name
+  return `途经点`
+}
+
 function uiTransportToMacro(t: string): TransportMode {
   if (t === 'bike') return 'bicycling'
   if (t === 'cart' || t === 'drive') return 'driving'
@@ -18,7 +31,7 @@ export function macroPlanFromRoutePlanVO(
     const opt = nodeById.get(n.nodeId)
     return {
       id: n.nodeId,
-      name: n.nodeName,
+      name: friendlyNodeName(n.nodeName, opt),
       lng: opt?.lng ?? 0,
       lat: opt?.lat ?? 0,
       destinationId: vo.destinationId,

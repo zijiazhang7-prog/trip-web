@@ -43,6 +43,14 @@ body::after {
   z-index: 0;
 }
 
+body.overlay-cursor-auto,
+body.overlay-cursor-auto .detail-overlay-root,
+body.overlay-cursor-auto .detail-overlay-root *,
+body.overlay-cursor-auto .detail-overlay-body,
+body.overlay-cursor-auto .detail-overlay-body * {
+  cursor: auto !important;
+}
+
 .img-warm {
   filter: saturate(0.78) contrast(0.94) brightness(1.02) sepia(0.08) hue-rotate(-8deg);
 }

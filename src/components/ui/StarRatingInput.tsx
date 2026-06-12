@@ -7,6 +7,38 @@ type StarRatingInputProps = {
   className?: string
 }
 
+function Stars({
+  score,
+  interactive,
+  onPick,
+  disabled,
+}: {
+  score: number
+  interactive?: boolean
+  onPick?: (n: number) => void
+  disabled?: boolean
+}) {
+  const display = Math.round(score)
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          disabled={!interactive || disabled}
+          onClick={() => onPick?.(star)}
+          className={`text-lg leading-none transition ${
+            star <= display ? 'text-[#D4B896]' : 'text-[#d0ddd6]'
+          } ${interactive && !disabled ? 'cursor-pointer hover:scale-110' : 'cursor-default'}`}
+          aria-label={`${star} 星`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function StarRatingInput({
   value,
   average,
@@ -15,34 +47,31 @@ export function StarRatingInput({
   onChange,
   className = '',
 }: StarRatingInputProps) {
-  const display = value ?? Math.round(average ?? 0)
-
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${className}`}>
-      <div className="flex items-center gap-0.5" role="group" aria-label="评分">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            type="button"
-            disabled={disabled || !onChange}
-            onClick={() => onChange?.(star)}
-            className={`text-lg leading-none transition ${
-              star <= display ? 'text-[#D4B896]' : 'text-[#d0ddd6]'
-            } ${disabled || !onChange ? 'cursor-default' : 'cursor-pointer hover:scale-110'}`}
-            aria-label={`${star} 星`}
-          >
-            ★
-          </button>
-        ))}
-      </div>
+    <div className={`flex flex-col gap-2 ${className}`}>
       {average != null ? (
-        <span className="font-body text-xs text-[var(--ds-muted-foreground)]">
-          均分 {average.toFixed(1)}
-          {typeof count === 'number' && count > 0 ? ` · ${count} 人评` : ''}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-body text-xs text-[var(--ds-muted-foreground)]">均分</span>
+          <Stars score={average} />
+          <span className="font-body text-xs text-[var(--ds-muted-foreground)]">
+            {average.toFixed(1)}
+            {typeof count === 'number' && count > 0 ? ` · ${count} 人评` : ''}
+          </span>
+        </div>
       ) : null}
-      {value != null && onChange ? (
-        <span className="font-body text-xs text-[var(--ds-primary)]">你的评分 {value} 星</span>
+      {onChange ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-body text-xs text-[var(--ds-primary)]">我的评分</span>
+          <Stars
+            score={value ?? 0}
+            interactive
+            disabled={disabled}
+            onPick={onChange}
+          />
+          {value != null ? (
+            <span className="font-body text-xs text-[var(--ds-muted-foreground)]">{value} 星</span>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

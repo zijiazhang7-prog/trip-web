@@ -11,6 +11,7 @@ import {
 } from '../../api/route'
 import { hasStoredToken } from '../../api/http'
 import { macroPlanFromRoutePlanVO } from '../../lib/route/backendRoutePlan'
+import { enrichInternalRoutePolyline } from '../../lib/route/internalRoutePolyline'
 import { AmapMapView } from './AmapMapView'
 import { RoutePathSvg } from './RoutePathSvg'
 import type { MacroRoutePlan, RouteWaypoint } from '../../types/macroRoute'
@@ -189,7 +190,8 @@ export function InternalRoutePlanModal({
         })
       }
       setResult(vo)
-      const macro = macroPlanFromRoutePlanVO({ ...vo, transportType: backendTransport }, nodeById)
+      let macro = macroPlanFromRoutePlanVO({ ...vo, transportType: backendTransport }, nodeById)
+      macro = await enrichInternalRoutePolyline(macro)
       setPreviewPlan(macro)
     } catch (err) {
       setError(err instanceof Error ? err.message : '内部路线规划失败')

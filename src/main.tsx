@@ -1,7 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { getAmapSecurityCode } from './lib/amap/config'
 import './index.css'
 import App from './App.tsx'
+
+const amapSec = getAmapSecurityCode()
+if (amapSec && typeof window !== 'undefined') {
+  window._AMapSecurityConfig = { securityJsCode: amapSec }
+}
 
 // #region agent log
 fetch('http://127.0.0.1:7366/ingest/833cbd2c-bedc-4c5a-a10e-f459fd4b77d5', {

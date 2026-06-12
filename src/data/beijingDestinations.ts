@@ -11,6 +11,18 @@ export type BeijingAttraction = RouteWaypoint & {
 
 export const BEIJING_ATTRACTIONS: BeijingAttraction[] = [
   {
+    id: 'bj-universal',
+    name: '北京环球度假区',
+    city: '北京',
+    lng: 116.681128,
+    lat: 39.852226,
+    reason: '主题乐园度假区，哈利波特、小黄人等 IP 园区',
+    rating: 4.8,
+    badge: '热门',
+    type: '主题乐园',
+    image: 'https://images.unsplash.com/photo-1597466599360-3bb977156764?q=80&w=800',
+  },
+  {
     id: 'bj-gugong',
     name: '故宫博物院',
     city: '北京',
