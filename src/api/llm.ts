@@ -1,5 +1,10 @@
 export type { DiaryDayAiLayout, GenerateDiaryDayInput } from '../lib/llm/glm'
-export type { DestinationForRanking, GroupNegotiationInput, RecommendReasonInput } from '../lib/llm/deepseek'
+export type {
+  DestinationForRanking,
+  GroupNegotiationInput,
+  RecommendReasonInput,
+  TravelIntentResult,
+} from '../lib/llm/deepseek'
 export {
   hasAnyLlmKey,
   hasDeepSeekKey,
@@ -9,6 +14,7 @@ export {
 export {
   explainRecommendation,
   negotiateGroupPreferences,
+  parseTravelIntent,
   rankDestinationsByPreference,
 } from '../lib/llm/deepseek'
 export { generateDiaryDayLayout, polishDiaryText } from '../lib/llm/glm'

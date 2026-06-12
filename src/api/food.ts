@@ -1,6 +1,7 @@
 import { coerceSpringPage, type NormalizedPage } from './coercePage'
 import { httpRequest } from './http'
 import type { Food } from '../data/siteData'
+import { foodTypesForCuisines, resolveCuisine } from '../lib/taxonomy'
 
 export type FoodVO = {
   id: number
@@ -16,6 +17,7 @@ export type FoodVO = {
   coverUrl?: string
   lng?: number | string
   lat?: number | string
+  cuisineTag?: string
 }
 
 function normalizeAssetUrl(url: string | undefined): string {
@@ -61,7 +63,8 @@ export function foodDedupeKey(f: Food): string {
 export function foodVOToFood(vo: FoodVO): Food {
   const rating =
     vo.ratingScore != null ? String(vo.ratingScore) : vo.heatScore != null ? String(vo.heatScore) : '—'
-  const tags = vo.foodType ? [vo.foodType] : []
+  const cuisineTag = vo.cuisineTag ?? resolveCuisine(vo.foodType)
+  const tags = cuisineTag ? [cuisineTag] : vo.foodType ? [vo.foodType] : []
   const lng = toCoord(vo.lng)
   const lat = toCoord(vo.lat)
   return {
@@ -74,6 +77,7 @@ export function foodVOToFood(vo: FoodVO): Food {
     rating,
     image: normalizeAssetUrl(vo.coverUrl),
     tags,
+    cuisineTag,
     description: vo.description?.trim(),
     lng,
     lat,
@@ -115,6 +119,8 @@ export async function searchFoodsAcrossDestinations(
 export type FetchRecommendedFoodsParams = {
   facilityId?: number
   foodType?: string
+  /** 标准菜系标签，后端上线后生效；未上线时前端本地排序 */
+  cuisineTags?: string[]
   sortBy?: string
   pageNum?: number
   pageSize?: number
@@ -140,7 +146,13 @@ export async function fetchRecommendedFoodsPage(
     pageSize: String(pageSize),
   })
   if (params.facilityId != null) query.set('facilityId', String(params.facilityId))
-  if (params.foodType) query.set('foodType', params.foodType)
+  const cuisineDbTypes =
+    params.cuisineTags?.length ? foodTypesForCuisines(params.cuisineTags) : []
+  if (cuisineDbTypes.length === 1) query.set('foodType', cuisineDbTypes[0])
+  else if (params.foodType) query.set('foodType', params.foodType)
+  if (params.cuisineTags?.length) {
+    for (const tag of params.cuisineTags) query.append('cuisineTags', tag)
+  }
   query.set('sortBy', params.sortBy ?? 'heat')
 
   // 仅显式 topK（如 Top10）；常规列表走 pageNum + pageSize，与后端 recommend 分页对齐

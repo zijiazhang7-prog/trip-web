@@ -1,4 +1,5 @@
 import { excerptFromContent, parseHandAccountMeta } from '../features/diary/publish'
+import { hasStoredToken } from './http'
 import { httpRequest } from './http'
 
 type DiaryMedia = {
@@ -109,7 +110,30 @@ function toFeedItem(item: DiaryItem): CommunityFeedItem {
   }
 }
 
-export async function fetchCommunityFeed(sortBy: 'latest' | 'heat' = 'latest'): Promise<CommunityFeedItem[]> {
+export async function fetchDiaryRecommend(params?: {
+  sortBy?: 'interest' | 'heat' | 'rating'
+  pageSize?: number
+}): Promise<CommunityFeedItem[]> {
+  const query = new URLSearchParams({
+    sortBy: params?.sortBy ?? 'interest',
+    pageSize: String(params?.pageSize ?? 20),
+  })
+  const page = await httpRequest<PageResult<DiaryItem>>(`/api/v1/diaries/recommend?${query}`, {
+    method: 'GET',
+  })
+  return (page.list || []).map(toFeedItem)
+}
+
+export async function fetchCommunityFeed(
+  sortBy: 'latest' | 'heat' | 'interest' = 'latest',
+): Promise<CommunityFeedItem[]> {
+  if (sortBy === 'interest' && hasStoredToken()) {
+    try {
+      return await fetchDiaryRecommend({ sortBy: 'interest' })
+    } catch {
+      /* 未登录或接口不可用时回退 */
+    }
+  }
   const query = new URLSearchParams({
     sortBy,
     pageNum: '1',

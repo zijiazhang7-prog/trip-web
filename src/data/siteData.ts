@@ -1,4 +1,14 @@
+import { TAXONOMY } from '../lib/taxonomy'
+
 export type DestType = { value: string; label: string }
+
+export type DestinationTaxonomy = {
+  destType?: string | null
+  interestTags?: string[]
+  apiCategory?: string
+  apiTags?: string[]
+  backendType?: string
+}
 
 export type Destination = {
   /** Present when row comes from API (`DestinationVO.id`). */
@@ -11,6 +21,7 @@ export type Destination = {
   type: string
   image: string
   value: boolean
+  taxonomy?: DestinationTaxonomy
 }
 
 export type Spot = { name: string; duration: string; thumb: string }
@@ -25,6 +36,8 @@ export type Food = {
   rating: string
   image: string
   tags: string[]
+  /** 标准菜系标签（来自 taxonomy 映射） */
+  cuisineTag?: string | null
   description?: string
   lng?: number
   lat?: number
@@ -55,10 +68,7 @@ export type Notebook = {
 
 export const destTypes: DestType[] = [
   { value: '', label: '全部目的地' },
-  { value: 'nature', label: '自然风光' },
-  { value: 'culture', label: '文化古迹' },
-  { value: 'beach', label: '海岛度假' },
-  { value: 'city', label: '都市体验' },
+  ...TAXONOMY.destTypes.map((label) => ({ value: label, label })),
 ]
 
 export const destinations: Destination[] = [
@@ -159,7 +169,7 @@ export const spots: Spot[] = [
   },
 ]
 
-export const foodTags = ['川菜', '粤菜', '本地小吃', '甜品', '特色菜']
+export const foodTags = [...TAXONOMY.cuisineTags]
 
 export const foods: Food[] = [
   {
@@ -309,4 +319,4 @@ export const notebooks: Notebook[] = [
   },
 ]
 
-export const interestTags = ['亲子', '古镇', '海滨', '美食', '文化']
+export const interestTags = [...TAXONOMY.interestTags]

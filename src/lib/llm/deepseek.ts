@@ -1,5 +1,6 @@
 import { chatCompletion, extractJsonObject } from './chat'
 import { getDeepSeekApiKey, hasDeepSeekKey, LLM_ENDPOINTS } from './config'
+import { TAXONOMY, type UserTagSelection } from '../taxonomy'
 
 export type RecommendReasonInput = {
   destinationName: string
@@ -125,4 +126,71 @@ export async function rankDestinationsByPreference(input: {
   const ranked = (parsed.rankedIds ?? []).filter((id) => validIds.has(id))
   const rest = input.destinations.map((d) => d.id).filter((id) => !ranked.includes(id))
   return [...ranked, ...rest]
+}
+
+export type TravelIntentResult = UserTagSelection & {
+  keywords?: string[]
+  summary?: string
+}
+
+function sanitizeTagList(
+  raw: unknown,
+  allowed: readonly string[],
+): string[] {
+  if (!Array.isArray(raw)) return []
+  const set = new Set(allowed)
+  return raw.map((t) => String(t).trim()).filter((t) => set.has(t))
+}
+
+/** 将用户自然语言解析为标准 taxonomy 标签（用于初筛加权，不删未命中项） */
+export async function parseTravelIntent(userText: string): Promise<TravelIntentResult> {
+  if (!hasDeepSeekKey()) throw new Error('未配置 DeepSeek API Key')
+  const text = userText.trim()
+  if (!text) {
+    return { destTypes: [], interestTags: [], cuisineTags: [], keywords: [], summary: '' }
+  }
+
+  const raw = await chatCompletion({
+    url: LLM_ENDPOINTS.deepseekChat,
+    apiKey: getDeepSeekApiKey(),
+    model: 'deepseek-chat',
+    temperature: 0.2,
+    maxTokens: 512,
+    jsonMode: true,
+    messages: [
+      {
+        role: 'system',
+        content: `你是旅行意图解析助手。把用户描述映射到标准标签，只输出 JSON：
+{"destTypes":[],"interestTags":[],"cuisineTags":[],"keywords":[],"summary":"一句话概括"}
+规则：
+- destTypes 只能从：${TAXONOMY.destTypes.join('、')}
+- interestTags 只能从：${TAXONOMY.interestTags.join('、')}
+- cuisineTags 只能从：${TAXONOMY.cuisineTags.join('、')}
+- 例：文化气息浓厚 → destTypes含历史人文/博物展览，interestTags含历史文化、艺术文艺
+- 未提及的数组留空；不要编造标签`,
+      },
+      {
+        role: 'user',
+        content: text,
+      },
+    ],
+  })
+
+  const parsed = extractJsonObject<{
+    destTypes?: unknown
+    interestTags?: unknown
+    cuisineTags?: unknown
+    keywords?: unknown
+    summary?: unknown
+  }>(raw)
+
+  return {
+    destTypes: sanitizeTagList(parsed.destTypes, TAXONOMY.destTypes),
+    interestTags: sanitizeTagList(parsed.interestTags, TAXONOMY.interestTags),
+    cuisineTags: sanitizeTagList(parsed.cuisineTags, TAXONOMY.cuisineTags),
+    keywords: Array.isArray(parsed.keywords)
+      ? parsed.keywords.map((k) => String(k).trim()).filter(Boolean)
+      : [],
+    summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : undefined,
+  }
 }

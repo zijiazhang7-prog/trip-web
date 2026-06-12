@@ -15,7 +15,20 @@ import { inferTotalPages, shouldStopRecommendPagination } from '../api/paginatio
 import { useTripContext } from '../context/tripContext'
 import { TravelPreferences } from '../components/travel/TravelPreferences'
 import { PrimaryButton } from '../components/ui/PrimaryButton'
-import { explainRecommendation, hasDeepSeekKey, rankDestinationsByPreference } from '../api/llm'
+import {
+  explainRecommendation,
+  hasDeepSeekKey,
+  parseTravelIntent,
+  rankDestinationsByPreference,
+} from '../api/llm'
+import {
+  emptyTagSelection,
+  interestTagsToLegacyThemes,
+  isTagSelectionEmpty,
+  mergeTagSelections,
+  sortDestinationsByTagMatch,
+  type UserTagSelection,
+} from '../lib/taxonomy'
 import type { PreferenceSavedPayload } from '../components/travel/TravelPreferences'
 import {
   destTypes,
@@ -132,13 +145,6 @@ function DestCard({ dest, onOpen }: { dest: Destination; onOpen: () => void }) {
   )
 }
 
-const destTypeMatchers: Record<string, RegExp> = {
-  nature: /自然|风光|山|森林|湖|峡谷|草原|徒步|国家公园/i,
-  culture: /文化|古迹|历史|古镇|博物馆|遗产|人文/i,
-  beach: /海|岛|滨|沙滩|海岸|潜水/i,
-  city: /都市|城市|美食|校园|campus|商业街|夜景/i,
-}
-
 function destKey(d: Destination) {
   return d.id != null ? `id:${d.id}` : `name:${d.name}`
 }
@@ -147,8 +153,15 @@ type VenueKind = 'all' | 'scenic' | 'campus'
 
 function matchesVenueKind(d: Destination, kind: VenueKind): boolean {
   if (kind === 'all') return true
-  const hay = `${d.type} ${d.badge} ${d.reason} ${d.name}`.toLowerCase()
-  if (kind === 'campus') return /校园|大学|学院|school|campus/.test(hay)
+  const backend = d.taxonomy?.backendType?.toLowerCase()
+  if (kind === 'campus') {
+    if (backend === 'campus') return true
+    if (backend === 'scenic') return false
+    return /校园|大学|学院|school|campus/.test(`${d.type} ${d.badge} ${d.reason} ${d.name}`)
+  }
+  if (backend === 'scenic') return true
+  if (backend === 'campus') return false
+  const hay = `${d.type} ${d.badge} ${d.reason} ${d.name}`
   return /景区|景点|公园|博物|遗产|风光|古迹|旅游/.test(hay) || !/校园|大学|学院/.test(hay)
 }
 
@@ -164,6 +177,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   const [selectedDestType, setSelectedDestType] = useState('')
   const [selectedInterests, setSelectedInterests] = useState<string[]>([])
   const [aiRankedIds, setAiRankedIds] = useState<number[]>([])
+  const [aiTagSelection, setAiTagSelection] = useState<UserTagSelection>(emptyTagSelection())
   const [rankingDestinations, setRankingDestinations] = useState(false)
   const pendingRankRef = useRef<{ customText: string; tags: string[] } | null>(null)
   const [items, setItems] = useState<Destination[]>([])
@@ -230,28 +244,34 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     }
   }, [])
 
-  const filteredDestinations = useMemo(() => {
-    const filtered = items.filter((d) => {
-      if (!matchesVenueKind(d, venueKind)) return false
-      const haystack = `${d.type} ${d.badge} ${d.reason}`.toLowerCase()
-      if (selectedDestType) {
-        const rx = destTypeMatchers[selectedDestType]
-        if (rx && !rx.test(haystack)) return false
-      }
-      if (selectedInterests.length === 0) return true
-      return selectedInterests.some((tag) => haystack.includes(tag.toLowerCase()))
-    })
-    if (!aiRankedIds.length) return filtered
-    const order = new Map(aiRankedIds.map((id, i) => [id, i]))
-    return [...filtered].sort((a, b) => {
-      const ai = order.get(a.id ?? -1) ?? 9999
-      const bi = order.get(b.id ?? -1) ?? 9999
-      return ai - bi
-    })
-  }, [items, selectedDestType, selectedInterests, aiRankedIds, venueKind])
+  const activeTagSelection = useMemo(
+    () =>
+      mergeTagSelections(
+        {
+          destTypes: selectedDestType ? [selectedDestType] : [],
+          interestTags: selectedInterests,
+          cuisineTags: [],
+        },
+        aiTagSelection,
+      ),
+    [selectedDestType, selectedInterests, aiTagSelection],
+  )
+
+  const sortedDestinations = useMemo(() => {
+    const filtered = items.filter((d) => matchesVenueKind(d, venueKind))
+    if (isTagSelectionEmpty(activeTagSelection) && !aiRankedIds.length) return filtered
+    return sortDestinationsByTagMatch(filtered, activeTagSelection, aiRankedIds)
+  }, [items, venueKind, activeTagSelection, aiRankedIds])
 
   const runDestinationRanking = useCallback(async (customText: string, tags: string[]) => {
-    if (!customText.trim() || !hasDeepSeekKey()) {
+    const text = customText.trim()
+    if (!text) {
+      setAiTagSelection(emptyTagSelection())
+      setAiRankedIds([])
+      return
+    }
+    if (!hasDeepSeekKey()) {
+      setAiTagSelection(emptyTagSelection())
       setAiRankedIds([])
       return
     }
@@ -259,9 +279,15 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     if (!candidates.length) return
     setRankingDestinations(true)
     try {
+      const intent = await parseTravelIntent(text)
+      setAiTagSelection({
+        destTypes: intent.destTypes,
+        interestTags: [...new Set([...intent.interestTags, ...tags])],
+        cuisineTags: intent.cuisineTags,
+      })
       const rankedIds = await rankDestinationsByPreference({
-        userText: customText,
-        selectedTags: tags,
+        userText: text,
+        selectedTags: [...intent.interestTags, ...tags],
         destinations: candidates.map((d) => ({
           id: d.id!,
           name: d.name,
@@ -272,6 +298,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       })
       setAiRankedIds(rankedIds)
     } catch {
+      setAiTagSelection(emptyTagSelection())
       setAiRankedIds([])
     } finally {
       setRankingDestinations(false)
@@ -285,6 +312,28 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     void runDestinationRanking(pending.customText, pending.tags)
   }, [items, loadingInitial, runDestinationRanking])
 
+  const buildRecommendParams = useCallback(
+    (page: number) => {
+      const sel = mergeTagSelections(
+        {
+          destTypes: selectedDestType ? [selectedDestType] : [],
+          interestTags: selectedInterests,
+          cuisineTags: [],
+        },
+        aiTagSelection,
+      )
+      return {
+        sortBy: isTagSelectionEmpty(sel) ? 'recommend' : 'recommend',
+        theme: preferThemes[0] ?? interestTagsToLegacyThemes(sel.interestTags)[0],
+        destType: sel.destTypes[0],
+        interestTags: sel.interestTags.length ? sel.interestTags : undefined,
+        pageNum: page,
+        pageSize: PAGE_SIZE,
+      }
+    },
+    [selectedDestType, selectedInterests, aiTagSelection, preferThemes],
+  )
+
   const resetRecommendFirstPage = useCallback(async () => {
     setLoadingInitial(true)
     setError(null)
@@ -292,12 +341,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     setActiveSearchKeyword('')
     setPageNum(1)
     try {
-      const res = await fetchRecommendedDestinationsPage({
-        sortBy: 'recommend',
-        theme: preferThemes[0],
-        pageNum: 1,
-        pageSize: PAGE_SIZE,
-      })
+      const res = await fetchRecommendedDestinationsPage(buildRecommendParams(1))
       setItems(mergeDestinationLists([], res.list.map(destinationVOToDestination)))
       setTotalPages(inferTotalPages(res, PAGE_SIZE, 1))
       setUsingFallback(false)
@@ -309,7 +353,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     } finally {
       setLoadingInitial(false)
     }
-  }, [preferThemes])
+  }, [buildRecommendParams])
 
   useEffect(() => {
     let cancelled = false
@@ -344,12 +388,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       const res =
         listMode === 'search'
           ? await searchDestinationsPage(activeSearchKeyword, { pageNum: next, pageSize: PAGE_SIZE })
-          : await fetchRecommendedDestinationsPage({
-              sortBy: 'recommend',
-              theme: preferThemes[0],
-              pageNum: next,
-              pageSize: PAGE_SIZE,
-            })
+          : await fetchRecommendedDestinationsPage(buildRecommendParams(next))
 
       const mapped = res.list.map(destinationVOToDestination)
       const prev = itemsRef.current
@@ -371,7 +410,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       loadMoreInFlightRef.current = false
       setLoadingMore(false)
     }
-  }, [usingFallback, loadingInitial, pageNum, totalPages, listMode, activeSearchKeyword, preferThemes])
+  }, [usingFallback, loadingInitial, pageNum, totalPages, listMode, activeSearchKeyword, buildRecommendParams])
 
   useEffect(() => {
     loadNextPageRef.current = loadNextPage
@@ -456,19 +495,19 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   }
 
   const openDetail = (dest: Destination) => {
-    const idx = filteredDestinations.findIndex((d) => destKey(d) === destKey(dest))
+    const idx = sortedDestinations.findIndex((d) => destKey(d) === destKey(dest))
     setDetailIndex(idx >= 0 ? idx : 0)
     setAiReason(null)
     setDetailOpen(true)
   }
 
   const stepDetail = (dir: -1 | 1) => {
-    if (filteredDestinations.length === 0) return
+    if (sortedDestinations.length === 0) return
     setAiReason(null)
-    setDetailIndex((i) => Math.max(0, Math.min(filteredDestinations.length - 1, i + dir)))
+    setDetailIndex((i) => Math.max(0, Math.min(sortedDestinations.length - 1, i + dir)))
   }
 
-  const detailDest = detailOpen ? (filteredDestinations[detailIndex] ?? null) : null
+  const detailDest = detailOpen ? (sortedDestinations[detailIndex] ?? null) : null
 
   return (
     <div className="relative z-[1] mx-auto max-w-7xl px-2 pb-16 pt-2 md:px-4 md:pb-20">
@@ -520,10 +559,12 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
             openPanel={openPreferences}
             onSaved={(payload: PreferenceSavedPayload) => {
               setPreferThemes(payload.themes)
+              if (payload.tags.length) setSelectedInterests(payload.tags)
               if (payload.customText.trim() && hasDeepSeekKey()) {
                 pendingRankRef.current = { customText: payload.customText, tags: payload.tags }
               } else {
                 pendingRankRef.current = null
+                setAiTagSelection(emptyTagSelection())
                 setAiRankedIds([])
               }
               void resetRecommendFirstPage()
@@ -669,12 +710,17 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
                 暂无目的地数据。
               </p>
             ) : null}
-            {!loadingInitial && items.length > 0 && filteredDestinations.length === 0 ? (
+            {!loadingInitial && items.length > 0 && sortedDestinations.length === 0 ? (
               <p className="break-inside-avoid py-12 text-center font-body text-sm text-[var(--ds-muted-foreground)]">
-                当前筛选下没有匹配项，试试调整左侧类型或兴趣标签。
+                当前景区/校园筛选下没有结果，试试切换「全部」。
               </p>
             ) : null}
-            {filteredDestinations.map((dest) => (
+            {!isTagSelectionEmpty(activeTagSelection) ? (
+              <p className="mb-4 font-body text-xs text-[var(--ds-muted-foreground)]">
+                已按标签优先排序：匹配项在前，其余在后（不隐藏）。
+              </p>
+            ) : null}
+            {sortedDestinations.map((dest) => (
               <DestCard key={destKey(dest)} dest={dest} onOpen={() => openDetail(dest)} />
             ))}
           </div>
@@ -701,7 +747,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
           onClose={() => setDetailOpen(false)}
           onPrev={() => stepDetail(-1)}
           onNext={() => stepDetail(1)}
-          indexLabel={`${detailIndex + 1} / ${filteredDestinations.length}`}
+          indexLabel={`${detailIndex + 1} / ${sortedDestinations.length}`}
         >
           <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="overflow-hidden rounded-2xl bg-[#edf4ef]">

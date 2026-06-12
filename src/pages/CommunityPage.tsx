@@ -36,7 +36,7 @@ export function CommunityPage() {
   const LOAD_STEP = 6
   const [posts, setPosts] = useState<CommunityFeedItem[]>([])
   const [usingCommunityFallback, setUsingCommunityFallback] = useState(false)
-  const [sortBy, setSortBy] = useState<'latest' | 'heat'>('latest')
+  const [sortBy, setSortBy] = useState<'latest' | 'heat' | 'interest'>('latest')
   const [searchText, setSearchText] = useState('')
   const [searchMode, setSearchMode] = useState<SearchMode>('fulltext')
   const diaryApi = useMemo(() => getDiaryApi(), [])
@@ -526,6 +526,13 @@ export function CommunityPage() {
               className="rounded-xl border border-[var(--ds-primary)]/20 bg-white px-4 py-2 text-sm text-[var(--ds-primary)] transition hover:-translate-y-0.5"
             >
               最受欢迎
+            </button>
+            <button
+              type="button"
+              onClick={() => setSortBy('interest')}
+              className="rounded-xl border border-[var(--ds-primary)]/20 bg-white px-4 py-2 text-sm text-[var(--ds-primary)] transition hover:-translate-y-0.5"
+            >
+              兴趣推荐
             </button>
             <button
               type="button"

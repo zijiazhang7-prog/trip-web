@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AmapMapView } from '../components/route/AmapMapView'
 import { DestinationPickerScroll } from '../components/route/DestinationPickerScroll'
+import { InternalRoutePlanModal } from '../components/route/InternalRoutePlanModal'
 import { RouteSequenceSidebar } from '../components/route/RouteSequenceSidebar'
 import { InlineNotice } from '../components/ui/InlineNotice'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -20,6 +21,7 @@ export function RoutePlanningPage() {
   const [error, setError] = useState<string | null>(null)
   const [localPlan, setLocalPlan] = useState(macroPlan)
   const [transportMode, setTransportMode] = useState<TransportMode>('transit')
+  const [internalPlanOpen, setInternalPlanOpen] = useState(false)
 
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected])
   const displayPlan = localPlan ?? macroPlan
@@ -134,6 +136,30 @@ export function RoutePlanningPage() {
           activeId={displayPlan?.waypoints[0]?.id ?? selected[0]?.id}
         />
       </section>
+
+      <div className="mb-4 flex flex-wrap gap-3">
+        <button
+          type="button"
+          disabled={selected.length < 1}
+          onClick={() => setInternalPlanOpen(true)}
+          className="rounded-full border border-[var(--ds-primary)]/25 bg-white px-6 py-3 font-body text-sm font-semibold text-[var(--ds-primary)] transition hover:bg-[color-mix(in_srgb,var(--ds-primary)_6%,white)] disabled:opacity-50"
+        >
+          景区内多点路径规划
+        </button>
+      </div>
+
+      <InternalRoutePlanModal
+        open={internalPlanOpen}
+        onClose={() => setInternalPlanOpen(false)}
+        selectedWaypoints={selected}
+        onApplyPlan={(plan) => {
+          setLocalPlan(plan)
+          setMacroPlan(plan)
+          setActiveWaypoint(plan.waypoints[0] ?? null)
+          setInternalPlanOpen(false)
+          navigate('/navigate', { replace: false })
+        }}
+      />
 
       <div className="flex flex-wrap gap-3">
         <PrimaryButton

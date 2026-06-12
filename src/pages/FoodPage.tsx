@@ -12,6 +12,7 @@ import {
   searchFoodsAcrossDestinations,
 } from '../api/food'
 import { foodTags, foods as foodsFallback, type Food } from '../data/siteData'
+import { resolveCuisine, sortFoodsByTagMatch } from '../lib/taxonomy'
 import { useTripContext } from '../context/tripContext'
 import { CommentSection } from '../components/ui/CommentSection'
 import { DetailOverlay } from '../components/ui/DetailOverlay'
@@ -472,11 +473,16 @@ export function FoodPage() {
         f.name.includes(foodSearch) ||
         f.dish.includes(foodSearch) ||
         f.tags.some((t) => t.includes(foodSearch))
-      const matchTag = !selectedFoodTag || f.tags.includes(selectedFoodTag)
-      return matchSearch && matchTag
+      return matchSearch
     })
-    const sorted = [...filtered]
-    if (listSort === 'rating') {
+    let sorted = [...filtered]
+    if (selectedFoodTag) {
+      sorted = sortFoodsByTagMatch(
+        sorted,
+        { destTypes: [], interestTags: [], cuisineTags: [selectedFoodTag] },
+        listSort === 'rating' ? 'rating' : 'heat',
+      )
+    } else if (listSort === 'rating') {
       sorted.sort((a, b) => (b.ratingScore ?? 0) - (a.ratingScore ?? 0))
     } else if (listSort === 'distance' && anchorCoords) {
       const dist = (f: Food) => {
@@ -508,7 +514,13 @@ export function FoodPage() {
         const destId = scopeDestinationId ?? ctxDestinationId ?? 1
         const page = await fetchRecommendedFoodsPage(destId, { pageSize: 40, sortBy: 'heat' })
         if (cancelled) return
-        const types = [...new Set((page.list ?? []).map((f) => f.foodType).filter(Boolean))] as string[]
+        const types = [
+          ...new Set(
+            (page.list ?? [])
+              .map((f) => resolveCuisine(f.foodType) ?? f.foodType)
+              .filter(Boolean),
+          ),
+        ] as string[]
         if (types.length) setDynamicFoodTags(types.slice(0, 12))
       } catch {
         /* 保留静态标签 */
@@ -646,7 +658,7 @@ export function FoodPage() {
           美食推荐
         </h1>
         <p className="mt-3 font-body text-[15.5px] text-[#6B8076]">
-          瀑布流懒加载：首屏约 32 条，滑到底部再分批加载；支持关键词检索。
+          瀑布流懒加载：首屏约 32 条，滑到底部再分批加载；菜系标签匹配项优先展示。
         </p>
         {!scopeAll && scopeDestinationId ? (
           <div className="mt-4 flex flex-wrap items-center gap-2">

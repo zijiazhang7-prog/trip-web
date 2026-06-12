@@ -2,23 +2,16 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   fetchMyPreferences,
+  interestTagsToThemeList,
   saveMyPreferences,
-  tagsToThemeList,
-  themeListToTags,
+  themeListToInterestTags,
 } from '../../api/preferences'
+import { TAXONOMY } from '../../lib/taxonomy'
 import { hasStoredToken } from '../../api/http'
 import { InlineNotice } from '../ui/InlineNotice'
 import { PrimaryButton } from '../ui/PrimaryButton'
 
-const TRAVEL_PREFERENCE_TAGS = [
-  '亲子',
-  '古镇',
-  '海滨',
-  '美食',
-  '文化',
-  '冒险',
-  '放松',
-] as const
+const TRAVEL_PREFERENCE_TAGS = TAXONOMY.interestTags
 
 const TRAVELERS = [
   { id: 'me', label: '我' },
@@ -86,7 +79,10 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
       try {
         const prefs = await fetchMyPreferences()
         if (cancelled) return
-        const tags = themeListToTags(prefs.preferThemeList)
+        const tags =
+          prefs.preferInterestTags?.length
+            ? prefs.preferInterestTags
+            : themeListToInterestTags(prefs.preferThemeList)
         if (tags.length) {
           setNested('single')
           setSingleSelected(tags)
@@ -130,7 +126,7 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
     setSaveMsg(null)
     try {
       const tags = nested === 'single' ? singleSelected : [...new Set(multiSelected.flat())]
-      const themeList = tagsToThemeList(tags)
+      const themeList = interestTagsToThemeList(tags)
       const multiSummary =
         nested === 'multi'
           ? TRAVELERS.map((p, i) => `${p.label}: ${multiSelected[i].join('、')}`).join('；')
@@ -138,6 +134,7 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
       const customText = [customAiText.trim(), multiSummary].filter(Boolean).join('\n')
       await saveMyPreferences({
         preferThemeList: themeList,
+        preferInterestTags: tags,
         travelStyle: nested === 'multi' ? '多人' : '单人',
         customPreferenceText: customText || undefined,
         preferHotLevel: 3,
@@ -161,7 +158,7 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
         value={customAiText}
         onChange={(e) => setCustomAiText(e.target.value)}
         rows={3}
-        placeholder="例如：想带孩子去有文化底蕴又不太累的地方，周末两天，喜欢美食和古镇…"
+        placeholder="例如：想带孩子去有文化底蕴又不太累的地方；或文化气息浓厚、想逛博物馆…"
         className="w-full resize-none rounded-xl border border-[color-mix(in_srgb,var(--ds-border)_55%,transparent)] bg-white/90 px-3 py-2.5 font-body text-sm leading-relaxed text-[var(--ds-foreground)] outline-none focus:border-[var(--ds-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--ds-primary)_25%,transparent)]"
       />
     </div>

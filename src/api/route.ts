@@ -76,3 +76,44 @@ export async function planMultiRoute(body: MultiRoutePlanRequest): Promise<Route
     }),
   })
 }
+
+export type RouteHistoryVO = {
+  id: number
+  destinationId: number
+  destinationName?: string
+  startNodeId?: number
+  startNodeName?: string
+  endNodeId?: number
+  endNodeName?: string
+  strategyType?: string
+  transportType?: string
+  totalDistance?: number | string
+  estimatedTime?: number
+  createdAt?: string
+  pathNodes?: PathNodeResult[]
+  pathEdges?: RoutePathEdgeVO[]
+  orderedTargetNodeIds?: number[]
+}
+
+type PageResult<T> = {
+  list: T[]
+  pageNum: number
+  pageSize: number
+  total: number
+  pages: number
+}
+
+export async function fetchRouteHistories(params?: {
+  pageNum?: number
+  pageSize?: number
+}): Promise<PageResult<RouteHistoryVO>> {
+  const query = new URLSearchParams({
+    pageNum: String(params?.pageNum ?? 1),
+    pageSize: String(params?.pageSize ?? 10),
+  })
+  return httpRequest<PageResult<RouteHistoryVO>>(`/api/v1/routes/history?${query}`, { method: 'GET' })
+}
+
+export async function fetchRouteHistoryDetail(id: number): Promise<RouteHistoryVO> {
+  return httpRequest<RouteHistoryVO>(`/api/v1/routes/history/${id}`, { method: 'GET' })
+}

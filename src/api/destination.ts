@@ -1,6 +1,7 @@
 import { coerceSpringPage } from './coercePage'
 import { httpRequest } from './http'
 import type { Destination } from '../data/siteData'
+import { resolveDestinationFromVO } from '../lib/taxonomy'
 
 export type PageResult<T> = {
   list: T[]
@@ -21,6 +22,9 @@ export type DestinationVO = {
   ratingScore?: number
   coverUrl?: string
   tags?: string[]
+  /** 后端 taxonomy 上线后由 API 填充 */
+  destType?: string
+  interestTags?: string[]
 }
 
 function normalizeAssetUrl(url: string | undefined): string {
@@ -33,6 +37,10 @@ export function destinationVOToDestination(vo: DestinationVO): Destination {
   const rating = typeof vo.ratingScore === 'number' ? vo.ratingScore : 4.5
   const badge = vo.category || (vo.tags && vo.tags[0]) || '推荐'
   const heat = vo.heatScore != null ? Math.round(vo.heatScore) : null
+  const resolved = resolveDestinationFromVO(vo)
+  const destType = vo.destType ?? resolved.destType
+  const interestTags =
+    vo.interestTags?.length ? vo.interestTags : [...resolved.interests]
   return {
     id: vo.id,
     name: vo.name,
@@ -40,15 +48,26 @@ export function destinationVOToDestination(vo: DestinationVO): Destination {
     rating,
     price: heat != null ? `${heat} 热度` : '—',
     badge,
-    type: vo.category || vo.type || '目的地',
+    type: destType ?? vo.category ?? vo.type ?? '目的地',
     image: normalizeAssetUrl(vo.coverUrl),
     value: rating >= 4.5,
+    taxonomy: {
+      destType,
+      interestTags,
+      apiCategory: vo.category,
+      apiTags: vo.tags,
+      backendType: vo.type,
+    },
   }
 }
 
 export type FetchRecommendedDestinationsParams = {
   type?: string
   theme?: string
+  /** 标准目的地类型，后端上线后生效 */
+  destType?: string
+  /** 标准兴趣标签，后端上线后生效 */
+  interestTags?: string[]
   sortBy?: string
   pageNum?: number
   pageSize?: number
@@ -61,6 +80,10 @@ export async function fetchRecommendedDestinationsPage(
   const query = new URLSearchParams()
   if (params.type) query.set('type', params.type)
   if (params.theme) query.set('theme', params.theme)
+  if (params.destType) query.set('destType', params.destType)
+  if (params.interestTags?.length) {
+    for (const tag of params.interestTags) query.append('interestTags', tag)
+  }
   query.set('sortBy', params.sortBy ?? 'recommend')
   query.set('pageNum', String(params.pageNum ?? 1))
   query.set('pageSize', String(params.pageSize ?? 50))
