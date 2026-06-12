@@ -131,6 +131,22 @@ export async function fetchCommunityDiaryDetail(id: number): Promise<CommunityFe
   return toFeedItem(item)
 }
 
+export async function fetchDiariesByDestination(
+  destinationId: number,
+  sortBy: 'latest' | 'heat' = 'heat',
+): Promise<CommunityFeedItem[]> {
+  const query = new URLSearchParams({
+    sortBy,
+    pageNum: '1',
+    pageSize: '30',
+  })
+  const page = await httpRequest<PageResult<DiaryItem>>(
+    `/api/v1/destinations/${destinationId}/diaries?${query.toString()}`,
+    { method: 'GET' },
+  )
+  return (page.list || []).map(toFeedItem)
+}
+
 export async function uploadCommunityMedia(file: File, refId?: number): Promise<string> {
   const form = new FormData()
   form.append('file', file)

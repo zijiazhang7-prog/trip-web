@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AmapMapView } from '../components/route/AmapMapView'
 import { DestinationSearchGrid } from '../components/route/DestinationSearchGrid'
+import { InternalRoutePlanModal } from '../components/route/InternalRoutePlanModal'
 import { RouteSequenceSidebar } from '../components/route/RouteSequenceSidebar'
 import { InlineNotice } from '../components/ui/InlineNotice'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -18,6 +19,7 @@ export function RoutePlanningPage() {
   const [planning, setPlanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [localPlan, setLocalPlan] = useState(macroPlan)
+  const [internalModalOpen, setInternalModalOpen] = useState(false)
 
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected])
   const displayPlan = localPlan ?? macroPlan
@@ -113,6 +115,13 @@ export function RoutePlanningPage() {
         >
           {planning ? '正在规划并进入导航…' : '生成路线并导航'}
         </PrimaryButton>
+        <button
+          type="button"
+          onClick={() => setInternalModalOpen(true)}
+          className="rounded-full border border-[var(--ds-primary)]/25 bg-white px-6 py-4 font-body text-sm font-semibold text-[var(--ds-primary)] transition hover:bg-[var(--ds-primary)]/5"
+        >
+          景区内部路线
+        </button>
         {selected.length > 0 || displayPlan ? (
           <button
             type="button"
@@ -123,6 +132,17 @@ export function RoutePlanningPage() {
           </button>
         ) : null}
       </div>
+
+      <InternalRoutePlanModal
+        open={internalModalOpen}
+        onClose={() => setInternalModalOpen(false)}
+        selectedWaypoints={selected}
+        onApplyPlan={(plan) => {
+          setLocalPlan(plan)
+          setMacroPlan(plan)
+          setActiveWaypoint(plan.waypoints[0] ?? null)
+        }}
+      />
     </div>
   )
 }

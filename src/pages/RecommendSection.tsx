@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   destinationVOToDestination,
+  fetchRecommendedDestinations,
   fetchRecommendedDestinationsPage,
   searchDestinationsPage,
 } from '../api/destination'
+import { fetchDiariesByDestination, type CommunityFeedItem } from '../api/community'
+import { Top10Strip } from '../components/ui/Top10Strip'
 import { inferTotalPages } from '../api/pagination'
 import { useTripContext } from '../context/tripContext'
 import { TravelPreferences } from '../components/travel/TravelPreferences'
@@ -130,6 +133,15 @@ function destKey(d: Destination) {
   return d.id != null ? `id:${d.id}` : `name:${d.name}`
 }
 
+type VenueKind = 'all' | 'scenic' | 'campus'
+
+function matchesVenueKind(d: Destination, kind: VenueKind): boolean {
+  if (kind === 'all') return true
+  const hay = `${d.type} ${d.badge} ${d.reason} ${d.name}`.toLowerCase()
+  if (kind === 'campus') return /校园|大学|学院|school|campus/.test(hay)
+  return /景区|景点|公园|博物|遗产|风光|古迹|旅游/.test(hay) || !/校园|大学|学院/.test(hay)
+}
+
 type RecommendSectionProps = {
   openPreferences?: boolean
 }
@@ -162,6 +174,13 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   const itemsRef = useRef(items)
   const loadMoreInFlightRef = useRef(false)
   const canAutoLoadMoreRef = useRef(false)
+  const [venueKind, setVenueKind] = useState<VenueKind>('all')
+  const [heatTop10, setHeatTop10] = useState<Destination[]>([])
+  const [loadingTop10, setLoadingTop10] = useState(false)
+  const [relatedDiaries, setRelatedDiaries] = useState<CommunityFeedItem[]>([])
+  const [loadingRelatedDiaries, setLoadingRelatedDiaries] = useState(false)
+  const [relatedDiariesOpen, setRelatedDiariesOpen] = useState(false)
+  const [detailTarget, setDetailTarget] = useState<Destination | null>(null)
 
   useEffect(() => {
     itemsRef.current = items
@@ -178,8 +197,27 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     return () => window.clearTimeout(timer)
   }, [loadingInitial])
 
+  useEffect(() => {
+    let cancelled = false
+    setLoadingTop10(true)
+    void fetchRecommendedDestinations({ topK: 10, sortBy: 'heat', pageSize: 10 })
+      .then((rows) => {
+        if (!cancelled) setHeatTop10(rows.map(destinationVOToDestination))
+      })
+      .catch(() => {
+        if (!cancelled) setHeatTop10([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTop10(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const filteredDestinations = useMemo(() => {
     const filtered = items.filter((d) => {
+      if (!matchesVenueKind(d, venueKind)) return false
       const haystack = `${d.type} ${d.badge} ${d.reason}`.toLowerCase()
       if (selectedDestType) {
         const rx = destTypeMatchers[selectedDestType]
@@ -195,7 +233,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       const bi = order.get(b.id ?? -1) ?? 9999
       return ai - bi
     })
-  }, [items, selectedDestType, selectedInterests, aiRankedIds])
+  }, [items, selectedDestType, selectedInterests, aiRankedIds, venueKind])
 
   const runDestinationRanking = useCallback(async (customText: string, tags: string[]) => {
     if (!customText.trim() || !hasDeepSeekKey()) {
@@ -410,6 +448,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   }
 
   const openDetail = (dest: Destination) => {
+    setDetailTarget(dest)
     const idx = filteredDestinations.findIndex((d) => destKey(d) === destKey(dest))
     setDetailIndex(idx >= 0 ? idx : 0)
     setAiReason(null)
@@ -422,7 +461,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     setDetailIndex((i) => Math.max(0, Math.min(filteredDestinations.length - 1, i + dir)))
   }
 
-  const detailDest = filteredDestinations[detailIndex] ?? null
+  const detailDest = detailTarget ?? filteredDestinations[detailIndex] ?? null
 
   return (
     <div className="relative z-[1] mx-auto max-w-7xl px-2 pb-16 pt-2 md:px-4 md:pb-20">
@@ -521,6 +560,29 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       <div className="grid gap-10 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="flex flex-col gap-5 lg:sticky lg:top-24 lg:self-start">
           <div className={`p-7 ${glass}`} style={{ borderRadius: '2.25rem 2rem 2.5rem 2rem' }}>
+            <h3 className={sidebarTitle}>景区 / 校园</h3>
+            <div className="mb-5 flex flex-wrap gap-2">
+              {(
+                [
+                  { value: 'all', label: '全部' },
+                  { value: 'scenic', label: '景区' },
+                  { value: 'campus', label: '校园' },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setVenueKind(tab.value)}
+                  className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
+                    venueKind === tab.value
+                      ? 'bg-[var(--ds-primary)] text-white'
+                      : 'border border-[var(--ds-primary)]/15 bg-white/70 text-[var(--ds-primary)]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
             <h3 className={sidebarTitle}>目的地类型</h3>
             <div className="flex flex-col gap-2">
               {destTypes.map((type) => (
@@ -555,6 +617,18 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
           {rankingDestinations ? (
             <p className="mb-4 font-body text-sm text-[var(--ds-primary)]">DeepSeek 正在根据你的描述智能排序推荐…</p>
           ) : null}
+
+          <Top10Strip
+            title="热度 Top10"
+            loading={loadingTop10}
+            items={heatTop10.map((d) => ({
+              id: d.id ?? d.name,
+              name: d.name,
+              meta: d.price,
+              image: d.image,
+              onClick: () => openDetail(d),
+            }))}
+          />
 
           <div className="mb-9 flex flex-wrap items-center gap-3">
             <span className="mr-2 font-body text-xs font-semibold uppercase tracking-[0.1em] text-[color-mix(in_srgb,var(--ds-muted-foreground)_85%,var(--ds-border))]">
@@ -698,6 +772,24 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
                 <PrimaryButton
+                  variant="secondary"
+                  onClick={async () => {
+                    if (detailDest.id == null) return
+                    setRelatedDiariesOpen(true)
+                    setLoadingRelatedDiaries(true)
+                    try {
+                      const rows = await fetchDiariesByDestination(detailDest.id, 'heat')
+                      setRelatedDiaries(rows)
+                    } catch {
+                      setRelatedDiaries([])
+                    } finally {
+                      setLoadingRelatedDiaries(false)
+                    }
+                  }}
+                >
+                  相关手账
+                </PrimaryButton>
+                <PrimaryButton
                   onClick={() => {
                     if (detailDest.id != null) {
                       setDestination(detailDest.id, detailDest.name)
@@ -734,6 +826,55 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
                 </PrimaryButton>
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {relatedDiariesOpen ? (
+        <div
+          className="fixed inset-0 z-[290] flex items-center justify-center bg-black/35 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setRelatedDiariesOpen(false)
+          }}
+        >
+          <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/60 bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-[#2C3E36]">
+                {detailDest?.name ?? '目的地'} · 相关手账
+              </h3>
+              <button
+                type="button"
+                className="text-xs text-[var(--ds-primary)]"
+                onClick={() => setRelatedDiariesOpen(false)}
+              >
+                关闭
+              </button>
+            </div>
+            {loadingRelatedDiaries ? (
+              <p className="text-sm text-[#6B8076]">加载中…</p>
+            ) : relatedDiaries.length === 0 ? (
+              <p className="text-sm text-[#6B8076]">暂无相关手账</p>
+            ) : (
+              <ul className="space-y-3">
+                {relatedDiaries.map((d) => (
+                  <li key={d.id} className="rounded-xl border border-[#d8ebe3] px-3 py-2">
+                    <p className="text-sm font-semibold text-[#2C3E36]">{d.title ?? d.bookTitle}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-[#6B8076]">{d.excerpt}</p>
+                    <button
+                      type="button"
+                      className="mt-2 text-xs font-semibold text-[var(--ds-primary)]"
+                      onClick={() => {
+                        setRelatedDiariesOpen(false)
+                        setDetailOpen(false)
+                        navigate(`/community?destinationId=${detailDest?.id}`)
+                      }}
+                    >
+                      在社群中查看
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       ) : null}

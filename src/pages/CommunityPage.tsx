@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   fetchCommunityFeed,
   fetchCommunityDiaryDetail,
+  fetchDiariesByDestination,
   searchCommunityByKeyword,
+  searchCommunityByTitle,
   type CommunityFeedItem,
 } from '../api/community'
 import { getDiaryApi } from '../api/diary'
@@ -19,14 +21,18 @@ const glass =
   'ds-card-lift ds-glass-panel mb-6 break-inside-avoid rounded-[32px] p-7 last:mb-0 hover:-translate-y-1'
 const communitySideVisual = '/images/community-side-visual.png'
 
+type SearchMode = 'fulltext' | 'title' | 'destination'
+
 export function CommunityPage() {
   const { destinationId } = useTripContext()
+  const [searchParams] = useSearchParams()
   const INITIAL_VISIBLE = 10
   const LOAD_STEP = 6
   const [posts, setPosts] = useState<CommunityFeedItem[]>([])
   const [usingCommunityFallback, setUsingCommunityFallback] = useState(false)
   const [sortBy, setSortBy] = useState<'latest' | 'heat'>('latest')
   const [searchText, setSearchText] = useState('')
+  const [searchMode, setSearchMode] = useState<SearchMode>('fulltext')
   const diaryApi = useMemo(() => getDiaryApi(), [])
   const [publishTitle, setPublishTitle] = useState('')
   const [publishText, setPublishText] = useState('')
@@ -89,6 +95,7 @@ export function CommunityPage() {
   }
 
   useEffect(() => {
+    if (searchParams.get('destinationId')) return undefined
     let cancelled = false
     const run = async () => {
       setFeedLoading(true)
@@ -114,7 +121,33 @@ export function CommunityPage() {
     return () => {
       cancelled = true
     }
-  }, [sortBy])
+  }, [sortBy, searchParams])
+
+  useEffect(() => {
+    const destParam = searchParams.get('destinationId')
+    if (!destParam) return
+    const id = Number(destParam)
+    if (!Number.isFinite(id)) return
+    let cancelled = false
+    setFeedLoading(true)
+    setSearchMode('destination')
+    void fetchDiariesByDestination(id, sortBy === 'heat' ? 'heat' : 'latest')
+      .then((feed) => {
+        if (!cancelled) {
+          applyFeedPosts(feed)
+          setUsingCommunityFallback(false)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : '目的地日记加载失败')
+      })
+      .finally(() => {
+        if (!cancelled) setFeedLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, sortBy])
 
   useEffect(() => {
     if (!detailOpen) return
@@ -167,11 +200,20 @@ export function CommunityPage() {
 
   const runSearch = async () => {
     const keyword = searchText.trim()
-    if (!keyword) return
+    if (!keyword && searchMode !== 'destination') return
     setFeedLoading(true)
     setError(null)
     try {
-      const result = await searchCommunityByKeyword(keyword)
+      let result: CommunityFeedItem[]
+      if (searchMode === 'title') {
+        result = await searchCommunityByTitle(keyword)
+      } else if (searchMode === 'destination') {
+        const id = destinationId ?? Number(keyword)
+        if (!Number.isFinite(id)) throw new Error('请输入有效的目的地编号，或从推荐页进入')
+        result = await fetchDiariesByDestination(id, sortBy === 'heat' ? 'heat' : 'latest')
+      } else {
+        result = await searchCommunityByKeyword(keyword)
+      }
       applyFeedPosts(result)
       setUsingCommunityFallback(false)
     } catch (err) {
@@ -396,12 +438,27 @@ export function CommunityPage() {
         </aside>
 
         <section className="min-w-0">
-          <div className="mb-4 grid gap-3 rounded-2xl border border-[var(--ds-primary)]/12 bg-white/75 p-4 shadow-sm backdrop-blur-md md:grid-cols-[1fr_auto_auto_auto]">
+          <div className="mb-4 grid gap-3 rounded-2xl border border-[var(--ds-primary)]/12 bg-white/75 p-4 shadow-sm backdrop-blur-md md:grid-cols-[auto_1fr_auto_auto_auto]">
+            <select
+              value={searchMode}
+              onChange={(e) => setSearchMode(e.target.value as SearchMode)}
+              className="rounded-xl border border-[var(--ds-primary)]/20 bg-white px-3 py-2 text-sm outline-none"
+            >
+              <option value="fulltext">全文</option>
+              <option value="title">标题</option>
+              <option value="destination">目的地</option>
+            </select>
             <input
               type="text"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              placeholder="输入关键词（标题或正文）"
+              placeholder={
+                searchMode === 'title'
+                  ? '输入日记标题（精确检索）'
+                  : searchMode === 'destination'
+                    ? `目的地编号${destinationId ? `（当前 ${destinationId}）` : ''}`
+                    : '输入关键词（正文全文检索）'
+              }
               className="rounded-xl border border-[var(--ds-primary)]/20 bg-white px-3 py-2 text-sm outline-none"
             />
             <button

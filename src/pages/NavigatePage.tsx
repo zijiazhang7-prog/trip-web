@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { fetchNearbyFacilities, type NearbyFacilityVO } from '../api/facility'
 import { AmapNavigateMap } from '../components/route/AmapNavigateMap'
 import { RouteTimelinePanel } from '../components/route/RouteTimelinePanel'
 import { GlassPanel } from '../components/ui/GlassPanel'
@@ -7,6 +8,7 @@ import { InlineNotice } from '../components/ui/InlineNotice'
 import { PageHeader } from '../components/ui/PageHeader'
 import { RouteErrorBoundary } from '../components/ui/RouteErrorBoundary'
 import { useRoutePlan } from '../context/routePlanContext'
+import { resolveSourceNodeId } from '../lib/route/resolveNode'
 import { fetchAroundPois, type NearbyPoiResult } from '../lib/amap/webService'
 import { hasAmapWebKey } from '../lib/amap/config'
 
@@ -16,6 +18,35 @@ const FACILITY_TYPES = [
   { value: 'canteen', label: '食堂' },
   { value: 'shop', label: '商店' },
 ] as const
+
+type FacilityRow = {
+  id: string
+  name: string
+  type: string
+  distance: number
+  distanceLabel: string
+}
+
+function mapGraphFacility(f: NearbyFacilityVO): FacilityRow {
+  const dist = Number(f.reachableDistance) || 0
+  return {
+    id: String(f.id),
+    name: f.name,
+    type: f.facilityType || '设施',
+    distance: dist,
+    distanceLabel: `道路距离约 ${dist} 米`,
+  }
+}
+
+function mapAmapFacility(f: NearbyPoiResult): FacilityRow {
+  return {
+    id: f.id,
+    name: f.name,
+    type: f.type,
+    distance: f.distance,
+    distanceLabel: `直线约 ${f.distance} 米`,
+  }
+}
 
 export function NavigatePage() {
   return (
@@ -29,7 +60,8 @@ function NavigatePageContent() {
   const navigate = useNavigate()
   const { macroPlan, activeWaypoint, setActiveWaypoint, setMacroPlan } = useRoutePlan()
   const [facilityType, setFacilityType] = useState('')
-  const [facilities, setFacilities] = useState<NearbyPoiResult[]>([])
+  const [facilitySource, setFacilitySource] = useState<'graph' | 'amap'>('graph')
+  const [facilities, setFacilities] = useState<FacilityRow[]>([])
   const [loadingFac, setLoadingFac] = useState(false)
   const [facError, setFacError] = useState<string | null>(null)
 
@@ -44,13 +76,31 @@ function NavigatePageContent() {
       setLoadingFac(true)
       setFacError(null)
       try {
+        if (facilitySource === 'graph' && typeof wp.destinationId === 'number') {
+          const sourceNodeId = await resolveSourceNodeId(wp.destinationId, wp.name)
+          if (sourceNodeId != null) {
+            const page = await fetchNearbyFacilities({
+              destinationId: wp.destinationId,
+              sourceNodeId,
+              facilityType: facilityType || undefined,
+              sortBy: 'distance',
+              pageSize: 20,
+            })
+            const rows = (page.list ?? []).map(mapGraphFacility)
+            setFacilities(rows)
+            if (!rows.length) setFacError('图距离范围内暂无匹配设施')
+            return
+          }
+        }
+
         if (hasAmapWebKey()) {
           const list = await fetchAroundPois(wp.lng, wp.lat, facilityType)
-          setFacilities(list)
-          if (!list.length) setFacError('附近暂无匹配设施')
+          const rows = list.map(mapAmapFacility)
+          setFacilities(rows)
+          if (!rows.length) setFacError('附近暂无匹配设施')
         } else {
           setFacilities([
-            {
+            mapAmapFacility({
               id: 'demo-1',
               name: `${wp.name}游客服务中心`,
               type: '生活服务',
@@ -58,16 +108,7 @@ function NavigatePageContent() {
               distance: 120,
               lng: wp.lng,
               lat: wp.lat,
-            },
-            {
-              id: 'demo-2',
-              name: '公共卫生间',
-              type: '公共设施',
-              address: '北京市',
-              distance: 280,
-              lng: wp.lng,
-              lat: wp.lat,
-            },
+            }),
           ])
         }
       } catch (err) {
@@ -77,7 +118,7 @@ function NavigatePageContent() {
         setLoadingFac(false)
       }
     },
-    [facilityType],
+    [facilityType, facilitySource],
   )
 
   useEffect(() => {
@@ -156,6 +197,31 @@ function NavigatePageContent() {
               : '请点击时间轴上的目的地'}
           </p>
 
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setFacilitySource('graph')}
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                facilitySource === 'graph'
+                  ? 'bg-[var(--ds-primary)] text-white'
+                  : 'border border-[var(--ds-primary)]/20 text-[var(--ds-primary)]'
+              }`}
+            >
+              道路距离
+            </button>
+            <button
+              type="button"
+              onClick={() => setFacilitySource('amap')}
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                facilitySource === 'amap'
+                  ? 'bg-[var(--ds-primary)] text-white'
+                  : 'border border-[var(--ds-primary)]/20 text-[var(--ds-primary)]'
+              }`}
+            >
+              高德周边
+            </button>
+          </div>
+
           <select
             value={facilityType}
             onChange={(e) => setFacilityType(e.target.value)}
@@ -184,7 +250,7 @@ function NavigatePageContent() {
                 >
                   <p className="font-display text-sm font-semibold text-[var(--ds-foreground)]">{f.name}</p>
                   <p className="font-body mt-1 text-xs text-[var(--ds-muted-foreground)]">{f.type}</p>
-                  <p className="font-body mt-1 text-xs text-[var(--ds-primary)]">约 {f.distance} 米</p>
+                  <p className="font-body mt-1 text-xs text-[var(--ds-primary)]">{f.distanceLabel}</p>
                 </li>
               ))}
           </ul>

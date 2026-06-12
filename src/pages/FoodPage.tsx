@@ -9,6 +9,8 @@ import {
   searchFoodsAcrossDestinations,
 } from '../api/food'
 import { foodTags, foods as foodsFallback, type Food } from '../data/siteData'
+import { useTripContext } from '../context/tripContext'
+import { Top10Strip } from '../components/ui/Top10Strip'
 import { readSessionCache, writeSessionCache } from '../lib/sessionCache'
 
 const glass =
@@ -131,7 +133,12 @@ function foodReactKey(f: Food, idx: number): string {
 }
 
 export function FoodPage() {
+  const { destinationId: ctxDestinationId, destinationName: ctxDestinationName } = useTripContext()
   const [foods, setFoods] = useState<Food[]>([])
+  const [scopeDestinationId, setScopeDestinationId] = useState<number | null>(ctxDestinationId)
+  const [scopeAll, setScopeAll] = useState(!ctxDestinationId)
+  const [foodTop10, setFoodTop10] = useState<Food[]>([])
+  const [loadingFoodTop10, setLoadingFoodTop10] = useState(false)
   const [foodSearch, setFoodSearch] = useState('')
   const [selectedFoodTag, setSelectedFoodTag] = useState('')
   const [mode, setMode] = useState<'browse' | 'search'>('browse')
@@ -441,6 +448,36 @@ export function FoodPage() {
     })
   }, [foods, foodSearch, selectedFoodTag])
 
+  useEffect(() => {
+    if (ctxDestinationId) {
+      setScopeDestinationId(ctxDestinationId)
+      setScopeAll(false)
+    }
+  }, [ctxDestinationId])
+
+  useEffect(() => {
+    let cancelled = false
+    const destId = scopeAll ? null : scopeDestinationId
+    if (!destId) {
+      setFoodTop10([])
+      return
+    }
+    setLoadingFoodTop10(true)
+    void fetchRecommendedFoodsPage(destId, { topK: 10, pageSize: 10, sortBy: 'heat' })
+      .then((res) => {
+        if (!cancelled) setFoodTop10(res.list.map(foodVOToFood))
+      })
+      .catch(() => {
+        if (!cancelled) setFoodTop10([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingFoodTop10(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [scopeAll, scopeDestinationId])
+
   const runFoodFeed = async (keyword: string) => {
     setError(null)
     setLoadingInitial(true)
@@ -452,6 +489,30 @@ export function FoodPage() {
       setMode('browse')
       resetBrowseRefs()
       try {
+        if (!scopeAll && scopeDestinationId) {
+          foodAnchorIdsRef.current = [scopeDestinationId]
+          foodAnchorIdSetRef.current = new Set([scopeDestinationId])
+          anchorNextFoodPageRef.current.clear()
+          await prefetchAnchorFoodPages(
+            [scopeDestinationId],
+            1,
+            INITIAL_ANCHOR_PREFETCH_PAGES,
+            appendFoodVOs,
+            anchorNextFoodPageRef,
+          )
+          setMoreAvailable(true)
+          setUsingFallback(false)
+          setLoadingInitial(false)
+          void prefetchAnchorFoodPages(
+            [scopeDestinationId],
+            INITIAL_ANCHOR_PREFETCH_PAGES + 1,
+            BACKGROUND_ANCHOR_PREFETCH_PAGES,
+            appendFoodVOs,
+            anchorNextFoodPageRef,
+          )
+          return
+        }
+
         const anchored = await resolveFoodAnchorIds()
         foodAnchorIdsRef.current = anchored
         foodAnchorIdSetRef.current = new Set(anchored)
@@ -553,6 +614,23 @@ export function FoodPage() {
         <p className="mt-3 font-body text-[15.5px] text-[#6B8076]">
           瀑布流懒加载：滑到底部自动向后台拉取更多数据；支持关键词检索。
         </p>
+        {!scopeAll && scopeDestinationId ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[var(--ds-primary)]/20 bg-white/80 px-4 py-1.5 text-sm font-semibold text-[var(--ds-primary)]">
+              当前：{ctxDestinationName ?? `目的地 #${scopeDestinationId}`}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setScopeAll(true)
+                void runFoodFeed('')
+              }}
+              className="rounded-full border border-[var(--ds-primary)]/15 px-4 py-1.5 text-sm text-[#6B8076] hover:text-[var(--ds-primary)]"
+            >
+              查看全城美食
+            </button>
+          </div>
+        ) : null}
       </header>
 
       <div className="grid gap-10 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -573,6 +651,19 @@ export function FoodPage() {
             >
               {foodSearch.trim() ? '关键词检索' : '刷新推荐'}
             </button>
+            {!scopeAll && scopeDestinationId ? (
+              <Top10Strip
+                title="本目的地美食 Top10"
+                loading={loadingFoodTop10}
+                items={foodTop10.map((f, fi) => ({
+                  id: foodReactKey(f, fi),
+                  name: f.name,
+                  meta: f.price,
+                  image: f.image,
+                  onClick: () => openDetail(f),
+                }))}
+              />
+            ) : null}
             <h3 className={sidebarTitle}>菜系标签</h3>
             <div className="flex flex-col gap-2.5">
               {foodTags.map((t) => {

@@ -80,6 +80,7 @@
 | `/api/v1/facilities/nearby` | `sourceNodeId` | query | long | 当前地图节点 ID | 强冻结 | 否 | 否 | 否 | 可达距离计算必需字段 | `NearbyFacilityQuery.java` | 高风险字段 |
 | `/api/v1/facilities/nearby` | `facilityType` | query/response | string | 设施类型 | 强冻结 | 否 | 否 | 否 | 筛选/展示字段 | `NearbyFacilityQuery.java`、`NearbyFacilityVO.java` | 值域需统一 |
 | NearbyFacilityVO | `reachableDistance` | response | decimal | 图上可达距离 | 强冻结 | 否 | 否 | 否 | 周边排序核心字段 | `NearbyFacilityVO.java` | 文档中曾称 distance，代码字段为 reachableDistance |
+| Facility | `address` / `tel` / `coverUrl` | body/response | string | 设施地址、联系电话、封面图 URL | 强冻结 | 否 | 否 | 否 | 已进入 Entity、管理端请求和用户端响应 | `Facility.java`、`AdminFacilityRequest.java`、`NearbyFacilityVO.java` | 前端类型需同步生成 |
 | NearbyFacilityVO | `facilityId` | response | 不存在 | 设施 ID 语义由 `id` 承担 | 待确认 | 是 | 是 | 是 | 用户特别关注字段，但当前 VO 使用 `id` | `NearbyFacilityVO.java` | 若前端期待 `facilityId` 会冲突 |
 
 ## 8. 美食字段
@@ -92,6 +93,7 @@
 | FoodVO | `foodType` | response | string | 菜系/类型 | 强冻结 | 否 | 否 | 否 | 展示与筛选字段 | `FoodVO.java` |  |
 | FoodVO | `heatScore` / `ratingScore` | response | decimal | 热度/评分 | 强冻结 | 否 | 否 | 否 | 排序字段 | `FoodVO.java` | 高风险字段 |
 | FoodVO | `coverUrl` | response | string | 封面图 URL | 强冻结 | 否 | 否 | 否 | 展示字段 | `FoodVO.java` | 高风险字段 |
+| FoodVO | `lng` / `lat` | body/response | decimal | 店铺或窗口自身经纬度 | 强冻结 | 否 | 否 | 否 | 已进入 Entity、管理端请求和用户端响应 | `Food.java`、`AdminFoodRequest.java`、`FoodVO.java` | 空值不继承 Facility 坐标 |
 
 ## 9. 日记字段
 
@@ -107,8 +109,24 @@
 | DiaryVO | `id` | response | long | 日记 ID | 强冻结 | 否 | 否 | 否 | 详情/列表核心字段 | `DiaryVO.java` | 高风险字段 |
 | DiaryVO | `userId` | response | long | 作者用户 ID | 强冻结 | 否 | 否 | 否 | 归属字段 | `DiaryVO.java` | 高风险字段 |
 | DiaryVO | `heatScore` / `ratingScore` | response | decimal | 热度/评分 | 强冻结 | 否 | 否 | 否 | 排序字段 | `DiaryVO.java` | 高风险字段 |
+| DiaryVO | `ratingCount` | response | integer | 有效评分人数 | 强冻结 | 否 | 否 | 否 | 评分聚合字段已落地 | `Diary.java`、`DiaryVO.java` | 必须与评分明细数量一致 |
+| `/api/v1/diaries/{id}/ratings` | `score` | body | integer | 当前用户评分，范围 1～5 | 强冻结 | 否 | 否 | 否 | 请求 DTO 和数据库约束已实现 | `DiaryRatingRequest.java`、`diary_rating.score` | 越界返回 `DIARY_008` |
+| `/api/v1/diaries/{id}/ratings/me` | `diaryId` / `userScore` / `ratingScore` / `ratingCount` | response | long / integer / decimal / integer | 当前用户评分及日记聚合结果 | 强冻结 | 否 | 否 | 否 | 接口和 VO 已实现 | `DiaryRatingVO.java` | 未评分时仅 `userScore` 可空 |
 | `/api/v1/diaries/search/title` | `title` | query | string | 标题关键词 | 强冻结 | 否 | 否 | 否 | 检索 DTO 已实现 | `DiaryTitleSearchQuery.java` |  |
 | `/api/v1/diaries/search/fulltext` | `keyword` | query | string | 正文关键词 | 强冻结 | 否 | 否 | 否 | 检索 DTO 已实现 | `DiaryFulltextSearchQuery.java` |  |
+
+## 9A. 评论字段
+
+|接口名/路径|字段名|位置|当前类型|当前语义|冻结等级|允许改名|允许改类型|允许改语义|冻结原因|来源证据|风险说明|
+|---|---|---|---|---|---|---|---|---|---|---|---|
+|三类评论发布接口|`contentText`|body|string|一级评论正文，trim 后 1～500 字符|强冻结|否|否|否|请求 DTO 和校验已实现|`CommentCreateRequest.java`|前端不可提交 parent/media 字段代替正文|
+|三类评论列表|`pageNum/pageSize/total/pages/list`|response|分页结构|统一分页结果|强冻结|否|否|否|复用 `PageResultVO`|`PageResultVO.java`|`pageSize` 最大 100|
+|CommentVO|`id`|response|long|评论 ID|强冻结|否|否|否|删除接口依赖|`CommentVO.java`|高风险字段|
+|CommentVO|`targetType`|response|string|`destination/food/diary`|强冻结|否|否|否|统一前端组件区分目标|`CommentTargetType.java`|值域固定为小写|
+|CommentVO|`targetId/userId`|response|long|目标资源 ID / 评论用户 ID|强冻结|否|否|否|资源归属核心字段|`CommentVO.java`|高风险字段|
+|CommentVO|`nickname/avatarUrl`|response|string/null|评论用户展示信息|建议冻结|否|否|否|前端评论展示需要|`CommentVO.java`|用户缺失时当前允许为空|
+|CommentVO|`contentText/createdAt`|response|string/datetime|评论正文和发布时间|强冻结|否|否|否|评论展示核心字段|`CommentVO.java`|时间为后端日期时间序列化格式|
+|评论删除接口|`commentType/commentId`|path|string/long|评论表类型和评论 ID|强冻结|否|否|否|统一删除路由已实现|`CommentController.java`|类型只允许三种固定值|
 
 ## 10. 文件上传字段
 
@@ -121,9 +139,9 @@
 | FileUploadResultVO | `id` | response | 不存在 | 当前不返回文件 ID | 待确认 | 是 | 是 | 是 | Swagger 与代码不一致 | `FileUploadResultVO.java`、`swagger-draft.yaml` | 前端不能依赖 `id` |
 
 ## 待确认项
-- `/.cursor/context/frontend-runtime-facts.md` 已补齐；前端运行时策略（baseURL/proxy/token）仍需团队最终拍板后冻结。
+- `frontend-runtime-facts.md` 缺失，无法冻结前端内部字段、baseURL、proxy 和 token 存储字段。
 - `FacilityVO` 文档字段 `distance/estimatedTime` 与代码 `NearbyFacilityVO.reachableDistance/sourceNodeId/targetNodeId` 需要统一。
-- Route 历史、Diary 评分、我的日记接口尚无代码入口，对应字段只能待确认。
+- Route 历史、我的日记列表接口尚无代码入口，对应字段只能待确认。
 
 ## 代码/文档冲突项
 - `CreateDiaryRequest`：Swagger 中是 `mediaIds`，后端代码是 `mediaList`。

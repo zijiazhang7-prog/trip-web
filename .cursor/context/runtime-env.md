@@ -1,49 +1,69 @@
 # 运行环境与请求约定（Runtime Environment）
 
-## A. 后端事实（Backend Facts）
+## A. Backend Confirmed Facts
 
-- 本地开发端口：`8080`
-- 接口前缀：`/api/v1`
-- 鉴权头：`Authorization: Bearer <token>`
-- 登录 token 返回位置：`data.token`
-- CORS 已放行：`http://localhost:5173`、`http://127.0.0.1:5173`
-- 统一响应体：`success/code/message/data/timestamp`
-- 统一分页体：`list/pageNum/pageSize/total/pages`
+| 项 | 当前确认事实 | 来源证据 |
+|---|---|---|
+| 本地开发端口 | `8080` | `project-root/backend/src/main/resources/application-dev.yml` |
+| context-path | 未配置独立 `server.servlet.context-path` | `application.yml`、`application-dev.yml` |
+| 实际接口前缀 | 业务接口直接以 `/api/v1` 开头 | 各 Controller 的 `@RequestMapping` / `@GetMapping` |
+| 静态文件访问前缀 | `/files` | `application-dev.yml` 的 `trip.file.access-prefix`，`FileResourceConfig.java` |
+| 数据源配置位置 | `application-dev.yml` | `spring.datasource.*` |
+| 本地数据库 URL | `${DB_URL:jdbc:mysql://localhost:3306/tour_system?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}` | `application-dev.yml` |
+| 数据库用户名 | `${DB_USERNAME:root}` | `application-dev.yml` |
+| 数据库密码 | `${DB_PASSWORD:}`，不在文档记录真实密码 | `application-dev.yml` |
+| active profile | 默认 `dev` | `application.yml` |
+| dev 配置文件 | `project-root/backend/src/main/resources/application-dev.yml` | 文件存在 |
+| test/prod profile | 未找到独立 `application-test.yml` / `application-prod.yml` | resources 扫描结果 |
+| multipart 限制 | 默认 5MB，可由 `FILE_MAX_SIZE` 覆盖 | `application-dev.yml` |
+| 上传目录 | `${FILE_UPLOAD_DIR:uploads}` | `application-dev.yml` |
+| JWT secret | `${JWT_SECRET:dev-only-change-me-to-a-long-random-secret}` | `application-dev.yml` |
+| JWT 过期时间 | `${JWT_EXPIRE_MINUTES:120}` 分钟 | `application-dev.yml` |
+| 登录 token 返回位置 | `data.token` | `LoginResponse.java`、`AuthController.java`、`api-spec.md` 7.2 |
+| 当前用户信息返回位置 | `data` 内为 `UserVO` | `AuthController.java`、`UserVO.java` |
+| 后端期望鉴权头 | `Authorization: Bearer <token>` | `JwtAuthenticationFilter.java`、`AuthServiceImpl.java` |
+| 鉴权机制 | Spring Security stateless + 自定义 JWT filter | `SecurityConfig.java`、`JwtAuthenticationFilter.java` |
+| CORS | 允许 `http://localhost:5173`、`http://127.0.0.1:5173`，方法 `GET/POST/PUT/DELETE/OPTIONS`，允许 credentials | `CorsConfig.java` |
+| Swagger/springdoc 运行配置 | 未在后端配置中找到 springdoc 依赖或配置；存在手写 `docs/04_api/swagger-draft.yaml` | resources 与 `pom.xml` 扫描、`swagger-draft.yaml` |
+| 统一返回体 | `success/code/message/data/timestamp` | `ApiResponse.java` |
+| 统一分页体 | `list/pageNum/pageSize/total/pages` | `PageResultVO.java` |
 
-详见：`/.cursor/context/runtime-env01.md` 的 Backend Confirmed Facts 表格。
+## B. Frontend Confirmed Facts (From frontend-runtime-facts.md)
 
-## B. 前端事实（Frontend Runtime Facts）
+本次扫描未在仓库中找到 `frontend-runtime-facts.md`，因此不能确认以下内容：
 
-- 前端栈：Vite + React + TypeScript
-- 当前为 mock-first，API 工厂仍映射 mock
-- 未配置真实 baseURL
-- 未配置 Vite `server.proxy`
-- 未实现统一请求拦截器与 token 存储策略
+| 项 | 当前结论 |
+|---|---|
+| 前端技术栈 | 待确认。项目文档描述为 Vue 3 + Vite + Element Plus，但不是来自 `frontend-runtime-facts.md` |
+| 路由模式 | 待确认 |
+| 当前 API 集成状态 | 待确认 |
+| 当前 baseURL / proxy | 待确认 |
+| 当前 token / auth header 处理 | 待确认 |
+| 当前是否未接入真实 HTTP | 待确认 |
+| 联调注意事项 | 待确认；不能伪造 Axios、Pinia、拦截器或本地存储策略 |
 
-详见：`/.cursor/context/frontend-runtime-facts.md`。
+## C. Joint Open Questions
 
-## C. 待确认项（Joint Open Questions）
+| 问题 | 当前证据 | 需要确认对象 |
+|---|---|---|
+| 最终 API baseURL 是 `http://localhost:8080/api/v1` 还是通过前端 dev proxy 转发 | 后端实际接口前缀为 `/api/v1`；`swagger-draft.yaml` servers 写 `http://localhost:8080/api/v1`；前端事实文件缺失 | 前端负责人 / 后端负责人 |
+| 是否启用 Vite dev proxy | 无前端运行时事实来源 | 前端负责人 |
+| token 存储策略 | 后端只要求 `Authorization: Bearer <token>`，未规定前端存储位置 | 前端负责人 |
+| request interceptor 统一位置 | 无前端代码和运行时事实 | 前端负责人 |
+| 测试服务器地址 | 当前只确认本地 `localhost:8080` | 项目负责人 / 部署负责人 |
+| Swagger UI 是否需要运行时可访问 | 后端未找到 springdoc 配置，仅有 draft yaml | 后端负责人 |
+| prod/test profile 是否需要补配置 | 当前仅有 dev profile | 后端负责人 |
 
-- 已确认采用相对路径 + Vite proxy
-- 已确认 token 存储为 localStorage（浏览器重开后保留）
-- 统一请求拦截器与 401 处理方案（已进入前端实现范围）
-- 测试环境地址与可用账号
-- Swagger 是否需要可运行 UI（当前仅确认 draft yaml）
+## 待确认项
+- `frontend-runtime-facts.md` 的真实路径或是否尚未提交。
+- 前端是否使用代理、Axios 实例、统一错误处理和 token 刷新策略。
+- 联调时是否固定使用 `/api/v1` 相对路径，还是完整后端 URL。
 
-## E. 已拍板联调决策（2026-05-09）
+## 代码/文档冲突项
+- 文档有 `swagger-draft.yaml`，但后端未确认有 springdoc 运行时配置。
+- 架构文档描述前端使用 Vue 3/Vite/Element Plus/Pinia/Axios，但当前没有前端运行时事实文件支撑，本文不把这些当作已确认运行事实。
 
-- 前端寻址策略：相对路径 + Vite proxy
-- token 策略：登录成功后写入 localStorage
-- 联调环境地址：`http://10.21.249.116:8080`
-- 本轮暂不纳入必须调通接口：
-  - `GET /api/v1/routes/history`
-  - `GET /api/v1/routes/history/{id}`
-  - `GET /api/v1/facilities/search`（先调 `nearby`）
-  - `POST /api/v1/diaries/{id}/ratings`
-  - `GET /api/v1/diaries/me`
-- `ai/**`：由后端后续推进，本轮不纳入前端联调阻塞项
-
-## D. 当前可执行联调边界
-
-- 可先联调：后端已实现 + 权限明确 + 字段已冻结的接口
-- 暂不纳入本轮：文档有但后端入口未实现的接口（如 Route 历史、Diary 评分、`diaries/me`、`facilities/search`、`ai/**`）
+## 建议下一步动作
+- 补交 `frontend-runtime-facts.md`，至少写明 baseURL、proxy、token 存储、请求拦截器和当前 mock/真实 HTTP 状态。
+- 若需要 Swagger UI，后端应明确是否引入 springdoc，并同步 `runtime-env.md`。
+- 团队统一一份 `.env.example` 或联调说明，避免 DB/JWT/FILE 配置口径分散。

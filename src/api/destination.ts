@@ -123,3 +123,35 @@ export async function searchDestinations(
   const page = await searchDestinationsPage(keyword, params)
   return page.list ?? []
 }
+
+type DiaryListItem = {
+  id: number
+  title?: string
+  username?: string
+  destinationName?: string
+  contentText?: string
+  heatScore?: number
+}
+
+export async function fetchDestinationDiariesPage(
+  destinationId: number,
+  params: { sortBy?: string; pageNum?: number; pageSize?: number } = {},
+): Promise<PageResult<DiaryListItem>> {
+  const query = new URLSearchParams({
+    pageNum: String(params.pageNum ?? 1),
+    pageSize: String(params.pageSize ?? 20),
+  })
+  if (params.sortBy) query.set('sortBy', params.sortBy)
+  const raw = await httpRequest<unknown>(
+    `/api/v1/destinations/${destinationId}/diaries?${query}`,
+    { method: 'GET' },
+  )
+  const n = coerceSpringPage<DiaryListItem>(raw)
+  return {
+    list: n.list,
+    pageNum: n.pageNum,
+    pageSize: n.pageSize,
+    total: n.total,
+    pages: n.pages,
+  }
+}

@@ -34,20 +34,24 @@
 | `/api/v1/foods/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/foods/**").permitAll()` | `SecurityConfig.java`、`FoodController.java` | 推荐/搜索公开 |
 | `/api/v1/diaries/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/diaries/**").permitAll()` | `SecurityConfig.java`、`DiaryController.java` | 列表/详情/检索公开 |
 | `/api/v1/diaries` | POST | 是 | 已登录用户 | JWT | POST 未 permitAll，落入 `.anyRequest().authenticated()` | `SecurityConfig.java`、`DiaryController.java` | 发布日记 |
-| `/api/v1/diaries/{id}/ratings` | POST | 待确认 | 文档称需要登录 | JWT/待确认 | 文档定义，代码未找到入口 | `api-spec.md` | 当前未实现 |
+| `/api/v1/diaries/{id}/ratings` | POST | 是 | 已登录用户 | JWT | POST 落入 `.anyRequest().authenticated()` | `SecurityConfig.java`、`DiaryController.java` | 提交或更新评分 |
+| `/api/v1/diaries/{id}/ratings/me` | GET | 是 | 已登录用户 | JWT | 专用 authenticated matcher 位于日记公开 GET 规则之前 | `SecurityConfig.java`、`DiaryController.java` | 查询当前用户评分 |
+| `/api/v1/destinations/{id}/comments` | GET/POST | GET 否，POST 是 | 发布为已登录用户 | GET 无 / POST JWT | GET 命中目的地公开规则，POST 落入 authenticated | `SecurityConfig.java`、`DestinationController.java` | 一级评论 |
+| `/api/v1/foods/{id}/comments` | GET/POST | GET 否，POST 是 | 发布为已登录用户 | GET 无 / POST JWT | GET 命中美食公开规则，POST 落入 authenticated | `SecurityConfig.java`、`FoodController.java` | 一级评论 |
+| `/api/v1/diaries/{id}/comments` | GET/POST | GET 否，POST 是 | 发布为已登录用户 | GET 无 / POST JWT | GET 命中日记公开规则，POST 落入 authenticated | `SecurityConfig.java`、`DiaryController.java` | 仅公开启用日记 |
+| `/api/v1/comments/{commentType}/{commentId}` | DELETE | 是 | 评论所有者或 admin | JWT + Service 权限校验 | 未 permitAll，落入 authenticated；Service 校验所有者/管理员 | `SecurityConfig.java`、`CommentController.java`、`CommentServiceImpl.java` | 普通用户置 2，管理员置 0 |
 | `/api/v1/files/upload` | POST | 是 | 已登录用户 | JWT | `requestMatchers(POST, "/api/v1/files/upload").authenticated()` | `SecurityConfig.java`、`FileController.java` | multipart 上传 |
 | `/files/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/files/**").permitAll()` | `SecurityConfig.java`、`FileResourceConfig.java` | 静态访问上传资源 |
 | `/api/v1/admin/**` | 全部 | 是 | admin | JWT + `ROLE_admin` | `requestMatchers("/api/v1/admin/**").hasRole("admin")` | `SecurityConfig.java`、`AdminController.java` | 覆盖管理端维护与导入 |
 | `/api/v1/ai/**` | POST | 待确认 | 文档倾向需要登录或按能力控制 | 待确认 | 文档有定义，后端未找到 Controller | `api-spec.md` | P2 预留 |
 
 ## 待确认项
-- Route 历史、Diary 评分、我的日记接口是否补实现，以及权限是否按文档执行。
+- Route 历史、我的日记列表接口是否补实现，以及权限是否按文档执行。
 - AI 接口后续是否统一登录即可访问，还是区分普通用户和管理员。
 - 管理端 role 值是否永远使用小写 `admin`；当前 JWT 过滤器直接拼接 `ROLE_` + claims role。
 
 ## 代码/文档冲突项
 - `api-spec.md` 写“查看我的路线历史”需要登录，但当前代码没有 Route 历史 Controller 入口。
-- `api-spec.md` 写“对日记评分”需要登录，但当前代码没有评分 Controller 入口。
 - `api-spec.md` 存在 AI 预留接口，当前没有 AI Controller，权限无法从代码确认。
 
 ## 建议下一步动作

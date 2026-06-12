@@ -3,7 +3,7 @@
 ## 1. 文件用途
 本文件基于当前后端代码、`docs/04_api` 接口文档、架构/数据文档和仓库扫描结果，整理接口是否已经有后端入口、是否已在文档中定义，以及当前联调可用状态。
 
-前端运行时事实已补充于 `/.cursor/context/frontend-runtime-facts.md`。本文不判断“前端页面是否已完成调用接入”，仅标注后端实现可用性与契约状态。
+当前没有完整前端工程代码可用；本次扫描也未在仓库中找到 `frontend-runtime-facts.md`。因此本文不判断“前端是否已调用”，也不推断前端 baseURL、代理或 token 存储方式。
 
 ## 2. 本次读取的关键来源
 
@@ -35,7 +35,7 @@
 - `project-root/docs/00_project/progress.md`
 
 ### 2.3 前端运行时事实
-- `/.cursor/context/frontend-runtime-facts.md`：已纳入联调事实来源。
+- `frontend-runtime-facts.md`：本次在仓库中未找到，前端运行时事实全部标记为待确认。
 
 ## 3. 接口可用矩阵
 
@@ -65,7 +65,12 @@
 | 日记详情 | `/api/v1/diaries/{id}` | GET | Diary | 是 | 是 | 已可用 | path `id` | `DiaryVO` | `DiaryController.java` | `api-spec.md` 13.3 | 公开接口 |
 | 日记标题检索 | `/api/v1/diaries/search/title` | GET | Diary/Search | 是 | 是 | 已可用 | `DiaryTitleSearchQuery` | `PageResultVO<DiaryVO>` | `DiaryController.java` | `api-spec.md` 13.4 | 公开接口 |
 | 日记全文检索 | `/api/v1/diaries/search/fulltext` | GET | Diary/Search | 是 | 是 | 已可用 | `DiaryFulltextSearchQuery` | `PageResultVO<DiaryVO>` | `DiaryController.java` | `api-spec.md` 13.5 | 公开接口，当前基于 MySQL LIKE |
-| 日记评分 | `/api/v1/diaries/{id}/ratings` | POST | Diary | 否 | 是 | 文档有但代码未找到 | `DiaryRatingRequest` | `Boolean` | 未找到 Controller 入口 | `api-spec.md` 13.6、`swagger-draft.yaml` | 文档/代码不一致 |
+| 日记评分 | `/api/v1/diaries/{id}/ratings` | POST | Diary | 是 | 是 | 已可用 | `DiaryRatingRequest` | `Boolean` | `DiaryController.java`、`DiaryRatingServiceImpl.java` | `api-spec.md` 13.6、`swagger-draft.yaml` | 重复评分覆盖更新，需要登录 |
+| 我的日记评分 | `/api/v1/diaries/{id}/ratings/me` | GET | Diary | 是 | 是 | 已可用 | path `id` | `DiaryRatingVO` | `DiaryController.java`、`DiaryRatingServiceImpl.java` | `api-spec.md` 13.6A、`swagger-draft.yaml` | 未评分时 `userScore=null`，需要登录 |
+| 目的地评论列表/发布 | `/api/v1/destinations/{id}/comments` | GET/POST | Comment/Destination | 是 | 是 | 已可用 | `CommentPageQuery` / `CommentCreateRequest` | `PageResultVO<CommentVO>` / `CommentVO` | `DestinationController.java`、`CommentServiceImpl.java` | `api-spec.md` 13.8、`swagger-draft.yaml` | GET 公开，POST 登录 |
+| 美食评论列表/发布 | `/api/v1/foods/{id}/comments` | GET/POST | Comment/Food | 是 | 是 | 已可用 | `CommentPageQuery` / `CommentCreateRequest` | `PageResultVO<CommentVO>` / `CommentVO` | `FoodController.java`、`CommentServiceImpl.java` | `api-spec.md` 13.8、`swagger-draft.yaml` | GET 公开，POST 登录 |
+| 日记评论列表/发布 | `/api/v1/diaries/{id}/comments` | GET/POST | Comment/Diary | 是 | 是 | 已可用 | `CommentPageQuery` / `CommentCreateRequest` | `PageResultVO<CommentVO>` / `CommentVO` | `DiaryController.java`、`CommentServiceImpl.java` | `api-spec.md` 13.8、`swagger-draft.yaml` | 只允许公开启用日记 |
+| 评论软删除/隐藏 | `/api/v1/comments/{commentType}/{commentId}` | DELETE | Comment | 是 | 是 | 已可用 | path `commentType/commentId` | `Boolean` | `CommentController.java`、`CommentServiceImpl.java` | `api-spec.md` 13.8、`swagger-draft.yaml` | 所有者置 2，管理员置 0 |
 | 我的日记 | `/api/v1/diaries/me` | GET | Diary | 否 | 是 | 文档有但代码未找到 | query | `Page<DiaryVO>` | 未找到 Controller 入口 | `api-spec.md` 13.7、`swagger-draft.yaml` | 文档标“建议补充” |
 | 文件上传 | `/api/v1/files/upload` | POST | File | 是 | 是 | 已可用 | multipart `file,bizType,refId` | `FileUploadResultVO` | `FileController.java` | `api-spec.md` 14.1 | 需要登录 |
 | 管理端目的地列表 | `/api/v1/admin/destinations` | GET | Admin | 是 | 是 | 已可用 | `AdminPageQuery` | `PageResultVO<AdminDestinationVO>` | `AdminController.java` | `api-spec.md` 15.2 | 需要 admin |
@@ -88,27 +93,16 @@
 | AI 日记草稿/图片摘要/路线回顾/多人协商/推荐理由 | `/api/v1/ai/**` | POST | AI | 否 | 是 | 文档有但代码未找到 | 文档定义 | 文档定义 | 未找到 AI Controller | `api-spec.md` 16、`swagger-draft.yaml` | P2 预留，不能按已实现展示 |
 
 ## 4. 待确认项
-- 前端是否采用“绝对 baseURL”还是“相对路径 + Vite proxy”仍需前后端共同拍板。
+- `frontend-runtime-facts.md` 未找到，无法确认前端技术栈、路由模式、baseURL、proxy、token 存储和 auth header 处理。
 - Route 历史接口是否计划补后端实现，或从当前联调范围中移除。
-- Diary 评分和我的日记接口是否仍属于 P1 当前范围。
+- 我的日记列表接口是否仍属于 P1 当前范围。
 - `GET /api/v1/facilities/search` 是否需要补实现，或只保留 `nearby`。
 - AI 接口是否只保留文档预留，不进入当前联调。
-
-### 4.1 已确认的本轮联调范围
-- 采用相对路径 + Vite proxy（前端）
-- 测试环境后端地址：`http://10.21.249.116:8080`
-- 以下接口不纳入本轮必须调通：
-  - `GET /api/v1/routes/history`
-  - `GET /api/v1/routes/history/{id}`
-  - `GET /api/v1/facilities/search`
-  - `POST /api/v1/diaries/{id}/ratings`
-  - `GET /api/v1/diaries/me`
-  - `POST /api/v1/ai/**`（后续阶段）
 
 ## 5. 代码/文档冲突项
 - `api-spec.md` / `swagger-draft.yaml` 定义 Route 历史接口，但当前 `RouteController` 未找到对应入口。
 - `api-spec.md` / `swagger-draft.yaml` 定义 `GET /api/v1/facilities/search`，当前 `FacilityController` 只实现 `nearby`。
-- `api-spec.md` / `swagger-draft.yaml` 定义 Diary 评分、我的日记接口，当前 `DiaryController` 未找到对应入口。
+- `api-spec.md` / `swagger-draft.yaml` 定义我的日记列表接口，当前 `DiaryController` 未找到对应入口。
 - `api-spec.md` 说明文件上传返回不包含 `id`，`swagger-draft.yaml` 的 `FileUploadResultVO` 仍包含 `id`；代码 `FileUploadResultVO` 不包含 `id`。
 - `swagger-draft.yaml` 的 `CreateDiaryRequest` 使用 `mediaIds`，代码 `DiaryCreateRequest` 使用 `mediaList`。
 

@@ -1,26 +1,27 @@
 # 接口契约待确认问题（Open Questions）
 
 ## 1. 文件用途
-本文件集中记录当前无法仅凭后端代码、现有 docs 和 `/.cursor/context/frontend-runtime-facts.md` 确认的问题。
+本文件集中记录当前无法仅凭后端代码、现有 docs 和 `frontend-runtime-facts.md` 确认的问题。当前仓库未找到 `frontend-runtime-facts.md`，因此前端运行时事实相关问题优先级较高。
 
 ## 2. 待确认问题清单
 
 | 优先级 | 问题描述 | 涉及接口/模块 | 当前已发现证据 | 为什么无法确认 | 建议找谁确认 |
 |---|---|---|---|---|---|
-| 中 | 基于“相对路径 + Vite proxy”的联调参数是否还会调整 | 全部接口 | 已确认采用相对路径 + proxy，测试环境 `http://10.21.249.116:8080` | 需要在多环境切换时给出固定规则 | 前端负责人 + 后端负责人 |
-| 低 | token 存储策略是否长期保持 localStorage | Auth/全局请求 | 已确认当前采用 localStorage | 后续若转 cookie/httpOnly 需安全评估 | 前端负责人 |
-| 高 | request interceptor 统一位置未确认 | 全部受保护接口 | 后端鉴权方式明确，前端当前未实现统一拦截器 | 需要工程实现方案确认 | 前端负责人 |
+| 高 | `frontend-runtime-facts.md` 未找到 | 前后端联调 | 仓库扫描无结果 | 缺少前端运行时事实来源 | 前端负责人 |
+| 高 | 最终 API baseURL / dev proxy 未确认 | 全部接口 | 后端端口 8080、接口前缀 `/api/v1` 已确认 | 无前端事实文件，不能判断是否走代理 | 前端负责人 |
+| 高 | token 存储策略未确认 | Auth/全局请求 | 后端只要求 `Authorization: Bearer <token>` | 无法确认 localStorage/sessionStorage/Pinia/内存 | 前端负责人 |
+| 高 | request interceptor 统一位置未确认 | 全部受保护接口 | 后端鉴权方式明确 | 无前端工程代码和运行时事实 | 前端负责人 |
 | 高 | Route 历史接口文档有、代码没找到 | Route | `api-spec.md` 定义 `/api/v1/routes/history` 和 `/{id}`；`RouteController` 只有 plan single/multi | 代码未实现入口 | 后端负责人 / 文档负责人 |
 | 高 | Diary 评分接口文档有、代码没找到 | Diary | `api-spec.md`、`swagger-draft.yaml` 定义 `/api/v1/diaries/{id}/ratings`；`DiaryController` 未实现 | 代码未实现入口 | 后端负责人 / 文档负责人 |
-| 低 | `GET /api/v1/diaries/me` 文档有、代码没找到 | Diary | `api-spec.md` 标“建议补充”，Swagger 已列出；Controller 未实现 | 已确认本轮不纳入必须调通 | 后端负责人 / 文档负责人 |
-| 低 | `GET /api/v1/facilities/search` 文档有、代码没找到 | Facility | `api-spec.md`、`swagger-draft.yaml` 定义；`FacilityController` 只有 `/nearby` | 已确认本轮先调 `nearby` | 后端负责人 / 文档负责人 |
+| 高 | `GET /api/v1/diaries/me` 文档有、代码没找到 | Diary | `api-spec.md` 标“建议补充”，Swagger 已列出；Controller 未实现 | 不确定是否进入当前 P1 | 后端负责人 / 文档负责人 |
+| 高 | `GET /api/v1/facilities/search` 文档有、代码没找到 | Facility | `api-spec.md`、`swagger-draft.yaml` 定义；`FacilityController` 只有 `/nearby` | 不确定是否改文档或补接口 | 后端负责人 / 文档负责人 |
 | 高 | Swagger 的 Diary 发布请求字段与代码不一致 | Diary | `swagger-draft.yaml` 使用 `mediaIds`；`DiaryCreateRequest` 使用 `mediaList` | 文档未同步代码 | 文档负责人 / 后端负责人 |
 | 高 | Swagger 的文件上传响应字段与代码不一致 | File | `swagger-draft.yaml` 的 `FileUploadResultVO` 含 `id`；代码 `FileUploadResultVO` 无 `id` | 文档未同步代码 | 文档负责人 / 后端负责人 |
 | 中 | Food 推荐 query 字段口径不一致 | Food | `api-spec.md` 提到 `sourceNodeId`；代码 `FoodRecommendQuery` 使用 `facilityId` | 不确定后续是否做距离联动 | 后端负责人 / 文档负责人 |
 | 中 | Facility nearby 响应字段口径不一致 | Facility | 文档写 `Page<FacilityVO>`；代码返回 `NearbyFacilityVO`，含 `reachableDistance` | 字段命名需统一 | 后端负责人 / 文档负责人 |
 | 中 | Swagger 运行时访问方式未确认 | API 文档 | 有 `swagger-draft.yaml`；后端未找到 springdoc 配置 | 不知道是否需要 `/swagger-ui` | 后端负责人 |
 | 中 | prod/test profile 是否需要补齐 | Runtime | 只有 `application.yml` 和 `application-dev.yml` | 无 test/prod 配置文件 | 后端负责人 |
-| 低 | AI 接口上线时间点与契约冻结时间 | AI | 当前由后端推进，前端本轮不阻塞 | 影响下阶段排期，不影响本轮联调开工 | 项目负责人 / 后端负责人 |
+| 中 | AI 接口是否只是文档预留 | AI | `api-spec.md` 定义 P2 AI；后端未找到 AI Controller | 当前不能按已实现演示 | 项目负责人 / 后端负责人 |
 | 中 | Admin 新增/修改返回对象与 Swagger 旧口径不一致 | Admin | Controller 返回 VO；Swagger 部分旧定义可能是 id/boolean | 需要统一最终契约 | 文档负责人 |
 | 中 | 交通方式边过滤尚未实现是否影响 Route 契约 | Route | `api-spec.md` 明确 `transportType` 当前主要记录历史，非过滤 | 前端是否展示交通方式切换需确认 | 后端负责人 / 前端负责人 |
 | 中 | 日记检索是否后续升级 FULLTEXT/倒排索引 | Diary/Search | `progress.md` 说明当前 LIKE，未实现 FULLTEXT | 当前语义可用，但性能边界需说明 | 后端负责人 |
@@ -39,10 +40,10 @@
 | 环境配置不完整 | 缺少前端运行时事实、test/prod profile、测试服务器地址 |
 | 路由冲突 | 暂未发现后端 Controller 路由冲突；`/api/v1/destinations/{id}/diaries` 由 DiaryController 实现，需文档说明归属 |
 | Mock / 假数据 / TODO / FIXME / Not Implemented | 代码扫描未发现业务代码中的 `NOT_IMPLEMENTED`；文档历史记录中存在旧状态，当前需要以最新 progress 为准 |
-| frontend-runtime-facts 与后端预期不一致 | 文件已存在，可比对；当前差异是前端仍处于 mock-first |
+| frontend-runtime-facts 与后端预期不一致 | 文件缺失，无法比对 |
 
 ## 待确认项
-- 联调阶段是否要求先切换核心接口到真实后端，再逐步淘汰 mock。
+- 前端事实文件路径或是否需要新建。
 - 当前接口冻结范围是否排除文档有但代码未实现的接口。
 - Swagger 是否作为最终契约，还是 `api-spec.md` + 代码为准。
 

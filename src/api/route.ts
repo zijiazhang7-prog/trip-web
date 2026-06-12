@@ -23,40 +23,56 @@ export type RoutePlanVO = {
   historyId?: number
 }
 
+export type RouteStrategyType = 'shortest_distance' | 'shortest_time'
+
+/** UI 交通选项：步行、骑行、汽车、公共交通 */
+export type RouteTransportType = 'walk' | 'bike' | 'drive' | 'transit'
+
+type BackendTransportType = 'walk' | 'bike' | 'cart'
+
+export function toBackendTransport(t: RouteTransportType): BackendTransportType {
+  if (t === 'bike') return 'bike'
+  if (t === 'drive') return 'cart'
+  if (t === 'transit') return 'walk'
+  return 'walk'
+}
+
 export type SingleRoutePlanRequest = {
   destinationId: number
   startNodeId: number
   targetNodeId: number
-  strategyType: 'shortest_distance' | 'shortest_time'
-  transportType?: 'walk' | 'bike' | 'cart'
+  strategyType: RouteStrategyType
+  transportType?: RouteTransportType
 }
 
 export type MultiRoutePlanRequest = {
   destinationId: number
   startNodeId: number
   targetNodeIds: number[]
-  strategyType: 'shortest_distance' | 'shortest_time'
-  transportType?: 'walk' | 'bike' | 'cart'
+  strategyType: RouteStrategyType
+  transportType?: RouteTransportType
   returnToStart?: boolean
 }
 
 export async function planSingleRoute(body: SingleRoutePlanRequest): Promise<RoutePlanVO> {
+  const transportType = toBackendTransport(body.transportType ?? 'walk')
   return httpRequest<RoutePlanVO>('/api/v1/routes/plan/single', {
     method: 'POST',
     body: JSON.stringify({
-      transportType: 'walk',
       ...body,
+      transportType,
     }),
   })
 }
 
 export async function planMultiRoute(body: MultiRoutePlanRequest): Promise<RoutePlanVO> {
+  const transportType = toBackendTransport(body.transportType ?? 'walk')
   return httpRequest<RoutePlanVO>('/api/v1/routes/plan/multi', {
     method: 'POST',
     body: JSON.stringify({
-      transportType: 'walk',
       returnToStart: true,
       ...body,
+      transportType,
     }),
   })
 }

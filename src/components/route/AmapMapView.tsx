@@ -11,6 +11,9 @@ type AmapMapViewProps = {
   activeId?: string | number | null
   onSelectWaypoint?: (wp: RouteWaypoint) => void
   showGeolocation?: boolean
+  /** 景区/校园等局部场景可放大至更高层级 */
+  maxFitZoom?: number
+  singlePointZoom?: number
   className?: string
 }
 
@@ -51,28 +54,31 @@ function applyMapViewport(
   validWaypoints: RouteWaypoint[],
   safeLine: [number, number][],
   overlays: unknown[],
+  maxFitZoom: number,
+  singlePointZoom: number,
+  minZoomAfterFit: number,
 ): void {
   if (safeLine.length >= 2 && overlays.length > 0) {
-    map.setFitView(overlays, false, [48, 48, 48, 48], ROUTE_MAX_ZOOM)
+    map.setFitView(overlays, false, [48, 48, 48, 48], maxFitZoom)
     window.setTimeout(() => {
       const z = map.getZoom?.()
-      if (typeof z === 'number' && z < 11) map.setZoom(11)
+      if (typeof z === 'number' && z < minZoomAfterFit) map.setZoom(minZoomAfterFit)
     }, 150)
     return
   }
 
   if (validWaypoints.length >= 2 && overlays.length > 0) {
-    map.setFitView(overlays, false, [48, 48, 48, 48], ROUTE_MAX_ZOOM)
+    map.setFitView(overlays, false, [48, 48, 48, 48], maxFitZoom)
     window.setTimeout(() => {
       const z = map.getZoom?.()
-      if (typeof z === 'number' && z < 11) map.setZoom(11)
+      if (typeof z === 'number' && z < minZoomAfterFit) map.setZoom(minZoomAfterFit)
     }, 150)
     return
   }
 
   if (validWaypoints.length === 1) {
     map.setCenter([validWaypoints[0].lng, validWaypoints[0].lat])
-    map.setZoom(SINGLE_POINT_ZOOM)
+    map.setZoom(singlePointZoom)
     return
   }
 
@@ -86,8 +92,11 @@ export function AmapMapView({
   activeId,
   onSelectWaypoint,
   showGeolocation = false,
+  maxFitZoom = ROUTE_MAX_ZOOM,
+  singlePointZoom = SINGLE_POINT_ZOOM,
   className = '',
 }: AmapMapViewProps) {
+  const minZoomAfterFit = maxFitZoom >= 16 ? 14 : 11
   const instanceId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<{
@@ -247,12 +256,30 @@ export function AmapMapView({
         overlaysRef.current = next
       }
 
-      applyMapViewport(map, validWaypoints, safeLine, next)
+      applyMapViewport(
+        map,
+        validWaypoints,
+        safeLine,
+        next,
+        maxFitZoom,
+        singlePointZoom,
+        minZoomAfterFit,
+      )
     } catch (err) {
       const msg = err instanceof Error ? err.message : '地图渲染失败'
       queueMicrotask(() => setMapError(msg))
     }
-  }, [waypoints, polyline, activeId, mapReady, stableOnSelect, showGeolocation])
+  }, [
+    waypoints,
+    polyline,
+    activeId,
+    mapReady,
+    stableOnSelect,
+    showGeolocation,
+    maxFitZoom,
+    singlePointZoom,
+    minZoomAfterFit,
+  ])
 
   if (!hasAmapJsKey()) {
     const svgNodes = waypoints.map((wp, i) => ({
