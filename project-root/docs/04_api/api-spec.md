@@ -859,9 +859,16 @@ Authorization: Bearer <token>
 | 参数名           | 类型     | 必填 | 说明                   |
 | ------------- | ------ | -: | -------------------- |
 | destinationId | long   |  否 | 目的地 ID               |
+| destinationKeyword | string | 否 | 目的地名称关键字，最大 100 字符；支持精确、前缀和包含匹配 |
 | sortBy        | string |  否 | `heat/rating/latest` |
 | pageNum       | int    |  否 | 页码                   |
 | pageSize      | int    |  否 | 每页数量                 |
+
+说明：
+
+- `destinationKeyword` 先由 `QueryService` 使用目的地名称 Hash/Trie 索引获取候选，并保留 MySQL `name LIKE` 包含匹配兜底。
+- 匹配多个目的地时，统一查询这些目的地下公开且启用的日记。
+- `destinationId` 与 `destinationKeyword` 同时传入时按交集过滤；无匹配返回正常空分页。
 
 ### Response
 

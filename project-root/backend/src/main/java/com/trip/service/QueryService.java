@@ -15,6 +15,8 @@ public interface QueryService {
 
     IPage<Destination> queryDestinations(DestinationQuery query);
 
+    List<Long> queryDestinationIdsByNameKeyword(String keyword);
+
     Destination getDestinationById(Long id);
 
     List<Place> queryPlaces(PlaceQuery query);

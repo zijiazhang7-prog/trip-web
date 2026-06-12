@@ -813,3 +813,11 @@
 - 需求 / 架构 / 数据设计发生明显变化后
 - 核心模块开始或结束时
 - 联调或测试进入新阶段时
+
+## 8.2 2026-06-12 按目的地名称查询相关日记
+
+- 已扩展 `GET /api/v1/diaries`，支持可选参数 `destinationKeyword`。
+- 已复用 `QueryService` 和 `IndexEngine` 完成目的地名称 Hash 精确、Trie 前缀及 MySQL LIKE 包含查询。
+- 已支持多个匹配目的地的日记合并分页，并保留 `heat/rating/latest` 排序。
+- 已验证索引启用与失效时，精确/前缀/中间包含、空结果、分页和排序契约一致。
+- 未修改数据库结构、Controller 路径和响应 VO。

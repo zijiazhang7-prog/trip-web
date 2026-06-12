@@ -550,3 +550,11 @@
 - 不存在、禁用或无权查看的日记不增加浏览量。
 - `sortBy=heat` 继续直接按数据库实时 `heat_score` 倒序，不新增缓存或复杂热度公式。
 - 数据库需执行 `migrate-diary-view-heat-schema.sql`，将 `diary.heat_score` 迁移为 `BIGINT UNSIGNED`。
+
+## 19. 2026-06-12 按目的地名称查询相关日记
+
+- 现有 `GET /api/v1/diaries` 新增可选查询参数 `destinationKeyword`，最大 100 字符。
+- API 路径、响应结构和原有 `destinationId/sortBy/pageNum/pageSize` 字段保持不变。
+- 目的地名称查询复用 `QueryService` 的 Hash 精确查找、Trie 前缀匹配，并保留 MySQL `LIKE` 包含匹配。
+- 多个目的地匹配时按目的地 ID 集合查询公开启用日记；无匹配返回正常空分页。
+- 同时传入 `destinationId` 与 `destinationKeyword` 时按交集过滤。

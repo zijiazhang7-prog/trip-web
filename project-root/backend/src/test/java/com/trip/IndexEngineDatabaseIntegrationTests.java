@@ -182,6 +182,14 @@ class IndexEngineDatabaseIntegrationTests {
                 params("title", marker, "sortBy", "heat", "pageNum", "2", "pageSize", "2")));
         responses.put("diary-title-infix", getData("/api/v1/diaries/search/title",
                 params("title", marker + "Inside", "sortBy", "rating", "pageNum", "1", "pageSize", "2")));
+        responses.put("diary-destination-prefix-page-1", getData("/api/v1/diaries",
+                params("destinationKeyword", marker, "sortBy", "heat", "pageNum", "1", "pageSize", "2")));
+        responses.put("diary-destination-prefix-page-2", getData("/api/v1/diaries",
+                params("destinationKeyword", marker, "sortBy", "heat", "pageNum", "2", "pageSize", "2")));
+        responses.put("diary-destination-infix", getData("/api/v1/diaries",
+                params("destinationKeyword", "Exact", "sortBy", "rating", "pageNum", "1", "pageSize", "5")));
+        responses.put("diary-destination-miss", getData("/api/v1/diaries",
+                params("destinationKeyword", marker + "不存在", "sortBy", "latest", "pageNum", "1", "pageSize", "5")));
         responses.put("diary-content-page-1", getData("/api/v1/diaries/search/fulltext",
                 params("keyword", marker, "sortBy", "heat", "pageNum", "1", "pageSize", "2")));
         responses.put("diary-content-page-2", getData("/api/v1/diaries/search/fulltext",
@@ -204,6 +212,10 @@ class IndexEngineDatabaseIntegrationTests {
         assertPage(responses.get("diary-title-prefix-page-1"), 1, 2, 4, 2);
         assertPage(responses.get("diary-title-prefix-page-2"), 2, 2, 4, 2);
         assertPage(responses.get("diary-title-infix"), 1, 2, 1, 1);
+        assertPage(responses.get("diary-destination-prefix-page-1"), 1, 2, 4, 2);
+        assertPage(responses.get("diary-destination-prefix-page-2"), 2, 2, 4, 2);
+        assertPage(responses.get("diary-destination-infix"), 1, 5, 3, 1);
+        assertPage(responses.get("diary-destination-miss"), 1, 5, 0, 0);
         assertPage(responses.get("diary-content-page-1"), 1, 2, 4, 2);
         assertPage(responses.get("diary-content-page-2"), 2, 2, 4, 2);
         assertPage(responses.get("diary-content-chinese"), 1, 5, 2, 1);

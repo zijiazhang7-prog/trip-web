@@ -60,7 +60,7 @@
 当前已完成 P0 图文日记基础版：
 
 - 已实现 `POST /api/v1/diaries` 发布日记。
-- 已实现 `GET /api/v1/diaries` 公开日记列表。
+- 已实现 `GET /api/v1/diaries` 公开日记列表，并支持输入 `destinationKeyword` 查询相关目的地日记。
 - 已实现 `GET /api/v1/diaries/{id}` 日记详情。
 - 已实现 `GET /api/v1/destinations/{id}/diaries` 按目的地查看日记。
 - 已接入 FileService，发布时通过 `mediaList.fileUrl` 关联 `/files/diary/...` 文件 URL。
@@ -963,3 +963,18 @@ P1 阶段优先做：
 - 默认使用 `mock-template`，可配置 `openai-compatible` 多模态 Provider 读取已落库图片并生成视觉描述、字幕和旁白；失败时自动降级。
 - AI 外部调用不持有日记数据库事务，保存前会重新校验日记状态、作者和媒体快照。
 - 当前后端只生成结构化分镜，前端播放器和 MP4 导出不属于本阶段。
+
+## 21. 2026-06-12 按目的地名称查询相关日记
+
+- `GET /api/v1/diaries` 增加可选 `destinationKeyword`，不新增 Controller 路径。
+- `DiaryService` 负责日记查询编排，调用 `QueryService` 将目的地名称关键字解析为 ID 集合。
+- `QueryService` 对 `Destination.name` 使用 Hash 精确查找和 Trie 前缀查找，并始终保留 MySQL `LIKE` 的非前缀包含语义。
+- `DiaryMapper` 继续负责数据库分页，按 `destination_id IN (...)`、`status=1`、`visibility=public` 过滤。
+- `sortBy=heat/rating/latest` 在数据库分页前排序，避免对单页结果二次排序。
+
+算法说明：
+
+- 数据结构：Hash 索引、Trie 前缀树、目的地 ID 集合。
+- 查询思想：索引召回候选与名称 `LIKE` 结果取并集，去重后查询相关日记。
+- 复杂度：Hash 精确查询平均 O(1)；Trie 前缀定位 O(L)，L 为关键字长度；LIKE 兜底最坏 O(N)；日记分页排序由数据库执行。
+- 适用范围：目的地名称精确、前缀及包含查询；城市、类别等结构化条件不属于本接口。

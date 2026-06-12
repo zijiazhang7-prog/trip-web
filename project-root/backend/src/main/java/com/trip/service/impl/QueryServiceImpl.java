@@ -97,6 +97,34 @@ public class QueryServiceImpl implements QueryService {
         return destinationMapper.selectPage(new Page<>(pageNum(safeQuery.getPageNum()), pageSize(safeQuery.getPageSize())), wrapper);
     }
 
+    /**
+     * 目的地名称检索使用 Hash 精确查找、Trie 前缀匹配，并保留 MySQL LIKE 的包含语义。
+     * 候选 ID 使用 LinkedHashSet 去重，索引不可用时由 Mapper 查询完整兜底。
+     */
+    @Override
+    public List<Long> queryDestinationIdsByNameKeyword(String keyword) {
+        String normalizedKeyword = normalize(keyword);
+        if (!StringUtils.hasText(normalizedKeyword)) {
+            return List.of();
+        }
+
+        Set<Long> candidateIds = indexedTextCandidates(IndexNamespace.DESTINATION_NAME, normalizedKeyword);
+        LambdaQueryWrapper<Destination> wrapper = new LambdaQueryWrapper<Destination>()
+                .select(Destination::getId)
+                .eq(Destination::getStatus, ENABLED_STATUS)
+                .and(item -> {
+                    if (!candidateIds.isEmpty()) {
+                        item.in(Destination::getId, candidateIds).or();
+                    }
+                    item.like(Destination::getName, normalizedKeyword);
+                })
+                .orderByAsc(Destination::getId);
+
+        return destinationMapper.selectList(wrapper).stream()
+                .map(Destination::getId)
+                .toList();
+    }
+
     @Override
     public Destination getDestinationById(Long id) {
         if (id == null || id <= 0) {

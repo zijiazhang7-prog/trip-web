@@ -8,6 +8,9 @@ public class DiaryListQuery {
 
     private Long destinationId;
 
+    @Size(max = 100)
+    private String destinationKeyword;
+
     @Size(max = 20)
     private String sortBy;
 
@@ -24,6 +27,14 @@ public class DiaryListQuery {
 
     public void setDestinationId(Long destinationId) {
         this.destinationId = destinationId;
+    }
+
+    public String getDestinationKeyword() {
+        return destinationKeyword;
+    }
+
+    public void setDestinationKeyword(String destinationKeyword) {
+        this.destinationKeyword = destinationKeyword;
     }
 
     public String getSortBy() {

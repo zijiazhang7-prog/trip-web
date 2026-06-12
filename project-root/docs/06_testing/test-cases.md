@@ -455,3 +455,13 @@
 |TC-AI-ANIM-014|AI Provider|P1|本地图片安全读取|只允许 `/files/diary/...`，限制数量/大小/格式并校验路径边界|通过：单元测试|
 |TC-AI-ANIM-015|Animation|P1|媒体快照并发保护|AI 调用期间媒体集合变化时不保存过期脚本|通过：单元测试|
 |TC-AI-ANIM-016|AI Provider|P1|真实厂商联调|设置环境变量后响应 `provider=openai-compatible` 且视觉描述与图片相关|待提供测试密钥后执行|
+
+## 18. 按目的地名称查询相关日记测试
+
+|用例编号|模块|优先级|测试目标|验收标准|当前状态|
+|---|---|---|---|---|---|
+|TC-DIARY-029|Diary/Query/IndexEngine|P0|目的地名称精确和前缀查询|返回所有匹配目的地下公开启用日记，分页正确|通过：单元测试与 MySQL 8 HTTP 测试|
+|TC-DIARY-030|Diary/Query|P0|目的地名称中间包含查询|Trie 未覆盖的包含语义仍由 `name LIKE` 正确召回|通过：MySQL 8 HTTP 测试|
+|TC-DIARY-031|Diary|P0|热度和评分排序|目的地关键字过滤后按数据库实时 `heat_score/rating_score` 排序|通过：MySQL 8 HTTP 测试|
+|TC-DIARY-032|Diary/IndexEngine|P1|索引失效降级一致性|索引启用和失效时列表、顺序、分页字段完全一致|通过：`IndexEngineDatabaseIntegrationTests`|
+|TC-DIARY-033|Diary|P1|无匹配与组合过滤|无匹配返回空分页；`destinationId` 与关键字同时传入时取交集|通过：单元测试|

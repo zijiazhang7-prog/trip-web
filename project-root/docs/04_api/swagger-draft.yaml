@@ -610,6 +610,12 @@ paths:
           schema:
             type: integer
             format: int64
+        - name: destinationKeyword
+          in: query
+          description: 目的地名称关键字，支持精确、前缀和包含匹配；与 destinationId 同时传入时取交集
+          schema:
+            type: string
+            maxLength: 100
         - name: sortBy
           in: query
           schema:

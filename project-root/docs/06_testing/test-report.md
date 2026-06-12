@@ -794,3 +794,12 @@
 - 已执行 `migrate-diary-view-heat-schema.sql`，实库字段确认为 `BIGINT UNSIGNED NOT NULL DEFAULT 0`，无空值或负值记录。
 - 测试使用的临时用户、目的地和两篇日记已全部清理。
 - 执行全量 `mvn -q test`：37 个测试套件、259 个测试，0 失败、0 错误、0 跳过。
+
+## 24. 2026-06-12 按目的地名称查询相关日记回归
+
+- `GET /api/v1/diaries` 已支持 `destinationKeyword`，返回结构和原分页字段不变。
+- 单元测试覆盖关键字 trim、无匹配空分页、`destinationId` 与关键字交集，以及 QueryService 索引调用。
+- MySQL 8 真实 HTTP 测试覆盖目的地名称前缀两页、中间包含、无匹配、热度和评分排序。
+- 分别在 `DESTINATION_NAME` 索引已构建和失效状态请求，完整 `data` 对象递归比较一致。
+- 定向执行 `QueryServiceTests,DiaryServiceTests,IndexEngineDatabaseIntegrationTests`，0 失败、0 错误。
+- 实库临时用户、目的地、美食和日记数据在测试后已清理，并恢复索引。

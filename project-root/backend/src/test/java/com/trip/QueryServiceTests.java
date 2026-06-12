@@ -97,6 +97,40 @@ class QueryServiceTests {
     }
 
     @Test
+    void queryDestinationIdsByNameKeywordShouldUseIndexAndMapperContainsFallback() {
+        IndexEngine mockedIndexEngine = mock(IndexEngine.class);
+        when(mockedIndexEngine.findExact(IndexNamespace.DESTINATION_NAME, "北邮"))
+                .thenReturn(IndexSearchResult.available(List.of(1L)));
+        when(mockedIndexEngine.findByPrefix(IndexNamespace.DESTINATION_NAME, "北邮", 1000))
+                .thenReturn(IndexSearchResult.available(List.of(1L, 2L)));
+        Destination first = new Destination();
+        first.setId(1L);
+        Destination second = new Destination();
+        second.setId(2L);
+        Destination contains = new Destination();
+        contains.setId(3L);
+        when(destinationMapper.selectList(any(Wrapper.class))).thenReturn(List.of(first, second, contains));
+        QueryServiceImpl indexedQueryService = new QueryServiceImpl(
+                mockedIndexEngine,
+                destinationMapper,
+                placeMapper,
+                facilityMapper,
+                foodMapper);
+
+        List<Long> result = indexedQueryService.queryDestinationIdsByNameKeyword(" 北邮 ");
+
+        assertEquals(List.of(1L, 2L, 3L), result);
+        verify(mockedIndexEngine).findExact(IndexNamespace.DESTINATION_NAME, "北邮");
+        verify(mockedIndexEngine).findByPrefix(IndexNamespace.DESTINATION_NAME, "北邮", 1000);
+        verify(destinationMapper).selectList(any(Wrapper.class));
+    }
+
+    @Test
+    void queryDestinationIdsByNameKeywordShouldIgnoreBlankKeyword() {
+        assertEquals(List.of(), queryService.queryDestinationIdsByNameKeyword("  "));
+    }
+
+    @Test
     void getDestinationByIdShouldRejectInvalidId() {
         BusinessException exception = assertThrows(BusinessException.class, () -> queryService.getDestinationById(0L));
 

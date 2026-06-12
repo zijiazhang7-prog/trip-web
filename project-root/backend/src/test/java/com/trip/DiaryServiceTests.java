@@ -25,6 +25,7 @@ import com.trip.mapper.UserMapper;
 import com.trip.security.JwtClaims;
 import com.trip.service.SearchService;
 import com.trip.service.IndexMaintenanceService;
+import com.trip.service.QueryService;
 import com.trip.service.impl.DiaryServiceImpl;
 import com.trip.vo.response.DiaryCreateResponse;
 import com.trip.vo.response.DiaryVO;
@@ -57,6 +58,7 @@ class DiaryServiceTests {
     private final DestinationMapper destinationMapper = mock(DestinationMapper.class);
     private final UserMapper userMapper = mock(UserMapper.class);
     private final RouteHistoryMapper routeHistoryMapper = mock(RouteHistoryMapper.class);
+    private final QueryService queryService = mock(QueryService.class);
     private final SearchService searchService = mock(SearchService.class);
     private final IndexMaintenanceService indexMaintenanceService = mock(IndexMaintenanceService.class);
     private final CompressionEngine compressionEngine = new CompressionEngine();
@@ -66,6 +68,7 @@ class DiaryServiceTests {
             destinationMapper,
             userMapper,
             routeHistoryMapper,
+            queryService,
             searchService,
             indexMaintenanceService,
             compressionEngine);
@@ -163,6 +166,7 @@ class DiaryServiceTests {
                 destinationMapper,
                 userMapper,
                 routeHistoryMapper,
+                queryService,
                 searchService,
                 indexMaintenanceService,
                 failingEngine);
@@ -271,6 +275,58 @@ class DiaryServiceTests {
         PageResultVO<DiaryVO> result = diaryService.listDestinationDiaries(101L, query);
 
         assertEquals(100, result.getPageSize());
+    }
+
+    @Test
+    void listDiariesShouldResolveDestinationKeywordAndKeepPagination() {
+        when(queryService.queryDestinationIdsByNameKeyword("北邮")).thenReturn(List.of(101L, 102L));
+        Page<Diary> page = new Page<>(2, 5);
+        page.setRecords(List.of());
+        page.setTotal(0);
+        when(diaryMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(page);
+
+        DiaryListQuery query = new DiaryListQuery();
+        query.setDestinationKeyword(" 北邮 ");
+        query.setSortBy("rating");
+        query.setPageNum(2);
+        query.setPageSize(5);
+
+        PageResultVO<DiaryVO> result = diaryService.listDiaries(query);
+
+        assertEquals(2, result.getPageNum());
+        assertEquals(5, result.getPageSize());
+        verify(queryService).queryDestinationIdsByNameKeyword("北邮");
+        verify(diaryMapper).selectPage(any(Page.class), any(Wrapper.class));
+    }
+
+    @Test
+    void listDiariesShouldReturnEmptyPageWhenDestinationKeywordHasNoMatch() {
+        when(queryService.queryDestinationIdsByNameKeyword("不存在")).thenReturn(List.of());
+        DiaryListQuery query = new DiaryListQuery();
+        query.setDestinationKeyword("不存在");
+        query.setPageNum(2);
+        query.setPageSize(5);
+
+        PageResultVO<DiaryVO> result = diaryService.listDiaries(query);
+
+        assertEquals(0, result.getTotal());
+        assertEquals(2, result.getPageNum());
+        assertEquals(5, result.getPageSize());
+        verifyNoInteractions(diaryMapper);
+    }
+
+    @Test
+    void listDiariesShouldIntersectDestinationIdAndKeyword() {
+        when(destinationMapper.selectById(101L)).thenReturn(destination(101L));
+        when(queryService.queryDestinationIdsByNameKeyword("西湖")).thenReturn(List.of(102L));
+        DiaryListQuery query = new DiaryListQuery();
+        query.setDestinationId(101L);
+        query.setDestinationKeyword("西湖");
+
+        PageResultVO<DiaryVO> result = diaryService.listDiaries(query);
+
+        assertEquals(0, result.getTotal());
+        verifyNoInteractions(diaryMapper);
     }
 
     @Test

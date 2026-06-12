@@ -26,6 +26,7 @@ import com.trip.mapper.UserMapper;
 import com.trip.security.JwtClaims;
 import com.trip.service.DiaryService;
 import com.trip.service.IndexMaintenanceService;
+import com.trip.service.QueryService;
 import com.trip.service.SearchService;
 import com.trip.vo.response.DiaryCreateResponse;
 import com.trip.vo.response.DiaryMediaVO;
@@ -73,6 +74,7 @@ public class DiaryServiceImpl implements DiaryService {
     private final DestinationMapper destinationMapper;
     private final UserMapper userMapper;
     private final RouteHistoryMapper routeHistoryMapper;
+    private final QueryService queryService;
     private final SearchService searchService;
     private final IndexMaintenanceService indexMaintenanceService;
     private final CompressionEngine compressionEngine;
@@ -83,6 +85,7 @@ public class DiaryServiceImpl implements DiaryService {
             DestinationMapper destinationMapper,
             UserMapper userMapper,
             RouteHistoryMapper routeHistoryMapper,
+            QueryService queryService,
             SearchService searchService,
             IndexMaintenanceService indexMaintenanceService,
             CompressionEngine compressionEngine) {
@@ -91,6 +94,7 @@ public class DiaryServiceImpl implements DiaryService {
         this.destinationMapper = destinationMapper;
         this.userMapper = userMapper;
         this.routeHistoryMapper = routeHistoryMapper;
+        this.queryService = queryService;
         this.searchService = searchService;
         this.indexMaintenanceService = indexMaintenanceService;
         this.compressionEngine = compressionEngine;
@@ -170,7 +174,20 @@ public class DiaryServiceImpl implements DiaryService {
         if (safeQuery.getDestinationId() != null) {
             validateDestination(safeQuery.getDestinationId());
         }
-        return pagePublicDiaries(safeQuery.getDestinationId(), safeQuery);
+        String destinationKeyword = normalize(safeQuery.getDestinationKeyword());
+        List<Long> destinationIds = null;
+        if (StringUtils.hasText(destinationKeyword)) {
+            destinationIds = queryService.queryDestinationIdsByNameKeyword(destinationKeyword);
+            if (safeQuery.getDestinationId() != null) {
+                destinationIds = destinationIds.contains(safeQuery.getDestinationId())
+                        ? List.of(safeQuery.getDestinationId())
+                        : List.of();
+            }
+            if (destinationIds.isEmpty()) {
+                return emptyPage(safeQuery);
+            }
+        }
+        return pagePublicDiaries(safeQuery.getDestinationId(), destinationIds, safeQuery);
     }
 
     @Override
@@ -207,7 +224,7 @@ public class DiaryServiceImpl implements DiaryService {
         }
         validateDestination(destinationId);
         DiaryListQuery safeQuery = query == null ? new DiaryListQuery() : query;
-        return pagePublicDiaries(destinationId, safeQuery);
+        return pagePublicDiaries(destinationId, null, safeQuery);
     }
 
     @Override
@@ -232,7 +249,10 @@ public class DiaryServiceImpl implements DiaryService {
                 page.getPages());
     }
 
-    private PageResultVO<DiaryVO> pagePublicDiaries(Long destinationId, DiaryListQuery query) {
+    private PageResultVO<DiaryVO> pagePublicDiaries(
+            Long destinationId,
+            List<Long> destinationIds,
+            DiaryListQuery query) {
         int pageNum = pageNum(query.getPageNum());
         int pageSize = pageSize(query.getPageSize());
         String sortBy = normalizeSortBy(query.getSortBy());
@@ -242,6 +262,8 @@ public class DiaryServiceImpl implements DiaryService {
                 .eq(Diary::getVisibility, VISIBILITY_PUBLIC);
         if (destinationId != null) {
             wrapper.eq(Diary::getDestinationId, destinationId);
+        } else if (destinationIds != null) {
+            wrapper.in(Diary::getDestinationId, destinationIds);
         }
         applySort(wrapper, sortBy);
 
@@ -252,6 +274,10 @@ public class DiaryServiceImpl implements DiaryService {
                 page.getSize(),
                 page.getTotal(),
                 page.getPages());
+    }
+
+    private PageResultVO<DiaryVO> emptyPage(DiaryListQuery query) {
+        return PageResultVO.of(List.of(), pageNum(query.getPageNum()), pageSize(query.getPageSize()), 0, 0);
     }
 
     private void applySort(LambdaQueryWrapper<Diary> wrapper, String sortBy) {
