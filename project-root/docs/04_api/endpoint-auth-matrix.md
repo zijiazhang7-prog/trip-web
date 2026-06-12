@@ -33,7 +33,8 @@
 | `/api/v1/routes/history/{id}` | GET | 是 | 已登录用户，仅记录所有者 | JWT + Service 所有者条件 | Service 使用 `id + 当前 userId` 联合查询 | `RouteController.java`、`RouteServiceImpl.java` | 他人记录与不存在记录统一返回 404 |
 | `/api/v1/facilities/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/facilities/**").permitAll()` | `SecurityConfig.java`、`FacilityController.java` | 当前实现 `/nearby` |
 | `/api/v1/foods/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/foods/**").permitAll()` | `SecurityConfig.java`、`FoodController.java` | 推荐/搜索公开 |
-| `/api/v1/diaries/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/diaries/**").permitAll()` | `SecurityConfig.java`、`DiaryController.java` | 列表/详情/检索公开 |
+| `/api/v1/diaries/recommend` | GET | 是 | 已登录用户 | JWT | 专用 authenticated matcher 位于日记公开 GET 规则之前 | `SecurityConfig.java`、`DiaryController.java`、`DiaryRecommendServiceImpl.java` | 使用当前用户偏好返回 Top-K |
+| `/api/v1/diaries/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/diaries/**").permitAll()` | `SecurityConfig.java`、`DiaryController.java` | 除推荐和个人评分外，列表/详情/检索公开 |
 | `/api/v1/diaries` | POST | 是 | 已登录用户 | JWT | POST 未 permitAll，落入 `.anyRequest().authenticated()` | `SecurityConfig.java`、`DiaryController.java` | 发布日记 |
 | `/api/v1/diaries/{id}/ratings` | POST | 是 | 已登录用户 | JWT | POST 落入 `.anyRequest().authenticated()` | `SecurityConfig.java`、`DiaryController.java` | 提交或更新评分 |
 | `/api/v1/diaries/{id}/ratings/me` | GET | 是 | 已登录用户 | JWT | 专用 authenticated matcher 位于日记公开 GET 规则之前 | `SecurityConfig.java`、`DiaryController.java` | 查询当前用户评分 |

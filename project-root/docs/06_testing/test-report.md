@@ -803,3 +803,12 @@
 - 分别在 `DESTINATION_NAME` 索引已构建和失效状态请求，完整 `data` 对象递归比较一致。
 - 定向执行 `QueryServiceTests,DiaryServiceTests,IndexEngineDatabaseIntegrationTests`，0 失败、0 错误。
 - 实库临时用户、目的地、美食和日记数据在测试后已清理，并恢复索引。
+
+## 25. 2026-06-12 个性化日记推荐单元与鉴权回归
+
+- `DiaryRecommendServiceTests` 覆盖兴趣匹配、无偏好热度降级、评分 Top-K、同分稳定顺序、全零热度和空候选。
+- `DiaryRecommendIntegrationTests` 验证匿名访问 `/api/v1/diaries/recommend` 返回 HTTP 401、`AUTH_003`。
+- 推荐候选仅查询公开启用日记，最多读取最近 200 条；列表组装不调用详情接口，因此不会增加浏览量。
+- 推荐排序调用 `RankService.topK` 的 `PriorityQueue` 小顶堆，未在 Diary Service 中执行全量排序截取。
+- 定向执行 `DiaryRecommendServiceTests,DiaryRecommendIntegrationTests,DiaryServiceTests,RankServiceTests`，全部通过。
+- 当前尚未执行带真实登录 token 和演示偏好数据的 MySQL HTTP 回归。

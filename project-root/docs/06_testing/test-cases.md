@@ -465,3 +465,14 @@
 |TC-DIARY-031|Diary|P0|热度和评分排序|目的地关键字过滤后按数据库实时 `heat_score/rating_score` 排序|通过：MySQL 8 HTTP 测试|
 |TC-DIARY-032|Diary/IndexEngine|P1|索引失效降级一致性|索引启用和失效时列表、顺序、分页字段完全一致|通过：`IndexEngineDatabaseIntegrationTests`|
 |TC-DIARY-033|Diary|P1|无匹配与组合过滤|无匹配返回空分页；`destinationId` 与关键字同时传入时取交集|通过：单元测试|
+
+## 19. 个性化日记推荐测试
+
+|用例编号|模块|优先级|测试目标|验收标准|当前状态|
+|---|---|---|---|---|---|
+|TC-DIARY-REC-001|Diary/Recommend|P0|兴趣偏好改变顺序|匹配用户主题的日记优先于不匹配候选|通过：单元测试|
+|TC-DIARY-REC-002|Diary/Recommend|P0|无偏好降级|无有效文本偏好时按实时 `heat_score` Top-K|通过：单元测试|
+|TC-DIARY-REC-003|Diary/Rank|P0|评分 Top-K 与稳定同分顺序|按 `rating_score` 选 K，同分保持候选顺序|通过：单元测试|
+|TC-DIARY-REC-004|Diary/Recommend|P1|空值与零热度|空标题、正文、目的地字段和全零热度不报错|通过：单元测试|
+|TC-DIARY-REC-005|Diary/Security|P0|匿名访问拦截|未携带 JWT 返回 HTTP 401、`AUTH_003`|通过：MockMvc|
+|TC-DIARY-REC-006|Diary/Recommend|P1|实库偏好变化回归|修改偏好后推荐顺序按可解释规则变化，响应字段不变|待实库接口验证|

@@ -821,3 +821,11 @@
 - 已支持多个匹配目的地的日记合并分页，并保留 `heat/rating/latest` 排序。
 - 已验证索引启用与失效时，精确/前缀/中间包含、空结果、分页和排序契约一致。
 - 未修改数据库结构、Controller 路径和响应 VO。
+
+## 8.3 2026-06-12 个性化日记推荐
+
+- 已实现需要 JWT 的 `GET /api/v1/diaries/recommend`。
+- 已接入当前用户 `user_preference`，综合匹配日记、目的地文本、实时浏览热度和评分。
+- 已复用 `RankService` 小顶堆完成 Top-K，未在 Diary 模块中新增全量排序逻辑。
+- 已支持 `interest/heat/rating`；无有效文本偏好时自动降级为热度推荐。
+- 返回结构继续使用 `PageResultVO<DiaryVO>`，未修改数据库和现有日记接口。

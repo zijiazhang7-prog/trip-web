@@ -558,3 +558,10 @@
 - 目的地名称查询复用 `QueryService` 的 Hash 精确查找、Trie 前缀匹配，并保留 MySQL `LIKE` 包含匹配。
 - 多个目的地匹配时按目的地 ID 集合查询公开启用日记；无匹配返回正常空分页。
 - 同时传入 `destinationId` 与 `destinationKeyword` 时按交集过滤。
+## 20. 2026-06-12 日记个性化推荐
+
+- 新增 `GET /api/v1/diaries/recommend`，需要 JWT 登录。
+- 查询参数为 `sortBy=interest/heat/rating` 和 `pageSize`，其中 `pageSize` 表示 Top-K 数量。
+- `interest` 综合使用当前用户偏好、日记及目的地文本、实时浏览热度和评分；无有效文本偏好时降级为热度 Top-K。
+- 返回继续复用 `PageResultVO<DiaryVO>`，没有增加推荐分或推荐理由字段。
+- 未修改数据库结构、现有日记接口和字段语义。

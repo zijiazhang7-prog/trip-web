@@ -112,6 +112,9 @@
 | `/api/v1/diaries` POST | `visibility` | body/response | string | 可见性 | 强冻结 | 否 | 否 | 否 | 公开/私有控制字段 | `DiaryCreateRequest.java`、`DiaryVO.java` |  |
 | `/api/v1/diaries` POST | `mediaList` | body/response | array | 日记媒体列表 | 强冻结 | 否 | 否 | 否 | 代码真实字段 | `DiaryCreateRequest.java`、`DiaryVO.java` | Swagger 中 `mediaIds` 与代码不一致 |
 | `/api/v1/diaries` GET | `destinationKeyword` | query | string | 目的地名称关键字，精确/前缀/包含匹配后筛选相关公开日记 | 强冻结 | 否 | 否 | 否 | 请求 DTO、QueryService 和实库回归已实现 | `DiaryListQuery.java`、`QueryServiceImpl.java`、`DiaryServiceImpl.java` | 最大 100 字符；与 `destinationId` 同时传入时取交集 |
+| `/api/v1/diaries/recommend` | `sortBy` | query | string | `interest/heat/rating` 推荐策略，默认 `interest` | 强冻结 | 否 | 否 | 否 | 推荐查询 DTO 和 Controller 已实现 | `DiaryRecommendQuery.java`、`DiaryController.java` | 与普通日记列表的 `latest` 值域不同 |
+| `/api/v1/diaries/recommend` | `pageSize` | query/response.data | integer/long | Top-K 数量及响应页容量，默认 10，最大 100 | 强冻结 | 否 | 否 | 否 | 推荐查询 DTO 和分页响应已实现 | `DiaryRecommendQuery.java`、`DiaryRecommendServiceImpl.java` | 当前推荐接口固定返回第 1 页 |
+| `/api/v1/diaries/recommend` | `list/total/pages` | response.data | array/long/long | 推荐 Top-K、候选数量及按 K 计算的页数 | 强冻结 | 否 | 否 | 否 | 继续复用统一分页契约 | `PageResultVO.java`、`DiaryRecommendServiceImpl.java` | `list` 不包含 recommendScore/reason |
 | DiaryMedia | `fileUrl` | body/response | string | 媒体访问 URL | 强冻结 | 否 | 否 | 否 | 上传与日记联动核心字段 | `DiaryMediaRequest.java`、`DiaryMediaVO.java` | 高风险字段 |
 | DiaryVO | `id` | response | long | 日记 ID | 强冻结 | 否 | 否 | 否 | 详情/列表核心字段 | `DiaryVO.java` | 高风险字段 |
 | DiaryVO | `userId` | response | long | 作者用户 ID | 强冻结 | 否 | 否 | 否 | 归属字段 | `DiaryVO.java` | 高风险字段 |

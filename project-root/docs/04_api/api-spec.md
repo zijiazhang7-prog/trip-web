@@ -874,6 +874,32 @@ Authorization: Bearer <token>
 
 返回 `Page<DiaryVO>`
 
+## 13.2A 获取当前用户个性化日记推荐
+
+* 方法：`GET`
+* 路径：`/api/v1/diaries/recommend`
+* 权限：需要 JWT 登录
+* 当前实现状态：已实现
+
+### Query 参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| sortBy | string | 否 | `interest/heat/rating`，默认 `interest` |
+| pageSize | int | 否 | Top-K 数量，默认 10，范围 1～100 |
+
+### Response
+
+返回现有 `PageResultVO<DiaryVO>`，不增加 `recommendScore` 或推荐理由字段。
+
+说明：
+
+- `interest` 读取当前用户 `user_preference`，使用偏好主题、旅游风格、美食偏好和自由偏好文本匹配日记标题、正文及目的地特征。
+- 综合分由兴趣匹配、归一化浏览热度和归一化评分组成，权重分别为 0.50、0.30、0.20。
+- 用户没有有效文本偏好时，`interest` 自动降级为热度 Top-K。
+- 候选只包含 `status=1`、`visibility=public` 的日记，最多召回最近 200 条。
+- Top-K 由 `RankService` 的小顶堆实现；推荐列表不会触发详情浏览量自增。
+
 ## 13.3 获取日记详情
 
 * 方法：`GET`

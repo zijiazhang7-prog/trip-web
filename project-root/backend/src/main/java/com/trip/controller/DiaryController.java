@@ -8,8 +8,10 @@ import com.trip.dto.request.DiaryCreateRequest;
 import com.trip.dto.request.DiaryFulltextSearchQuery;
 import com.trip.dto.request.DiaryListQuery;
 import com.trip.dto.request.DiaryRatingRequest;
+import com.trip.dto.request.DiaryRecommendQuery;
 import com.trip.dto.request.DiaryTitleSearchQuery;
 import com.trip.service.CommentService;
+import com.trip.service.DiaryRecommendService;
 import com.trip.service.DiaryRatingService;
 import com.trip.service.DiaryService;
 import com.trip.vo.response.CommentVO;
@@ -34,14 +36,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class DiaryController {
 
     private final DiaryService diaryService;
+    private final DiaryRecommendService diaryRecommendService;
     private final DiaryRatingService diaryRatingService;
     private final CommentService commentService;
 
     public DiaryController(
             DiaryService diaryService,
+            DiaryRecommendService diaryRecommendService,
             DiaryRatingService diaryRatingService,
             CommentService commentService) {
         this.diaryService = diaryService;
+        this.diaryRecommendService = diaryRecommendService;
         this.diaryRatingService = diaryRatingService;
         this.commentService = commentService;
     }
@@ -54,6 +59,12 @@ public class DiaryController {
     @GetMapping("/api/v1/diaries")
     public ApiResponse<PageResultVO<DiaryVO>> list(@Valid @ModelAttribute DiaryListQuery query) {
         return ApiResponse.success(diaryService.listDiaries(query));
+    }
+
+    @GetMapping("/api/v1/diaries/recommend")
+    public ApiResponse<PageResultVO<DiaryVO>> recommend(
+            @Valid @ModelAttribute DiaryRecommendQuery query) {
+        return ApiResponse.success(diaryRecommendService.recommendDiaries(query));
     }
 
     @GetMapping("/api/v1/diaries/{id}")

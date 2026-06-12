@@ -667,6 +667,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponsePageDiaryVO'
 
+  /diaries/recommend:
+    get:
+      tags: [Diary]
+      summary: 获取当前用户个性化日记推荐
+      description: 使用用户偏好、日记和目的地文本、浏览热度及评分计算综合分，并通过小顶堆返回 Top-K；无有效文本偏好时降级为热度排序。
+      parameters:
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [interest, heat, rating]
+            default: interest
+        - name: pageSize
+          in: query
+          description: Top-K 数量
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: 推荐成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageDiaryVO'
+        '401':
+          description: 未登录或 token 无效
+
   /diaries/{id}:
     get:
       tags: [Diary]

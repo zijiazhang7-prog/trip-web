@@ -976,5 +976,16 @@ P1 阶段优先做：
 
 - 数据结构：Hash 索引、Trie 前缀树、目的地 ID 集合。
 - 查询思想：索引召回候选与名称 `LIKE` 结果取并集，去重后查询相关日记。
+
+## 22. 2026-06-12 个性化日记推荐
+
+- 新增 `GET /api/v1/diaries/recommend`，仅登录用户可调用。
+- `DiaryRecommendService` 读取当前用户 `user_preference`，匹配日记标题、正文以及目的地名称、类型、类别、城市、描述和标签。
+- 综合推荐分为 `0.50 * interestScore + 0.30 * normalizedHeatScore + 0.20 * normalizedRatingScore`。
+- `preferHotLevel` 用于调整热度分影响；`preferCrowdLevel` 因当前日记和目的地没有对应拥挤度特征，暂不参与。
+- 无有效偏好关键词时自动降级为热度 Top-K。
+- 候选仅包含公开启用日记，最多读取最近 200 条；推荐列表不会增加 `heat_score`。
+- 排序统一调用 `RankService.topK`，使用 `PriorityQueue` 小顶堆，复杂度为 O(n log k)。
+- 返回继续复用 `PageResultVO<DiaryVO>`，不修改日记 VO 和数据库结构。
 - 复杂度：Hash 精确查询平均 O(1)；Trie 前缀定位 O(L)，L 为关键字长度；LIKE 兜底最坏 O(N)；日记分页排序由数据库执行。
 - 适用范围：目的地名称精确、前缀及包含查询；城市、类别等结构化条件不属于本接口。
