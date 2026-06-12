@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS `route_history` (
   `end_node_id` BIGINT NULL COMMENT '终点节点 ID',
   `path_node_json` TEXT NULL COMMENT '路径节点序列 JSON',
   `path_edge_json` TEXT NULL COMMENT '路径边序列 JSON',
+  `ordered_target_node_json` TEXT NULL COMMENT '多目标实际访问顺序 JSON，单目标可为空',
   `strategy_type` VARCHAR(50) NULL COMMENT '路径策略类型',
   `transport_type` VARCHAR(20) NULL COMMENT '交通方式',
   `total_distance` DECIMAL(10,2) NULL COMMENT '总距离',

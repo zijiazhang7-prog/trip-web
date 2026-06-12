@@ -34,6 +34,14 @@
 
 建议按“版本号 + 日期 + 变更摘要”的方式记录。
 
+## 2026-06-12 Route 路线历史查询
+
+- 实现既有 `GET /api/v1/routes/history` 和 `GET /api/v1/routes/history/{id}`。
+- 两个接口均要求 JWT，只能查询当前用户自己的记录，不增加 `userId` 参数。
+- 列表返回摘要分页；详情返回保存的 `pathNodes`、`pathEdges` 和多目标 `orderedTargetNodeIds`。
+- `route_history` 新增可空 `ordered_target_node_json`，只影响新生成的多目标历史；旧记录兼容为空。
+- 历史查询直接读取保存快照，不调用 `MapService` 或 `GraphEngine` 重新规划。
+
 ## 2026-06-12 AIGC 日记照片动画 MVP
 
 - 新增 `POST /api/v1/diaries/{diaryId}/animation`：仅作者生成或覆盖动画脚本。

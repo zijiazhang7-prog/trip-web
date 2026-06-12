@@ -54,8 +54,8 @@
 | 目的地相关日记 | `/api/v1/destinations/{id}/diaries` | GET | Diary | 是 | 是 | 已可用 | path `id` + `DiaryListQuery` | `PageResultVO<DiaryVO>` | `DiaryController.java` | `api-spec.md` 9.5 | 公开接口 |
 | 单目标路线规划 | `/api/v1/routes/plan/single` | POST | Route | 是 | 是 | 已可用 | `SingleRoutePlanRequest` | `RoutePlanVO` | `RouteController.java` | `api-spec.md` 10.1 | 需要登录，支持距离/时间策略及 `walk/bike/cart/mixed` |
 | 多目标路线规划 | `/api/v1/routes/plan/multi` | POST | Route | 是 | 是 | 已可用 | `MultiRoutePlanRequest` | `RoutePlanVO` | `RouteController.java` | `api-spec.md` 10.2 | 需要登录；支持交通约束；代码实际返回 `RoutePlanVO` |
-| 路线历史列表 | `/api/v1/routes/history` | GET | Route | 否 | 是 | 文档有但代码未找到 | page query | `Page<RouteHistoryVO>` | 未找到 Controller 入口 | `api-spec.md` 10.3 | 待实现或文档降级 |
-| 路线历史详情 | `/api/v1/routes/history/{id}` | GET | Route | 否 | 是 | 文档有但代码未找到 | path `id` | `RouteHistoryVO` | 未找到 Controller 入口 | `api-spec.md` 10.4 | 待实现或文档降级 |
+| 路线历史列表 | `/api/v1/routes/history` | GET | Route | 是 | 是 | 已可用 | `RouteHistoryPageQuery` | `PageResultVO<RouteHistoryVO>` | `RouteController.java`、`RouteServiceImpl.java` | `api-spec.md` 10.3 | JWT 当前用户；不接受 userId；按时间倒序 |
+| 路线历史详情 | `/api/v1/routes/history/{id}` | GET | Route | 是 | 是 | 已可用 | path `id` | `RouteHistoryVO` | `RouteController.java`、`RouteServiceImpl.java` | `api-spec.md` 10.4 | 读取历史 JSON 快照，不重新规划；越权按不存在处理 |
 | 附近设施 | `/api/v1/facilities/nearby` | GET | Facility | 是 | 是 | 已可用 | `NearbyFacilityQuery` | `PageResultVO<NearbyFacilityVO>` | `FacilityController.java` | `api-spec.md` 11.1 | 公开接口，基于图上可达距离 |
 | 搜索设施 | `/api/v1/facilities/search` | GET | Facility | 否 | 是 | 文档有但代码未找到 | 文档定义 query | `Page<FacilityVO>` | 未找到 Controller 入口 | `api-spec.md` 11.2、`swagger-draft.yaml` | 当前只有 nearby |
 | 美食推荐 | `/api/v1/foods/recommend` | GET | Food | 是 | 是 | 已可用 | `FoodRecommendQuery` | `PageResultVO<FoodVO>` | `FoodController.java` | `api-spec.md` 12.1 | 公开接口 |
@@ -96,13 +96,13 @@
 
 ## 4. 待确认项
 - `frontend-runtime-facts.md` 未找到，无法确认前端技术栈、路由模式、baseURL、proxy、token 存储和 auth header 处理。
-- Route 历史接口是否计划补后端实现，或从当前联调范围中移除。
+- Route 历史接口已补后端实现，待前端页面和 MySQL 实库接口回归。
 - 我的日记列表接口是否仍属于 P1 当前范围。
 - `GET /api/v1/facilities/search` 是否需要补实现，或只保留 `nearby`。
 - AI 接口是否只保留文档预留，不进入当前联调。
 
 ## 5. 代码/文档冲突项
-- `api-spec.md` / `swagger-draft.yaml` 定义 Route 历史接口，但当前 `RouteController` 未找到对应入口。
+- Route 历史接口原先存在“文档已定义、代码未实现”的冲突，当前已消除。
 - `api-spec.md` / `swagger-draft.yaml` 定义 `GET /api/v1/facilities/search`，当前 `FacilityController` 只实现 `nearby`。
 - `api-spec.md` / `swagger-draft.yaml` 定义我的日记列表接口，当前 `DiaryController` 未找到对应入口。
 - `api-spec.md` 说明文件上传返回不包含 `id`，`swagger-draft.yaml` 的 `FileUploadResultVO` 仍包含 `id`；代码 `FileUploadResultVO` 不包含 `id`。

@@ -1,5 +1,6 @@
 package com.trip;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.common.ErrorCode;
 import com.trip.dto.map.MultiPathResult;
@@ -7,17 +8,23 @@ import com.trip.dto.map.PathEdgeResult;
 import com.trip.dto.map.PathNodeResult;
 import com.trip.dto.map.ShortestPathResult;
 import com.trip.dto.request.MultiRoutePlanRequest;
+import com.trip.dto.request.RouteHistoryPageQuery;
 import com.trip.dto.request.SingleRoutePlanRequest;
+import com.trip.entity.Destination;
 import com.trip.entity.RouteHistory;
 import com.trip.entity.User;
 import com.trip.exception.BusinessException;
+import com.trip.mapper.DestinationMapper;
 import com.trip.mapper.RouteHistoryMapper;
 import com.trip.mapper.UserMapper;
 import com.trip.security.JwtClaims;
 import com.trip.service.MapService;
 import com.trip.service.impl.RouteServiceImpl;
+import com.trip.vo.response.PageResultVO;
+import com.trip.vo.response.RouteHistoryVO;
 import com.trip.vo.response.RoutePlanVO;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -26,10 +33,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -38,10 +48,12 @@ class RouteServiceTests {
 
     private final MapService mapService = mock(MapService.class);
     private final RouteHistoryMapper routeHistoryMapper = mock(RouteHistoryMapper.class);
+    private final DestinationMapper destinationMapper = mock(DestinationMapper.class);
     private final UserMapper userMapper = mock(UserMapper.class);
     private final RouteServiceImpl routeService = new RouteServiceImpl(
             mapService,
             routeHistoryMapper,
+            destinationMapper,
             userMapper,
             new ObjectMapper());
 
@@ -140,6 +152,98 @@ class RouteServiceTests {
         assertEquals(new BigDecimal("240.00"), history.getTotalDistance());
         assertTrue(history.getPathNodeJson().contains("图书馆"));
         assertTrue(history.getPathEdgeJson().contains("edgeId"));
+        assertEquals("[2,3]", history.getOrderedTargetNodeJson());
+    }
+
+    @Test
+    void listMyRouteHistoriesShouldReturnOnlyPagedCurrentUserSummaries() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        RouteHistory history = routeHistory(9001L, 7L);
+        Page<RouteHistory> page = new Page<>(1, 10, 1);
+        page.setRecords(List.of(history));
+        when(routeHistoryMapper.selectPage(any(Page.class), any())).thenReturn(page);
+        Destination destination = new Destination();
+        destination.setId(101L);
+        destination.setName("北邮沙河校区");
+        when(destinationMapper.selectBatchIds(anyCollection())).thenReturn(List.of(destination));
+
+        PageResultVO<RouteHistoryVO> result = routeService.listMyRouteHistories(new RouteHistoryPageQuery());
+
+        assertEquals(1, result.getList().size());
+        RouteHistoryVO item = result.getList().get(0);
+        assertEquals("北邮沙河校区", item.getDestinationName());
+        assertEquals("校门", item.getStartNodeName());
+        assertEquals("食堂", item.getEndNodeName());
+        assertEquals(1, result.getTotal());
+        assertNull(item.getPathNodes());
+        verifyNoInteractions(mapService);
+    }
+
+    @Test
+    void getMyRouteHistoryShouldRestoreSavedPathWithoutReplanning() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        RouteHistory history = routeHistory(9001L, 7L);
+        history.setOrderedTargetNodeJson("[2,3]");
+        when(routeHistoryMapper.selectOne(any())).thenReturn(history);
+        Destination destination = new Destination();
+        destination.setId(101L);
+        destination.setName("北邮沙河校区");
+        when(destinationMapper.selectById(101L)).thenReturn(destination);
+
+        RouteHistoryVO result = routeService.getMyRouteHistory(9001L);
+
+        assertEquals(List.of(1L, 2L, 3L), result.getPathNodes().stream()
+                .map(PathNodeResult::getNodeId)
+                .toList());
+        assertEquals(2, result.getPathEdges().size());
+        assertEquals(List.of(2L, 3L), result.getOrderedTargetNodeIds());
+        assertEquals("walk", result.getPathEdges().get(0).getTransportType());
+        verifyNoInteractions(mapService);
+    }
+
+    @Test
+    void getMyRouteHistoryShouldHideMissingOrOtherUsersHistory() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        when(routeHistoryMapper.selectOne(any())).thenReturn(null);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> routeService.getMyRouteHistory(9999L));
+
+        assertEquals(ErrorCode.COMMON_003, exception.getErrorCode());
+        verify(destinationMapper, never()).selectById(any());
+        verifyNoInteractions(mapService);
+    }
+
+    @Test
+    void getMyRouteHistoryShouldSupportLegacyRecordWithoutOrderedTargets() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        RouteHistory history = routeHistory(9001L, 7L);
+        when(routeHistoryMapper.selectOne(any())).thenReturn(history);
+
+        RouteHistoryVO result = routeService.getMyRouteHistory(9001L);
+
+        assertTrue(result.getOrderedTargetNodeIds().isEmpty());
+    }
+
+    @Test
+    void getMyRouteHistoryShouldRejectBrokenSnapshot() {
+        setCurrentUser(7L);
+        when(userMapper.selectById(7L)).thenReturn(activeUser(7L));
+        RouteHistory history = routeHistory(9001L, 7L);
+        history.setPathNodeJson("{broken");
+        when(routeHistoryMapper.selectOne(any())).thenReturn(history);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> routeService.getMyRouteHistory(9001L));
+
+        assertEquals(ErrorCode.ROUTE_010, exception.getErrorCode());
+        verifyNoInteractions(mapService);
     }
 
     @Test
@@ -374,5 +478,29 @@ class RouteServiceTests {
         user.setStatus(1);
         user.setRole("user");
         return user;
+    }
+
+    private RouteHistory routeHistory(Long id, Long userId) {
+        RouteHistory history = new RouteHistory();
+        history.setId(id);
+        history.setUserId(userId);
+        history.setDestinationId(101L);
+        history.setStartNodeId(1L);
+        history.setEndNodeId(3L);
+        history.setPathNodeJson(
+                "[{\"nodeId\":1,\"nodeName\":\"校门\"},"
+                        + "{\"nodeId\":2,\"nodeName\":\"图书馆\"},"
+                        + "{\"nodeId\":3,\"nodeName\":\"食堂\"}]");
+        history.setPathEdgeJson(
+                "[{\"edgeId\":11,\"fromNodeId\":1,\"toNodeId\":2,\"distance\":80.00,"
+                        + "\"transportType\":\"walk\"},"
+                        + "{\"edgeId\":12,\"fromNodeId\":2,\"toNodeId\":3,\"distance\":80.00,"
+                        + "\"transportType\":\"walk\"}]");
+        history.setStrategyType("shortest_distance");
+        history.setTransportType("walk");
+        history.setTotalDistance(new BigDecimal("160.00"));
+        history.setEstimatedTime(2);
+        history.setCreatedAt(LocalDateTime.of(2026, 6, 12, 10, 0));
+        return history;
     }
 }

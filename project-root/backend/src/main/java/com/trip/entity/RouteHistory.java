@@ -24,6 +24,8 @@ public class RouteHistory {
 
     private String pathEdgeJson;
 
+    private String orderedTargetNodeJson;
+
     private String strategyType;
 
     private String transportType;
@@ -88,6 +90,14 @@ public class RouteHistory {
 
     public void setPathEdgeJson(String pathEdgeJson) {
         this.pathEdgeJson = pathEdgeJson;
+    }
+
+    public String getOrderedTargetNodeJson() {
+        return orderedTargetNodeJson;
+    }
+
+    public void setOrderedTargetNodeJson(String orderedTargetNodeJson) {
+        this.orderedTargetNodeJson = orderedTargetNodeJson;
     }
 
     public String getStrategyType() {

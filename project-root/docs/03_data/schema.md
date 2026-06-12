@@ -533,6 +533,7 @@
 - `end_node_id`
 - `path_node_json`
 - `path_edge_json`（可选）
+- `ordered_target_node_json`（多目标实际访问顺序 JSON，单目标和旧记录可空）
 - `strategy_type`
 - `transport_type`
 - `total_distance`
@@ -544,7 +545,8 @@
 2. 当前阶段不强制拆出更细粒度路径明细表；
 3. `total_distance` 和 `estimated_time` 用于路线摘要展示；
 4. `transport_type` 用于后续策略回放和解释；
-5. 当前设计足够支撑 MVP 阶段的历史记录与回顾输入。
+5. `ordered_target_node_json` 保存多目标规划实际访问顺序，避免查询历史时重新运行算法或从完整路径猜测目标点；
+6. 当前设计足够支撑 MVP 阶段的历史记录与回顾输入。
 
 ### 建议索引
 - `user_id`

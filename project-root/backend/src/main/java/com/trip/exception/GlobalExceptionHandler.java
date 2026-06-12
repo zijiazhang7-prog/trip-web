@@ -71,6 +71,7 @@ public class GlobalExceptionHandler {
                     IMPORT_002, IMPORT_003, IMPORT_004, COMMENT_001, COMMENT_005, DIARY_006,
                     AI_002, AI_007, AI_009 ->
                 HttpStatus.UNPROCESSABLE_ENTITY;
+            case ROUTE_010 -> HttpStatus.INTERNAL_SERVER_ERROR;
             default -> HttpStatus.BAD_REQUEST;
         };
     }

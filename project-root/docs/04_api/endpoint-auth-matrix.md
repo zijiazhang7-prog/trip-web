@@ -29,7 +29,8 @@
 | `/api/v1/destinations/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/destinations/**").permitAll()` | `SecurityConfig.java`、`DestinationController.java`、`DiaryController.java` | 包含目的地详情、场所、目的地日记 |
 | `/api/v1/routes/plan/single` | POST | 是 | 已登录用户 | JWT | POST 未 permitAll，落入 `.anyRequest().authenticated()` | `SecurityConfig.java`、`RouteController.java` | 会使用当前用户保存历史 |
 | `/api/v1/routes/plan/multi` | POST | 是 | 已登录用户 | JWT | 同上 | `SecurityConfig.java`、`RouteController.java` | 会使用当前用户保存历史 |
-| `/api/v1/routes/history` | GET | 待确认 | 文档称需要登录 | JWT/待确认 | 文档定义，代码未找到入口 | `api-spec.md` | 当前 Controller 未实现 |
+| `/api/v1/routes/history` | GET | 是 | 已登录用户，仅本人 | JWT | 未命中公开 GET，落入 `.anyRequest().authenticated()`；Service 固定使用 JWT userId | `SecurityConfig.java`、`RouteController.java`、`RouteServiceImpl.java` | 不接受 userId |
+| `/api/v1/routes/history/{id}` | GET | 是 | 已登录用户，仅记录所有者 | JWT + Service 所有者条件 | Service 使用 `id + 当前 userId` 联合查询 | `RouteController.java`、`RouteServiceImpl.java` | 他人记录与不存在记录统一返回 404 |
 | `/api/v1/facilities/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/facilities/**").permitAll()` | `SecurityConfig.java`、`FacilityController.java` | 当前实现 `/nearby` |
 | `/api/v1/foods/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/foods/**").permitAll()` | `SecurityConfig.java`、`FoodController.java` | 推荐/搜索公开 |
 | `/api/v1/diaries/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/diaries/**").permitAll()` | `SecurityConfig.java`、`DiaryController.java` | 列表/详情/检索公开 |
@@ -48,12 +49,12 @@
 | `/api/v1/ai/**` | POST | 待确认 | 文档倾向需要登录或按能力控制 | 待确认 | 文档有定义，后端未找到对应 Controller | `api-spec.md` | 草稿/摘要等 P2 预留，不包含已实现动画接口 |
 
 ## 待确认项
-- Route 历史、我的日记列表接口是否补实现，以及权限是否按文档执行。
+- 我的日记列表接口是否补实现，以及权限是否按文档执行。
 - AI 接口后续是否统一登录即可访问，还是区分普通用户和管理员。
 - 管理端 role 值是否永远使用小写 `admin`；当前 JWT 过滤器直接拼接 `ROLE_` + claims role。
 
 ## 代码/文档冲突项
-- `api-spec.md` 写“查看我的路线历史”需要登录，但当前代码没有 Route 历史 Controller 入口。
+- Route 历史鉴权冲突已消除；当前代码与文档均要求 JWT 且只能查询本人。
 - `api-spec.md` 存在 AI 预留接口，当前没有 AI Controller，权限无法从代码确认。
 
 ## 建议下一步动作

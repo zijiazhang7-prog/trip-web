@@ -680,7 +680,24 @@ Authorization: Bearer <token>
 
 ### Response
 
-返回 `Page<RouteHistoryVO>`
+返回 `PageResultVO<RouteHistoryVO>`。
+
+列表项包含：
+
+- `id`
+- `destinationId`、`destinationName`
+- `startNodeId`、`startNodeName`
+- `endNodeId`、`endNodeName`
+- `strategyType`、`transportType`
+- `totalDistance`、`estimatedTime`
+- `createdAt`
+
+说明：
+
+- 只返回当前 JWT 用户自己的路线历史，不接收 `userId`。
+- 默认 `pageNum=1`、`pageSize=10`，`pageSize` 最大为 100。
+- 按 `createdAt DESC, id DESC` 排序。
+- 列表不返回完整路径数组，完整快照通过详情接口读取。
 
 ## 10.4 获取单条路线历史详情
 
@@ -689,7 +706,17 @@ Authorization: Bearer <token>
 
 ### Response
 
-返回 `RouteHistoryVO`
+返回 `RouteHistoryVO`，除摘要字段外包含：
+
+- `pathNodes`
+- `pathEdges`
+- `orderedTargetNodeIds`
+
+说明：
+
+- 详情只允许当前用户读取自己的记录；记录不存在或属于其他用户时统一返回 `COMMON_003`。
+- 历史查询直接读取 `route_history` 中保存的 JSON 快照，不重新调用 `MapService` 或 `GraphEngine`。
+- 新生成的多目标历史保存 `orderedTargetNodeIds`；单目标和迁移前旧记录返回空数组。
 
 ---
 

@@ -11,8 +11,6 @@
 | 高 | 最终 API baseURL / dev proxy 未确认 | 全部接口 | 后端端口 8080、接口前缀 `/api/v1` 已确认 | 无前端事实文件，不能判断是否走代理 | 前端负责人 |
 | 高 | token 存储策略未确认 | Auth/全局请求 | 后端只要求 `Authorization: Bearer <token>` | 无法确认 localStorage/sessionStorage/Pinia/内存 | 前端负责人 |
 | 高 | request interceptor 统一位置未确认 | 全部受保护接口 | 后端鉴权方式明确 | 无前端工程代码和运行时事实 | 前端负责人 |
-| 高 | Route 历史接口文档有、代码没找到 | Route | `api-spec.md` 定义 `/api/v1/routes/history` 和 `/{id}`；`RouteController` 只有 plan single/multi | 代码未实现入口 | 后端负责人 / 文档负责人 |
-| 高 | Diary 评分接口文档有、代码没找到 | Diary | `api-spec.md`、`swagger-draft.yaml` 定义 `/api/v1/diaries/{id}/ratings`；`DiaryController` 未实现 | 代码未实现入口 | 后端负责人 / 文档负责人 |
 | 高 | `GET /api/v1/diaries/me` 文档有、代码没找到 | Diary | `api-spec.md` 标“建议补充”，Swagger 已列出；Controller 未实现 | 不确定是否进入当前 P1 | 后端负责人 / 文档负责人 |
 | 高 | `GET /api/v1/facilities/search` 文档有、代码没找到 | Facility | `api-spec.md`、`swagger-draft.yaml` 定义；`FacilityController` 只有 `/nearby` | 不确定是否改文档或补接口 | 后端负责人 / 文档负责人 |
 | 高 | Swagger 的 Diary 发布请求字段与代码不一致 | Diary | `swagger-draft.yaml` 使用 `mediaIds`；`DiaryCreateRequest` 使用 `mediaList` | 文档未同步代码 | 文档负责人 / 后端负责人 |
@@ -33,7 +31,7 @@
 
 | 类型 | 当前记录 |
 |---|---|
-| 文档有、代码没找到的接口 | Route 历史、Facility 搜索、我的日记、AI 草稿/图片摘要/路线回顾等预留接口；日记评分和照片动画已有代码 |
+| 文档有、代码没找到的接口 | Facility 搜索、我的日记、AI 草稿/图片摘要/路线回顾等预留接口；Route 历史、日记评分和照片动画已有代码 |
 | token 返回位置不清楚 | 后端已确认在 `data.token`；前端保存位置待确认 |
 | 鉴权方式不清楚 | 后端已确认 JWT Bearer；前端注入方式待确认 |
 | 返回体不统一 | 大多数接口统一 `ApiResponse`；文档/Swagger 个别响应对象旧口径需同步 |
@@ -53,7 +51,7 @@
 - `FileUploadResultVO.id` 文档存在但代码不存在。
 - `FoodRecommendQuery.sourceNodeId` 文档存在但代码使用 `facilityId`。
 - `Facility nearby` 响应对象文档与代码不同。
-- Route 历史、我的日记、Facility 搜索、AI 草稿/图片摘要/路线回顾等预留接口文档有但代码入口未找到；日记照片动画已通过独立资源接口实现。
+- 我的日记、Facility 搜索、AI 草稿/图片摘要/路线回顾等预留接口文档有但代码入口未找到；Route 历史和日记照片动画已通过独立资源接口实现。
 
 ## 建议下一步动作
 - 先由后端/文档负责人清理 Swagger 与代码 DTO/VO 的冲突。

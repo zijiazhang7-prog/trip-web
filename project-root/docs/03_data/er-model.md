@@ -250,6 +250,7 @@ erDiagram
         bigint end_node_id
         text path_node_json
         text path_edge_json
+        text ordered_target_node_json
         varchar strategy_type
         varchar transport_type
         decimal total_distance

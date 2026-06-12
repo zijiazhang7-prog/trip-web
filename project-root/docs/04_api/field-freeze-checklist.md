@@ -71,6 +71,11 @@
 | RoutePlanVO | `historyId` | response | long | 路线历史 ID | 强冻结 | 否 | 否 | 否 | 日记可关联路线历史 | `RoutePlanVO.java` | 高风险字段 |
 | RoutePathEdgeVO | `fromNodeId/toNodeId/distance` | response.pathEdges | long/decimal | 边起点、终点、距离 | 强冻结 | 否 | 否 | 否 | 路径边展示字段 | `RoutePathEdgeVO.java` | 前端画线依赖 |
 | RoutePathEdgeVO | `transportType` | response.pathEdges | string | 该条路径边实际使用的 `walk/bike/cart` | 强冻结 | 否 | 否 | 否 | mixed 路线解释与历史回放依赖 | `RoutePathEdgeVO.java`、`GraphEngine.java` | 2026-06-11 兼容性新增字段 |
+| `/api/v1/routes/history` | `pageNum/pageSize` | query | integer | 当前用户历史分页，默认 1/10，pageSize 最大 100 | 强冻结 | 否 | 否 | 否 | 后端查询 DTO 已实现 | `RouteHistoryPageQuery.java` | 不允许传 userId |
+| RouteHistoryVO | `id/destinationId/startNodeId/endNodeId` | response | long | 历史、目的地、起点和终点标识 | 强冻结 | 否 | 否 | 否 | 历史详情和日记关联依赖 | `RouteHistoryVO.java` | 高风险字段 |
+| RouteHistoryVO | `strategyType/transportType/totalDistance/estimatedTime` | response | string/decimal/integer | 历史规划策略、交通方式、距离和分钟级时间 | 强冻结 | 否 | 否 | 否 | 路线摘要核心字段 | `RouteHistoryVO.java` | 单位和枚举语义不可变 |
+| RouteHistoryVO | `pathNodes/pathEdges` | response | array | 保存时的完整路径快照，仅详情返回 | 强冻结 | 否 | 否 | 否 | 历史回放不能重新规划 | `RouteHistoryVO.java`、`RouteServiceImpl.java` | 列表中为 null |
+| RouteHistoryVO | `orderedTargetNodeIds` | response | array<long> | 多目标实际访问顺序 | 建议冻结 | 否 | 否 | 否 | 新增持久化快照支持 | `RouteHistoryVO.java`、`route_history.ordered_target_node_json` | 单目标和旧历史为空数组 |
 | Map node/admin | `lng` / `lat` | body/response | decimal | 节点经纬度 | 强冻结 | 否 | 否 | 否 | 管理端地图维护字段 | `AdminMapNodeRequest.java`、`AdminMapNodeVO.java` | 高风险字段 |
 
 ## 7. 周边设施字段

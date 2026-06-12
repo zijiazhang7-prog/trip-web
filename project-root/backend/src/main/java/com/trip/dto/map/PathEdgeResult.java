@@ -17,6 +17,9 @@ public class PathEdgeResult {
 
     private String transportType;
 
+    public PathEdgeResult() {
+    }
+
     public PathEdgeResult(
             Long edgeId,
             Long fromNodeId,

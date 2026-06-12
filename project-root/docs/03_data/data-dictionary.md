@@ -434,6 +434,7 @@
 |end_node_id|bigint|否|否||终点节点 ID|
 |path_node_json|text|否|否||路径节点序列 JSON|
 |path_edge_json|text|否|否||路径边序列 JSON，可选扩展|
+|ordered_target_node_json|text|否|否||多目标实际访问顺序 JSON，单目标和旧记录可为空|
 |strategy_type|varchar(50)|否|否||路径策略类型|
 |transport_type|varchar(20)|否|否||交通方式|
 |total_distance|decimal(10,2)|否|否||总距离|

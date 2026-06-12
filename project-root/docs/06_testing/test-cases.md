@@ -136,7 +136,7 @@
 | TC-ROUTE-003 | Route | P0 | 不可达目标点返回合理提示 | 图中存在不可达节点 | 1. 调用单目标路径接口 | startNodeId=101, targetNodeId=999 | 返回“不可达”类提示，不返回错误堆栈 | 待填写 | 未执行 | |
 | TC-ROUTE-004 | Route | P0 | 路径结果与图数据一致 | 已手工验证一组最短路径 | 1. 调用单目标路径接口 2. 对比人工期望结果 | 固定测试图数据 | 返回的路径长度与人工验证一致 | 待填写 | 未执行 | |
 | TC-ROUTE-005 | Route | P0 | 非法节点输入处理正确 | 接口可调用 | 1. 输入不存在的 startNodeId | startNodeId=-1, targetNodeId=110 | 返回参数错误或节点不存在提示 | 待填写 | 未执行 | |
-| TC-ROUTE-006 | Route | P0 | 路线历史查询成功 | 已成功产生至少一条路线历史 | 1. 请求 `/routes/history` | pageNum=1,pageSize=10 | 返回当前用户路线历史列表 | 后端实库预检中已根据 `historyId=7` 查询 `route_history`，确认用户、目的地、策略、交通方式和总距离落库正确 | 通过 | 2026-05-07 本次验证为数据库落库核验，未单独调用历史列表接口；临时数据已清理 |
+| TC-ROUTE-006 | Route | P0 | 路线历史查询成功 | 已成功产生至少一条路线历史 | 1. 请求 `/routes/history` | pageNum=1,pageSize=1 | 只返回当前用户路线历史摘要，按时间倒序分页 | 实库返回 `total=2`、`pages=2`、列表 1 条，首条为最新多目标历史；摘要包含目的地和起终点名称且不返回路径明细 | 通过 | 2026-06-12 Service 单元测试 + MySQL 8 HTTP 回归 |
 | TC-ROUTE-007 | Route | P1 | 多目标路径规划成功 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/multi` 2. 输入多个目标点 | startNodeId=A, targetNodeIds=[B,C], returnToStart=false | 返回拼接后的路径节点、路径边和总距离 | 单元测试通过；实库接口验证通过，临时图数据下 `returnToStart=false` 返回成功，最终路径终点为 C；2026-06-03 GraphEngine 抽取后再次验证路径 `A -> B -> C`、总距离 `200.00`，`route_history` 写入成功 | 通过 | 2026-05-07 后端单元测试 + 实库接口验证；2026-06-03 GraphEngine 抽取后实库回归 |
 | TC-ROUTE-008 | Route | P1 | 多目标返回起点处理正确 | 固定测试图数据存在返回边 | 1. 调用多目标接口 2. 设置 returnToStart=true | startNodeId=A, targetNodeIds=[B,C], returnToStart=true | 完成多目标访问后追加返回起点路径 | 单元测试通过；实库接口验证路径为 `A -> B -> C -> A`，总距离 `360.00`，`route_history` 写入并校验通过 | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
 | TC-ROUTE-009 | Route | P1 | 多目标重复目标被拦截 | 接口可调用 | 1. targetNodeIds 传重复节点 | targetNodeIds=[B,B] | 返回参数错误，不进入路径计算 | 单元测试通过；实库接口返回 HTTP 400，错误码 `COMMON_001` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
@@ -144,6 +144,9 @@
 | TC-ROUTE-011 | Route | P1 | 多目标不可达目标返回合理提示 | 图中存在不可达目标 | 1. 调用多目标路径规划 | startNodeId=A, targetNodeIds=[D]，D 无可达边 | 返回不可达类业务错误，不暴露堆栈 | 单元测试通过；实库接口返回 HTTP 422，错误码 `ROUTE_003` | 通过 | 2026-05-07 后端单元测试 + 实库接口验证 |
 | TC-ROUTE-012 | Route | P1 | 单目标最短距离策略返回距离最优路径 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/single` 2. strategyType=shortest_distance | A->B=100、B->C=100、A->C=300 | 返回距离最短路径 `A -> B -> C`，总距离为 `200.00`，并写入路线历史 | 实库接口返回路径 `A -> B -> C`、总距离 `200.00`、`estimatedTime=3`；2026-06-03 GraphEngine 抽取后再次验证 `route_history.strategy_type=shortest_distance`、总距离和预计时间与接口一致 | 通过 | 2026-05-07 后端单元测试 + 实库接口验证；2026-06-03 GraphEngine 抽取后实库回归 |
 | TC-ROUTE-013 | Route | P1 | 单目标最短时间策略返回时间最优路径 | 固定测试图数据可用，用户已登录 | 1. 调用 `/routes/plan/single` 2. strategyType=shortest_time | A->B->C 总时间 20，A->C 总时间 3 | 返回时间最短路径 `A -> C`，总距离可大于最短距离路径，并写入路线历史 | 实库接口返回路径 `A -> C`、总距离 `300.00`、`estimatedTime=3`；2026-06-03 GraphEngine 抽取后再次验证 `route_history.strategy_type=shortest_time`、总距离和预计时间与接口一致 | 通过 | 2026-05-07 后端单元测试 + 实库接口验证；2026-06-03 GraphEngine 抽取后实库回归 |
+| TC-ROUTE-019 | Route | P1 | 路线历史详情恢复保存快照 | 当前用户存在单目标和多目标历史 | 1. 请求 `/routes/history/{id}` 2. 检查节点、边、交通方式和目标顺序 | 当前用户 historyId | 返回保存的 `pathNodes/pathEdges/orderedTargetNodeIds`，不重新规划 | 实库单目标详情恢复节点 `[2,1]`、目标顺序为空；多目标详情恢复节点 `[2,1,3]`、目标顺序 `[1,3]`；数据库新字段保存 `[1,3]` | 通过 | 2026-06-12 单元测试 + MySQL 8 HTTP 回归 |
+| TC-ROUTE-020 | Route | P1 | 路线历史用户隔离 | 用户 A、B 各有历史 | 用户 B 请求用户 A 的 historyId | 他人 historyId | 返回 `COMMON_003`，不泄漏记录存在性 | 实库返回 HTTP 404、`COMMON_003`；无 token 请求列表返回 HTTP 401、`AUTH_003` | 通过 | 2026-06-12 Service、MockMvc + MySQL 8 HTTP 回归 |
+| TC-ROUTE-021 | Route | P1 | 历史查询不重新运行算法 | 已保存有效历史 | 查询列表和详情并监控 MapService 调用 | 任意有效 historyId | MapService/GraphEngine 调用次数不增加，route_history 行数不变 | 单元测试验证 MapService 无交互；实库生成 2 条历史后执行列表和详情 GET，查询前后当前用户历史数均为 2 | 通过 | 2026-06-12 单元测试 + MySQL 8 HTTP 回归 |
 
 ---
 
@@ -427,7 +430,7 @@
 |TC-ROUTE-016|GraphEngine|P0|mixed 最短时间|路径可组合 walk 与 bike/cart，分边返回实际工具|通过：单元测试|
 |TC-ROUTE-017|MapService|P0|约束贯穿单目标和多目标|所有分段及返回起点段使用同一交通约束|通过：单元测试|
 |TC-ROUTE-018|Route|P0|路线历史交通信息|顶层保存请求模式，路径边 JSON 保存实际工具|通过：单元测试|
-|TC-ROUTE-019|Route|P1|实库交通道路演示|校园 bike、景区 cart、mixed 返回可解释的差异路线|待补演示数据后执行|
+|TC-ROUTE-022|Route|P1|实库交通道路演示|校园 bike、景区 cart、mixed 返回可解释的差异路线|待补演示数据后执行|
 
 ## 17. AIGC 日记照片动画测试
 

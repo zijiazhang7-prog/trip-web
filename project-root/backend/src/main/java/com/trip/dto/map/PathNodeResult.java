@@ -9,6 +9,9 @@ public class PathNodeResult {
 
     private String nodeName;
 
+    public PathNodeResult() {
+    }
+
     public PathNodeResult(Long nodeId, String nodeName) {
         this.nodeId = nodeId;
         this.nodeName = nodeName;

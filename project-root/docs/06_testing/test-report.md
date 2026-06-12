@@ -109,6 +109,7 @@
 - 追加 Diary 检索排序后端验证：2026-05-07 为标题检索和正文检索补充 `sortBy=latest/heat/rating` 白名单排序，执行后端 `mvn test`，157 个测试执行，0 失败，构建成功。
 - 追加 P0 主线后端接口演示预检：2026-05-07 启动后端 jar 连接 MySQL 8 实库，用同一个临时普通用户 token 依次验证登录、推荐、搜索、单目标路线、文件上传、日记发布、日记列表、日记详情和目的地相关日记；验证 `route_history` 与 `diary_media` 落库正确；验证结束后临时用户、目的地、地图节点、地图边、路线历史和日记数据均已清理。
 - 追加 GraphEngine 抽取后 Route / Facility 实库回归：2026-06-03 重新打包并启动后端连接 MySQL 8 实库，使用临时普通用户 token 验证 `shortest_distance`、`shortest_time`、多目标路线和 `/api/v1/facilities/nearby`；确认 GraphEngine 抽取后接口语义和 `route_history` 落库行为保持一致，验证结束后临时数据已清理。
+- 追加 Route 历史查询后端与实库回归：2026-06-12 实现 `GET /api/v1/routes/history` 与 `GET /api/v1/routes/history/{id}`，单元测试覆盖当前用户分页、摘要名称、完整路径 JSON 恢复、多目标顺序、旧记录兼容、损坏快照、越权隐藏和查询不调用 `MapService`；MockMvc 覆盖两个接口无 token 返回 `AUTH_003`。停服后已完成 MySQL 增量迁移和真实 HTTP 验证，列表、详情、用户隔离、分页顺序、多目标顺序快照和查询不新增历史均通过。执行 `mvn -q test`，36 个测试套件、256 个测试通过。
 - 追加 IndexEngine 实库 HTTP 回归：2026-06-07 执行 `mvn -q -Dtest=IndexEngineDatabaseIntegrationTests test`，通过随机端口真实 HTTP 入口比较索引重建与失效状态下的目的地搜索、美食名称/店铺名搜索、日记标题精确/前缀/非前缀包含检索；10 组请求的列表、顺序和分页对象完全一致，临时数据已清理并恢复索引。
 - 追加 IndexEngine 后全量回归：2026-06-07 执行 `mvn -q test`，23 个测试套件、171 个测试执行，0 失败、0 错误、0 跳过。
 - 追加 IndexEngine 第二阶段回归：2026-06-07 为 `Diary.contentText` 增加字符位置倒排索引，验证中文连续子串、英文大小写、索引 MISS、目的地过滤、排序和分页；实库日志确认索引启用时 SQL 使用候选 `id IN`，索引失效时使用 `content_text LIKE`。
@@ -766,3 +767,19 @@
 - 已验证 AI 调用前后使用独立短事务，媒体快照变化时不保存过期脚本。
 - 执行 `mvn -q test`，35 个测试套件、250 个测试，0 失败、0 错误、0 跳过。
 - 尚未执行真实厂商带密钥联调，因此不能把模型兼容性、视觉理解质量、额度和平均响应时间标记为已验证。
+
+## 22. 2026-06-12 Route 路线历史查询实库回归
+
+- 执行 `migrate-route-history-query-schema.sql`，确认
+  `route_history.ordered_target_node_json` 已创建为可空 `TEXT`。
+- 使用临时普通用户和目的地 10 的现有连通节点 `2 -> 1 -> 3` 完成真实 HTTP 验证。
+- 单目标规划写入历史，详情恢复节点 `[2,1]`，旧式单目标的
+  `orderedTargetNodeIds` 返回空数组。
+- 多目标规划写入历史，详情恢复节点 `[2,1,3]`，接口和数据库均记录实际目标顺序 `[1,3]`。
+- 列表使用 `pageNum=1&pageSize=1` 时返回 `total=2`、`pages=2`，首条为最新多目标历史；
+  摘要返回起终点名称，不携带路径明细。
+- 未登录请求列表返回 HTTP 401、`AUTH_003`；另一临时用户请求历史详情返回
+  HTTP 404、`COMMON_003`。
+- 执行列表与详情查询前后，当前用户 `route_history` 行数均为 2，确认历史查询不重新规划、
+  不新增历史。
+- 验证结束后临时用户和路线历史均已清理，实库遗留数量为 0。
