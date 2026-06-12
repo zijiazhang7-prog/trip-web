@@ -1,31 +1,37 @@
 import type { PageResult } from './destination'
 
-/** 用 total、后端 pages、以及「本页是否满页」推算总页数，减轻后端 pages 字段不准导致的过早截断 */
+const MAX_PAGE_SIZE = 100
+
+function clampPageSize(pageSize: number): number {
+  if (!Number.isFinite(pageSize) || pageSize < 1) return 10
+  return Math.min(Math.floor(pageSize), MAX_PAGE_SIZE)
+}
+
+/** 用后端 pages / total 推算总页数，供无限滚动判断下一页 */
 export function inferTotalPages<T>(
   res: PageResult<T>,
   pageSize: number,
   fetchedPageNum: number,
 ): number {
-  const size = pageSize > 0 ? pageSize : 10
-  const total = Number(res.total)
-  const fromTotal =
-    Number.isFinite(total) && total > 0 ? Math.max(1, Math.ceil(total / size)) : 0
-
-  /**
-   * 当 total>0 时，真实页数不可能超过 ceil(total/size)。
-   * 旧逻辑把 fetchedPageNum、满页+(pageNum+1) 并入 max，会在后端反复返回满页时把 pages 推到数千，
-   * nextPage 永远不大于 infer 出的 pages → 目的地推荐接口被打爆。
-   */
-  if (fromTotal > 0) {
-    return Math.max(1, fromTotal)
+  const size = clampPageSize(pageSize)
+  const backendPages = Number(res.pages)
+  if (Number.isFinite(backendPages) && backendPages > 0) {
+    return Math.floor(backendPages)
   }
 
-  const fromBackend = Number(res.pages)
-  const backendPages =
-    Number.isFinite(fromBackend) && fromBackend > 0 ? Math.floor(fromBackend) : 0
-  const batchLen = (res.list ?? []).length
+  const total = Number(res.total)
+  if (Number.isFinite(total) && total > 0) {
+    return Math.max(1, Math.ceil(total / size))
+  }
 
-  let pages = Math.max(backendPages, fetchedPageNum)
+  const batchLen = (res.list ?? []).length
+  let pages = Math.max(1, fetchedPageNum)
   if (batchLen >= size) pages = Math.max(pages, fetchedPageNum + 1)
-  return Math.max(1, pages)
+  return pages
+}
+
+/** 景点推荐：按 id 合并后无新增则停止（兼容旧后端重复页） */
+export function shouldStopRecommendPagination(addedCount: number, batchLength: number): boolean {
+  if (batchLength === 0) return true
+  return addedCount === 0
 }

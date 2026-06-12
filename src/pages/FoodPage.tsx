@@ -35,16 +35,16 @@ const MAX_FOOD_WAVE = 24
 /** 仅首屏 runFoodFeed 内：浏览扫描最大步数 */
 const BROWSE_PUMP_MAX_ITERATIONS = 24
 /** 探测哪些 destinationId 上挂了美食（缩小范围减请求） */
-const FOOD_ANCHOR_PROBE_MAX = 80
+const FOOD_ANCHOR_PROBE_MAX = 120
 const FOOD_ANCHOR_CHUNK = 10
 const PROBE_CACHE_KEY = 'trip_food_anchor_ids_v1'
 const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1000
-/** 首屏只拉第 1 页，其余页后台预取 */
-const INITIAL_ANCHOR_PREFETCH_PAGES = 1
+/** 首屏预取页数（与后端 pageSize 联调） */
+const INITIAL_ANCHOR_PREFETCH_PAGES = 2
 /** 后台为锚点连续预取的上限页数 */
-const BACKGROUND_ANCHOR_PREFETCH_PAGES = 4
-/** 单次「加载更多」只为锚点目的地连续请求几页，填满瀑布流且不把接口打爆 */
-const ANCHOR_PAGES_PER_LOAD_MORE = 4
+const BACKGROUND_ANCHOR_PREFETCH_PAGES = 8
+/** 单次「加载更多」只为锚点目的地连续请求几页 */
+const ANCHOR_PAGES_PER_LOAD_MORE = 6
 
 async function probeFoodAnchoredDestinationIds(): Promise<number[]> {
   const found: number[] = []
@@ -218,18 +218,14 @@ export function FoodPage() {
           pages: res.pages,
         }
         const cap = inferTotalPages(pageEnvelope, res.pageSize || FOOD_PAGE_SIZE, next)
-        if (next > cap) {
+
+        if (res.list.length === 0 || next > cap) {
           anchorNextFoodPageRef.current.delete(id)
           continue outer
         }
 
-        if (res.list.length === 0) {
-          anchorNextFoodPageRef.current.delete(id)
-          continue outer
-        }
-
-        appendFoodVOs(res.list)
-        progressed = true
+        const added = appendFoodVOs(res.list)
+        if (added > 0) progressed = true
 
         const advanced = next + 1
         if (advanced > cap) {

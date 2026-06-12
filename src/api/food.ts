@@ -94,19 +94,33 @@ export type FetchRecommendedFoodsParams = {
   topK?: number
 }
 
+const FOOD_RECOMMEND_MAX_PAGE_SIZE = 100
+
+function foodRecommendPageSize(params: FetchRecommendedFoodsParams): number {
+  const raw = params.pageSize ?? 50
+  return Math.min(Math.max(Math.floor(raw), 1), FOOD_RECOMMEND_MAX_PAGE_SIZE)
+}
+
 export async function fetchRecommendedFoodsPage(
   destinationId: number,
   params: FetchRecommendedFoodsParams = {},
 ): Promise<NormalizedPage<FoodVO>> {
+  const pageNum = Math.max(1, Math.floor(params.pageNum ?? 1))
+  const pageSize = foodRecommendPageSize(params)
   const query = new URLSearchParams({
     destinationId: String(destinationId),
-    pageNum: String(params.pageNum ?? 1),
-    pageSize: String(params.pageSize ?? 50),
+    pageNum: String(pageNum),
+    pageSize: String(pageSize),
   })
   if (params.facilityId != null) query.set('facilityId', String(params.facilityId))
   if (params.foodType) query.set('foodType', params.foodType)
   query.set('sortBy', params.sortBy ?? 'heat')
-  if (typeof params.topK === 'number') query.set('topK', String(params.topK))
+
+  // 仅显式 topK（如 Top10）；常规列表走 pageNum + pageSize，与后端 recommend 分页对齐
+  if (typeof params.topK === 'number') {
+    query.set('topK', String(Math.min(Math.max(params.topK, 1), FOOD_RECOMMEND_MAX_PAGE_SIZE)))
+  }
+
   const raw = await httpRequest<unknown>(`/api/v1/foods/recommend?${query}`, { method: 'GET' })
   return coerceSpringPage<FoodVO>(raw)
 }

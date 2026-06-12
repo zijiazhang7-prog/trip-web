@@ -11,7 +11,7 @@ import { CommentSection } from '../components/ui/CommentSection'
 import { DetailOverlay } from '../components/ui/DetailOverlay'
 import { RatingPanel } from '../components/ui/RatingPanel'
 import { Top10Strip } from '../components/ui/Top10Strip'
-import { inferTotalPages } from '../api/pagination'
+import { inferTotalPages, shouldStopRecommendPagination } from '../api/pagination'
 import { useTripContext } from '../context/tripContext'
 import { TravelPreferences } from '../components/travel/TravelPreferences'
 import { PrimaryButton } from '../components/ui/PrimaryButton'
@@ -345,20 +345,13 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
 
       setItems(merged)
 
-      if (mapped.length === 0) {
-        setTotalPages((t) => Math.min(t, pageNum))
+      if (shouldStopRecommendPagination(added, mapped.length)) {
+        setTotalPages(pageNum)
         return
       }
 
       setPageNum(next)
-
-      /** 后端分页偶尔重复返回同一批 id：不能只依据「无新增」提前结束，必须以接口 total/pages 推算的总页为准 */
-      if (added === 0) {
-        setTotalPages((p) => Math.max(p, inferTotalPages(res, PAGE_SIZE, next)))
-        return
-      }
-
-      setTotalPages((p) => Math.max(p, inferTotalPages(res, PAGE_SIZE, next)))
+      setTotalPages(inferTotalPages(res, PAGE_SIZE, next))
     } catch {
       /* keep已有列表 */
     } finally {
