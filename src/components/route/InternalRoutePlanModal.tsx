@@ -110,9 +110,7 @@ function buildPreviewPathNodes(
   }
 
   if (ordered.length === 0) {
-    return nodes
-      .filter((n) => !isTechnicalNodeName(n.nodeName))
-      .map((n) => ({ nodeId: n.nodeId, nodeName: n.nodeName }))
+    return []
   }
 
   return ordered.map((id) => {
@@ -377,12 +375,6 @@ export function InternalRoutePlanModal({
               </select>
             </label>
 
-            {usedPlaceFallback ? (
-              <p className="text-xs text-amber-800">
-                节点坐标来自场所列表回退，地图以示意图展示；有精确坐标时将自动切换高德底图。
-              </p>
-            ) : null}
-
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
               <label className="block font-body text-sm">
                 <span className="mb-1 block text-[var(--ds-muted-foreground)]">起点</span>
@@ -543,7 +535,7 @@ export function InternalRoutePlanModal({
             ) : mapViewMode === 'road-graph' ? (
               <RoadGraphView
                 className="h-full min-h-[240px] rounded-[1.5rem]"
-                nodeCatalog={nodes}
+                nodeCatalog={scenicNodes}
                 catalogEdges={catalogEdges}
                 routePathNodes={mapPathNodes}
                 routePathEdges={result?.pathEdges}

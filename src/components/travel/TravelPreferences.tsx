@@ -199,12 +199,186 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
 
   const selectMode = (mode: 'single' | 'multi') => setNested((prev) => (prev === mode ? null : mode))
 
+  const showPreferencesPanel = useCallback(() => {
+    updatePanelPos()
+    setPanelOpen(true)
+  }, [updatePanelPos])
+
+  const togglePanel = useCallback(() => {
+    if (panelOpen) {
+      setPanelOpen(false)
+      return
+    }
+    showPreferencesPanel()
+  }, [panelOpen, showPreferencesPanel])
+
+  useEffect(() => {
+    if (openPanel) showPreferencesPanel()
+  }, [openPanel, showPreferencesPanel])
+
+  const panelLayer =
+    typeof document !== 'undefined'
+      ? createPortal(
+          <AnimatePresence initial={false}>
+            {panelOpen ? (
+              <>
+                <motion.button
+                  type="button"
+                  aria-label="关闭行程偏好"
+                  className="fixed inset-0 z-[1200] cursor-default bg-black/10 backdrop-blur-[1px]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setPanelOpen(false)}
+                />
+                <motion.div
+                  id="travel-preferences-panel"
+                  key="travel-preferences-panel"
+                  initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ duration: 0.24, ease: panelEase }}
+                  className="fixed z-[1210] max-h-[min(72vh,640px)] overflow-y-auto rounded-2xl border border-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)] bg-[color-mix(in_srgb,white_98%,var(--ds-background))] p-3 shadow-[0_24px_60px_-20px_rgba(42,107,78,0.35)] backdrop-blur-md sm:p-4"
+                  style={{ top: panelPos.top, left: panelPos.left, width: panelPos.width }}
+                >
+                  {loadingPrefs ? (
+                    <p className="mb-3 font-body text-xs text-[var(--ds-muted-foreground)]">正在加载已保存偏好…</p>
+                  ) : null}
+                  {saveError ? <InlineNotice variant="error">{saveError}</InlineNotice> : null}
+                  {saveMsg ? <InlineNotice variant="success">{saveMsg}</InlineNotice> : null}
+
+                  <motion.div layout className="grid gap-3 sm:grid-cols-2">
+                    <motion.button
+                      layout
+                      type="button"
+                      onClick={() => selectMode('single')}
+                      className={`cursor-target flex flex-col rounded-2xl border p-4 text-left transition ${
+                        nested === 'single'
+                          ? 'border-[color-mix(in_srgb,var(--ds-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--ds-primary)_8%,var(--ds-background))] ring-2 ring-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)]'
+                          : 'border-[color-mix(in_srgb,var(--ds-border)_55%,transparent)] bg-[color-mix(in_srgb,var(--ds-background)_90%,white)] hover:border-[color-mix(in_srgb,var(--ds-primary)_25%,transparent)]'
+                      }`}
+                    >
+                      <span className="font-display text-lg font-semibold text-[var(--ds-primary)]">单人出行</span>
+                      <span className="mt-1 font-body text-xs text-[var(--ds-muted-foreground)]">为自己勾选旅行气质</span>
+                    </motion.button>
+                    <motion.button
+                      layout
+                      type="button"
+                      onClick={() => selectMode('multi')}
+                      className={`cursor-target flex flex-col rounded-2xl border p-4 text-left transition ${
+                        nested === 'multi'
+                          ? 'border-[color-mix(in_srgb,var(--ds-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--ds-primary)_8%,var(--ds-background))] ring-2 ring-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)]'
+                          : 'border-[color-mix(in_srgb,var(--ds-border)_55%,transparent)] bg-[color-mix(in_srgb,var(--ds-background)_90%,white)] hover:border-[color-mix(in_srgb,var(--ds-primary)_25%,transparent)]'
+                      }`}
+                    >
+                      <span className="font-display text-lg font-semibold text-[var(--ds-primary)]">多人出行</span>
+                      <span className="mt-1 font-body text-xs text-[var(--ds-muted-foreground)]">
+                        最多 {MAX_TRAVELERS} 人，分别记录偏好
+                      </span>
+                    </motion.button>
+                  </motion.div>
+
+                  <AnimatePresence mode="sync">
+                    {nested === 'single' ? (
+                      <motion.div
+                        key="single"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-4 rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--ds-primary)_15%,transparent)] bg-[color-mix(in_srgb,var(--ds-background)_70%,white)] p-4">
+                          <p className="mb-3 font-body text-xs font-medium uppercase tracking-wide text-[var(--ds-muted-foreground)]">
+                            旅游偏好（多选）
+                          </p>
+                          <motion.div className="flex flex-wrap gap-2" variants={listVariants} initial="hidden" animate="show">
+                            {TRAVEL_PREFERENCE_TAGS.map((tag) => {
+                              const on = singleSelected.includes(tag)
+                              return (
+                                <motion.button
+                                  key={tag}
+                                  type="button"
+                                  variants={chipVariants}
+                                  onClick={() => toggleSingleTag(tag)}
+                                  className={`cursor-target rounded-full border px-3.5 py-1.5 font-body text-sm font-semibold transition ${
+                                    on
+                                      ? 'border-[var(--ds-primary)] bg-[var(--ds-primary)] text-[var(--ds-primary-foreground)]'
+                                      : 'border-[color-mix(in_srgb,var(--ds-primary)_15%,transparent)] bg-white/90 text-[var(--ds-primary)]'
+                                  }`}
+                                >
+                                  {tag}
+                                </motion.button>
+                              )
+                            })}
+                          </motion.div>
+                          {aiPreferenceField}
+                        </div>
+                      </motion.div>
+                    ) : null}
+
+                    {nested === 'multi' ? (
+                      <motion.div
+                        key="multi"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-4 grid gap-4 md:grid-cols-3">
+                          {TRAVELERS.map((person, idx) => (
+                            <div
+                              key={person.id}
+                              className="rounded-2xl border border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] bg-white/85 p-3 shadow-sm"
+                            >
+                              <div className="mb-2 font-display text-sm font-semibold text-[var(--ds-primary)]">
+                                {person.label}
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {TRAVEL_PREFERENCE_TAGS.map((tag) => {
+                                  const on = multiSelected[idx].includes(tag)
+                                  return (
+                                    <button
+                                      key={`${person.id}-${tag}`}
+                                      type="button"
+                                      onClick={() => toggleMultiTag(idx, tag)}
+                                      className={`cursor-target rounded-full border px-2.5 py-1 font-body text-xs font-semibold ${
+                                        on
+                                          ? 'border-[var(--ds-primary)] bg-[var(--ds-primary)] text-white'
+                                          : 'border-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)] text-[var(--ds-primary)]'
+                                      }`}
+                                    >
+                                      {tag}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {aiPreferenceField}
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+
+                  <div className="mt-4 flex justify-end border-t border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] pt-3">
+                    <PrimaryButton onClick={() => void savePreferences()} disabled={saving}>
+                      {saving ? '保存中…' : '保存偏好'}
+                    </PrimaryButton>
+                  </div>
+                </motion.div>
+              </>
+            ) : null}
+          </AnimatePresence>,
+          document.body,
+        )
+      : null
+
   return (
     <div className={`relative ${className}`}>
       <motion.button
         ref={triggerRef}
         type="button"
-        onClick={() => setPanelOpen((o) => !o)}
+        onClick={togglePanel}
         aria-expanded={panelOpen}
         aria-controls="travel-preferences-panel"
         className="cursor-target inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--ds-primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--ds-background)_92%,white)] px-5 text-sm font-semibold text-[var(--ds-primary)] shadow-[var(--ds-shadow-soft)] transition hover:border-[color-mix(in_srgb,var(--ds-primary)_35%,transparent)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-primary)]"
@@ -224,159 +398,7 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
         </motion.span>
       </motion.button>
 
-      <AnimatePresence initial={false}>
-        {panelOpen
-          ? createPortal(
-              <>
-                <motion.button
-                  type="button"
-                  aria-label="关闭行程偏好"
-                  className="fixed inset-0 z-[1200] cursor-default bg-black/10 backdrop-blur-[1px]"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setPanelOpen(false)}
-                />
-                <motion.div
-                  id="travel-preferences-panel"
-                  key="panel"
-                  initial={{ opacity: 0, y: -10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                  transition={{ duration: 0.24, ease: panelEase }}
-                  className="fixed z-[1210] max-h-[min(72vh,640px)] overflow-y-auto rounded-2xl border border-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)] bg-[color-mix(in_srgb,white_96%,var(--ds-background))] p-3 shadow-[0_24px_60px_-20px_rgba(42,107,78,0.35)] backdrop-blur-md sm:p-4"
-                  style={{ top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                >
-              {loadingPrefs ? (
-                <p className="mb-3 font-body text-xs text-[var(--ds-muted-foreground)]">正在加载已保存偏好…</p>
-              ) : null}
-              {saveError ? <InlineNotice variant="error">{saveError}</InlineNotice> : null}
-              {saveMsg ? <InlineNotice variant="success">{saveMsg}</InlineNotice> : null}
-
-              <motion.div layout className="grid gap-3 sm:grid-cols-2">
-                <motion.button
-                  layout
-                  type="button"
-                  onClick={() => selectMode('single')}
-                  className={`cursor-target flex flex-col rounded-2xl border p-4 text-left transition ${
-                    nested === 'single'
-                      ? 'border-[color-mix(in_srgb,var(--ds-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--ds-primary)_8%,var(--ds-background))] ring-2 ring-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)]'
-                      : 'border-[color-mix(in_srgb,var(--ds-border)_55%,transparent)] bg-[color-mix(in_srgb,var(--ds-background)_90%,white)] hover:border-[color-mix(in_srgb,var(--ds-primary)_25%,transparent)]'
-                  }`}
-                >
-                  <span className="font-display text-lg font-semibold text-[var(--ds-primary)]">单人出行</span>
-                  <span className="mt-1 font-body text-xs text-[var(--ds-muted-foreground)]">为自己勾选旅行气质</span>
-                </motion.button>
-                <motion.button
-                  layout
-                  type="button"
-                  onClick={() => selectMode('multi')}
-                  className={`cursor-target flex flex-col rounded-2xl border p-4 text-left transition ${
-                    nested === 'multi'
-                      ? 'border-[color-mix(in_srgb,var(--ds-primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--ds-primary)_8%,var(--ds-background))] ring-2 ring-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)]'
-                      : 'border-[color-mix(in_srgb,var(--ds-border)_55%,transparent)] bg-[color-mix(in_srgb,var(--ds-background)_90%,white)] hover:border-[color-mix(in_srgb,var(--ds-primary)_25%,transparent)]'
-                  }`}
-                >
-                  <span className="font-display text-lg font-semibold text-[var(--ds-primary)]">多人出行</span>
-                  <span className="mt-1 font-body text-xs text-[var(--ds-muted-foreground)]">
-                    最多 {MAX_TRAVELERS} 人，分别记录偏好
-                  </span>
-                </motion.button>
-              </motion.div>
-
-              <AnimatePresence mode="sync">
-                {nested === 'single' ? (
-                  <motion.div
-                    key="single"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-4 rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--ds-primary)_15%,transparent)] bg-[color-mix(in_srgb,var(--ds-background)_70%,white)] p-4">
-                      <p className="mb-3 font-body text-xs font-medium uppercase tracking-wide text-[var(--ds-muted-foreground)]">
-                        旅游偏好（多选）
-                      </p>
-                      <motion.div className="flex flex-wrap gap-2" variants={listVariants} initial="hidden" animate="show">
-                        {TRAVEL_PREFERENCE_TAGS.map((tag) => {
-                          const on = singleSelected.includes(tag)
-                          return (
-                            <motion.button
-                              key={tag}
-                              type="button"
-                              variants={chipVariants}
-                              onClick={() => toggleSingleTag(tag)}
-                              className={`cursor-target rounded-full border px-3.5 py-1.5 font-body text-sm font-semibold transition ${
-                                on
-                                  ? 'border-[var(--ds-primary)] bg-[var(--ds-primary)] text-[var(--ds-primary-foreground)]'
-                                  : 'border-[color-mix(in_srgb,var(--ds-primary)_15%,transparent)] bg-white/90 text-[var(--ds-primary)]'
-                              }`}
-                            >
-                              {tag}
-                            </motion.button>
-                          )
-                        })}
-                      </motion.div>
-                      {aiPreferenceField}
-                    </div>
-                  </motion.div>
-                ) : null}
-
-                {nested === 'multi' ? (
-                  <motion.div
-                    key="multi"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-4 grid gap-4 md:grid-cols-3">
-                      {TRAVELERS.map((person, idx) => (
-                        <div
-                          key={person.id}
-                          className="rounded-2xl border border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] bg-white/85 p-3 shadow-sm"
-                        >
-                          <div className="mb-2 font-display text-sm font-semibold text-[var(--ds-primary)]">
-                            {person.label}
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {TRAVEL_PREFERENCE_TAGS.map((tag) => {
-                              const on = multiSelected[idx].includes(tag)
-                              return (
-                                <button
-                                  key={`${person.id}-${tag}`}
-                                  type="button"
-                                  onClick={() => toggleMultiTag(idx, tag)}
-                                  className={`cursor-target rounded-full border px-2.5 py-1 font-body text-xs font-semibold ${
-                                    on
-                                      ? 'border-[var(--ds-primary)] bg-[var(--ds-primary)] text-white'
-                                      : 'border-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)] text-[var(--ds-primary)]'
-                                  }`}
-                                >
-                                  {tag}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {aiPreferenceField}
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-
-              <div className="mt-4 flex justify-end border-t border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] pt-3">
-                <PrimaryButton onClick={() => void savePreferences()} disabled={saving}>
-                  {saving ? '保存中…' : '保存偏好'}
-                </PrimaryButton>
-              </div>
-            </motion.div>
-              </>,
-              document.body,
-            )
-          : null}
-      </AnimatePresence>
+      {panelLayer}
     </div>
   )
 }

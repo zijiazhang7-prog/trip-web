@@ -131,6 +131,22 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
 
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.nodeId, n])), [nodes])
 
+  const scenicNodes = useMemo(
+    () => nodes.filter((n) => !/^OSM/i.test(n.nodeName?.trim() ?? '')),
+    [nodes],
+  )
+
+  const previewPathNodes = useMemo(() => {
+    if (routeResult?.pathNodes?.length) return routeResult.pathNodes
+    const ordered: number[] = []
+    if (startNodeId != null) ordered.push(startNodeId)
+    if (targetNodeId != null && targetNodeId !== startNodeId) ordered.push(targetNodeId)
+    return ordered.map((id) => ({
+      nodeId: id,
+      nodeName: nodeById.get(id)?.nodeName ?? `节点 ${id}`,
+    }))
+  }, [routeResult, startNodeId, targetNodeId, nodeById])
+
   const mapPolyline = useMemo(
     () => filterBeijingPolyline(previewPlan?.polyline ?? []),
     [previewPlan?.polyline],
@@ -294,9 +310,9 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
         {mapViewMode === 'road-graph' ? (
           <RoadGraphView
             className="h-full min-h-[min(48vh,420px)] rounded-xl"
-            nodeCatalog={nodes}
+            nodeCatalog={scenicNodes}
             catalogEdges={catalogEdges}
-            routePathNodes={routeResult?.pathNodes ?? []}
+            routePathNodes={previewPathNodes}
             routePathEdges={routeResult?.pathEdges}
             startNodeId={startNodeId}
             endNodeId={targetNodeId}
