@@ -37,6 +37,7 @@ import {
 } from '../data/siteData'
 import { isDemoDestination } from '../lib/destination/isDemoDestination'
 import { fetchAllDestinationsCatalog } from '../lib/catalog/fetchFullCatalog'
+import { displayHeatScore, recordClientView } from '../lib/heat/viewHeat'
 
 const glass =
   'ds-glass-panel rounded-[2rem] transition duration-500 hover:-translate-y-0.5 hover:shadow-[var(--ds-shadow-lift)]'
@@ -621,6 +622,20 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
 
   const detailDest = detailOpen ? (sortedDestinations[detailIndex] ?? null) : null
 
+  useEffect(() => {
+    if (!detailOpen) return
+    const dest = sortedDestinations[detailIndex]
+    if (!dest?.id) return
+    recordClientView('destination', dest.id)
+    const heat = displayHeatScore(dest.heatScore, 'destination', dest.id)
+    const price = `${heat} 热度`
+    const patch = (d: Destination) => (d.id === dest.id ? { ...d, price } : d)
+    setItems((prev) => prev.map(patch))
+    setHeatTop10((prev) => prev.map(patch))
+    if (catalogDestinations) setCatalogDestinations((prev) => prev?.map(patch) ?? null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在打开详情或切换条目时计浏览量
+  }, [detailOpen, detailIndex])
+
   return (
     <div className="relative z-[1] mx-auto max-w-7xl px-2 pb-16 pt-2 md:px-4 md:pb-20">
       <div className="group relative mb-12 min-h-[380px] overflow-hidden rounded-[28px] shadow-[0_40px_100px_-44px_rgba(18,55,42,0.5)] ring-1 ring-[color-mix(in_srgb,var(--ds-forest)_14%,transparent)] sm:min-h-[440px] md:min-h-[500px]">
@@ -663,8 +678,8 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
         </div>
       </div>
 
-      <div className={`mb-12 rounded-[28px] px-5 py-5 sm:px-7 sm:py-6 ${glass}`}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">
+      <div className={`relative mb-12 overflow-visible rounded-[28px] px-5 py-5 sm:px-7 sm:py-6 ${glass}`}>
+        <div className="relative flex flex-col gap-4 overflow-visible lg:flex-row lg:items-start lg:gap-5">
           <TravelPreferences
             key={openPreferences ? 'prefs-open' : 'prefs-default'}
             className="w-full max-w-full shrink-0 lg:w-auto lg:max-w-[min(100%,380px)]"

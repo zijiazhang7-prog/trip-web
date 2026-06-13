@@ -358,14 +358,13 @@ export function CommunityPage() {
     setDetailOpen(true)
     setSelectedPostId(id)
     setSelectedPost(cached)
-    if (cached?.fullText?.trim()) {
-      setDetailLoading(false)
-      return
-    }
     setDetailLoading(true)
     void fetchCommunityDiaryDetail(id)
       .then((detail) => {
         setSelectedPost(detail)
+        setPosts((prev) =>
+          prev.map((p) => (p.id === detail.id ? { ...p, likes: detail.likes, fullText: detail.fullText, videos: detail.videos, imgs: detail.imgs } : p)),
+        )
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : '加载详情失败')

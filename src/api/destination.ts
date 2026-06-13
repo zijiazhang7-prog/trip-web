@@ -47,6 +47,7 @@ export function destinationVOToDestination(vo: DestinationVO): Destination {
     reason: vo.description?.trim() || (vo.tags?.length ? vo.tags.join('、') : '点击查看目的地详情与玩法'),
     rating,
     price: heat != null ? `${heat} 热度` : '—',
+    heatScore: vo.heatScore,
     badge,
     type: destType ?? vo.category ?? vo.type ?? '目的地',
     image: normalizeAssetUrl(vo.coverUrl),
@@ -154,6 +155,10 @@ type DiaryListItem = {
   destinationName?: string
   contentText?: string
   heatScore?: number
+}
+
+export async function fetchDestinationDetail(id: number): Promise<DestinationVO> {
+  return httpRequest<DestinationVO>(`/api/v1/destinations/${id}`, { method: 'GET' })
 }
 
 export async function fetchDestinationDiariesPage(

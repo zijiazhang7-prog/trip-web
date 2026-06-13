@@ -22,6 +22,7 @@ import { Top10Strip } from '../components/ui/Top10Strip'
 import { BEIJING_ATTRACTIONS } from '../data/beijingDestinations'
 import { formatDistanceMeters, haversineMeters } from '../lib/geo/haversine'
 import { readSessionCache, writeSessionCache } from '../lib/sessionCache'
+import { displayHeatScore, recordClientView } from '../lib/heat/viewHeat'
 
 const glass =
   'rounded-[28px] border border-white/80 bg-white/65 shadow-[0_8px_32px_rgba(42,107,78,0.07)] backdrop-blur-xl'
@@ -131,6 +132,7 @@ export function FoodPage() {
   const nextDestPageRef = useRef(1)
   const destTotalPagesRef = useRef(Number.MAX_SAFE_INTEGER)
   const browseDestIdxRef = useRef(0)
+  const tagScrollRef = useRef<HTMLDivElement>(null)
   /** 对所有目的地统一尝试的第 N 页美食（景区目的地常无美食，要靠页码与并行扩大命中率） */
   const foodWavePageRef = useRef(1)
   /** 已通过 probe 发现挂了美食数据的目的地，分页由此单独承担，避免与浏览扫描逻辑打架 */
@@ -508,7 +510,8 @@ export function FoodPage() {
   }, [selectedFoodTag])
 
   const filteredFoods = useMemo(() => {
-    const pool = selectedFoodTag && tagCatalogFoods ? tagCatalogFoods : foods
+    const pool =
+      selectedFoodTag && tagCatalogFoods && tagCatalogFoods.length > 0 ? tagCatalogFoods : foods
     const filtered = pool.filter((f) => {
       const matchSearch =
         !foodSearch.trim() ||
@@ -611,15 +614,53 @@ export function FoodPage() {
     seenFoodKeysRef.current = new Set()
     setFoods([])
     const kw = keyword.trim()
+
+    const ensureFoodsLoaded = async (): Promise<boolean> => {
+      if (seenFoodKeysRef.current.size > 0) return true
+      try {
+        const catalog = await fetchAllFoodsCatalog()
+        if (catalog.length > 0) {
+          appendFoodVOs(catalog.slice(0, 80))
+          if (seenFoodKeysRef.current.size > 0) return true
+        }
+      } catch {
+        /* 继续走本地示例 */
+      }
+      if (seenFoodKeysRef.current.size === 0) {
+        for (const f of foodsFallback) {
+          const key = foodDedupeKey(f)
+          if (seenFoodKeysRef.current.has(key)) continue
+          seenFoodKeysRef.current.add(key)
+        }
+        setFoods(foodsFallback)
+        setUsingFallback(true)
+        return foodsFallback.length > 0
+      }
+      return true
+    }
+
     if (!kw) {
       setMode('browse')
       resetBrowseRefs()
       try {
         if (!scopeAll && scopeDestinationId) {
           initFoodAnchors([scopeDestinationId])
-          const progressed = await pumpIncrementalFoodBatch(FOOD_PAGE_SIZE)
-          setMoreAvailable(progressed)
-          setUsingFallback(false)
+          let progressed = await pumpIncrementalFoodBatch(FOOD_PAGE_SIZE)
+          if (!progressed) {
+            const anchored = await resolveFoodAnchorIds(DESTINATION_ID_SCAN_PAGES_INITIAL)
+            initFoodAnchors(anchored)
+            progressed =
+              (anchored.length > 0 ? await pumpIncrementalFoodBatch(FOOD_PAGE_SIZE) : false) ||
+              (await pumpBrowseBatch())
+          }
+          if (!progressed) await ensureFoodsLoaded()
+          setMoreAvailable(
+            progressed ||
+              anchorNextFoodPageRef.current.size > 0 ||
+              destIdsRef.current.length > 0 ||
+              seenFoodKeysRef.current.size > 0,
+          )
+          if (seenFoodKeysRef.current.size > 0) setUsingFallback(false)
           setLoadingInitial(false)
           return
         }
@@ -629,13 +670,23 @@ export function FoodPage() {
           cached?.length ? cached : await resolveFoodAnchorIds(DESTINATION_ID_SCAN_PAGES_INITIAL)
         initFoodAnchors(anchored)
 
-        const progressed =
+        let progressed =
           anchored.length > 0 ? await pumpIncrementalFoodBatch(FOOD_PAGE_SIZE) : await pumpBrowseBatch()
 
+        if (!progressed) {
+          progressed = await pumpBrowseBatch()
+        }
+        if (!progressed) {
+          await ensureFoodsLoaded()
+        }
+
         setMoreAvailable(
-          progressed || anchorNextFoodPageRef.current.size > 0 || destIdsRef.current.length > 0,
+          progressed ||
+            anchorNextFoodPageRef.current.size > 0 ||
+            destIdsRef.current.length > 0 ||
+            seenFoodKeysRef.current.size > 0,
         )
-        setUsingFallback(false)
+        if (seenFoodKeysRef.current.size > 0) setUsingFallback(false)
         setLoadingInitial(false)
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载失败')
@@ -689,6 +740,34 @@ export function FoodPage() {
 
   const detailFood = filteredFoods[detailIndex] ?? null
 
+  useEffect(() => {
+    if (!detailOpen) return
+    const food = filteredFoods[detailIndex]
+    if (!food?.id) return
+    recordClientView('food', food.id)
+    const heat = displayHeatScore(food.heatScore, 'food', food.id)
+    setFoods((prev) =>
+      prev.map((f) => (f.id === food.id ? { ...f, distance: `${heat} 热度` } : f)),
+    )
+    setFoodTop10((prev) =>
+      prev.map((f) => (f.id === food.id ? { ...f, distance: `${heat} 热度` } : f)),
+    )
+    if (tagCatalogFoods) {
+      setTagCatalogFoods((prev) =>
+        prev?.map((f) => (f.id === food.id ? { ...f, distance: `${heat} 热度` } : f)) ?? null,
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在打开详情或切换条目时计浏览量
+  }, [detailOpen, detailIndex])
+
+  const handleAsideWheel = useCallback((e: React.WheelEvent<HTMLElement>) => {
+    const el = tagScrollRef.current
+    if (!el || el.scrollHeight <= el.clientHeight) return
+    el.scrollTop += e.deltaY
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
   const showLoadSentinel = !usingFallback && !loadingInitial && moreAvailable && !selectedFoodTag
 
   return (
@@ -723,8 +802,11 @@ export function FoodPage() {
       </header>
 
       <div className="grid gap-10 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-24 lg:self-start">
-          <div className={`p-7 ${glass}`}>
+        <aside
+          className="lg:sticky lg:top-20 lg:z-[2] lg:max-h-[calc(100dvh-6.5rem)] lg:self-start"
+          onWheel={handleAsideWheel}
+        >
+          <div className={`flex max-h-[calc(100dvh-6.5rem)] flex-col p-6 pb-8 ${glass}`}>
             <h3 className={sidebarTitle}>搜索美食</h3>
             <input
               value={foodSearch}
@@ -741,7 +823,7 @@ export function FoodPage() {
               {foodSearch.trim() ? '关键词检索' : '刷新推荐'}
             </button>
             <p className="mb-2 font-body text-xs font-semibold text-[var(--ds-muted-foreground)]">排序</p>
-            <div className="mb-7 flex flex-wrap gap-2">
+            <div className="mb-5 flex flex-wrap gap-2">
               {(
                 [
                   { value: 'heat', label: '热度' },
@@ -781,8 +863,12 @@ export function FoodPage() {
                 }))}
               />
             ) : null}
-            <h3 className={sidebarTitle}>菜系标签</h3>
-            <div className="max-h-[min(52vh,440px)] overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
+            <h3 className={`${sidebarTitle} mt-1`}>菜系标签</h3>
+            <div
+              ref={tagScrollRef}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6 pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]"
+              style={{ maxHeight: 'min(42dvh, 380px)' }}
+            >
             <div className="flex flex-col gap-2.5">
               {activeFoodTags.map((t) => {
                 const on = selectedFoodTag === t

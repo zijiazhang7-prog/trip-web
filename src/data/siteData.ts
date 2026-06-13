@@ -17,6 +17,8 @@ export type Destination = {
   reason: string
   rating: number
   price: string
+  /** 后端热度（浏览量基数） */
+  heatScore?: number
   badge: string
   type: string
   image: string

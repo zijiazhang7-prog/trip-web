@@ -150,11 +150,6 @@ export function BuildingIndoorNavPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="font-body text-sm leading-relaxed text-[var(--ds-muted-foreground)]">
-        使用高德官方室内地图（<strong className="text-[var(--ds-foreground)]">{MALL.name}</strong>，
-        POI <code className="text-xs">{MALL.indoorPoiId}</code>）：展示真实商场楼层与商铺，步行路线由高德路径规划生成。
-      </p>
-
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,34%)]">
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">

@@ -56,6 +56,34 @@ export type MapNodesResult = {
   usedPlaceFallback: boolean
 }
 
+export type MapCatalogEdge = {
+  fromNodeId: number
+  toNodeId: number
+  distance?: number | string
+  bidirectional?: boolean
+}
+
+/** 景点内道路图全部边（公开接口；失败时返回空数组） */
+export async function fetchDestinationMapEdges(destinationId: number): Promise<MapCatalogEdge[]> {
+  try {
+    const raw = await httpRequest<MapCatalogEdge[] | { list?: MapCatalogEdge[] }>(
+      `/api/v1/destinations/${destinationId}/map-edges`,
+      { method: 'GET' },
+    )
+    const list = Array.isArray(raw) ? raw : (raw.list ?? [])
+    return list
+      .map((e) => ({
+        fromNodeId: Number(e.fromNodeId),
+        toNodeId: Number(e.toNodeId),
+        distance: e.distance,
+        bidirectional: e.bidirectional,
+      }))
+      .filter((e) => Number.isFinite(e.fromNodeId) && Number.isFinite(e.toNodeId))
+  } catch {
+    return []
+  }
+}
+
 /** 优先尝试公开 map-nodes；否则用场所列表作为节点候选（nodeId 取 place.id）。 */
 export async function fetchDestinationMapNodes(destinationId: number): Promise<MapNodesResult> {
   try {

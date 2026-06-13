@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { fetchNearbyFacilities, searchFacilities, type NearbyFacilityVO } from '../api/facility'
 import { AmapNavigateMap } from '../components/route/AmapNavigateMap'
+import { MapViewModeToggle, type MapViewMode } from '../components/route/MapViewModeToggle'
+import { RoadGraphView } from '../components/route/RoadGraphView'
 import { RouteTimelinePanel } from '../components/route/RouteTimelinePanel'
 import { GlassPanel } from '../components/ui/GlassPanel'
 import { InlineNotice } from '../components/ui/InlineNotice'
@@ -9,6 +11,7 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { RouteErrorBoundary } from '../components/ui/RouteErrorBoundary'
 import { useRoutePlan } from '../context/routePlanContext'
 import { resolveSourceNodeId } from '../lib/route/resolveNode'
+import { macroPlanToRoadGraph } from '../lib/route/macroPlanToRoadGraph'
 import { fetchAroundPois, type NearbyPoiResult } from '../lib/amap/webService'
 import { hasAmapWebKey } from '../lib/amap/config'
 
@@ -73,6 +76,12 @@ function NavigatePageContent() {
   const [facilities, setFacilities] = useState<FacilityRow[]>([])
   const [loadingFac, setLoadingFac] = useState(false)
   const [facError, setFacError] = useState<string | null>(null)
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('route')
+
+  const roadGraph = useMemo(
+    () => (macroPlan ? macroPlanToRoadGraph(macroPlan) : null),
+    [macroPlan],
+  )
 
   const focusWaypoint = activeWaypoint ?? macroPlan?.waypoints?.[0] ?? null
 
@@ -262,10 +271,6 @@ function NavigatePageContent() {
             placeholder="按名称或类别筛选…"
             className="mt-2 w-full rounded-full border border-[color-mix(in_srgb,var(--ds-border)_70%,transparent)] bg-white px-4 py-2 font-body text-sm"
           />
-          <p className="mt-1 font-body text-[10px] text-[var(--ds-muted-foreground)]">
-            有关键字或类型筛选时优先走后端 facilities/search；否则使用图上 nearby
-          </p>
-
           {facError && !loadingFac ? (
             <p className="mt-3 font-body text-xs text-[var(--ds-destructive)]">{facError}</p>
           ) : null}
@@ -289,13 +294,28 @@ function NavigatePageContent() {
         </GlassPanel>
 
         {macroPlan ? (
-          <AmapNavigateMap
-            key={`nav-${activeLegIndex}-${focusWaypoint?.id}`}
-            className="min-h-[360px]"
-            plan={macroPlan}
-            activeWaypoint={focusWaypoint}
-            activeLegIndex={activeLegIndex}
-          />
+          <div className="flex min-h-[360px] flex-col gap-2">
+            <div className="flex justify-end">
+              <MapViewModeToggle mode={mapViewMode} onChange={setMapViewMode} />
+            </div>
+            {mapViewMode === 'road-graph' && roadGraph ? (
+              <RoadGraphView
+                className="min-h-[360px] flex-1 rounded-[2rem]"
+                nodeCatalog={roadGraph.nodeCatalog}
+                routePathNodes={roadGraph.pathNodes}
+                startNodeId={roadGraph.pathNodes[0]?.nodeId}
+                endNodeId={roadGraph.pathNodes[roadGraph.pathNodes.length - 1]?.nodeId}
+              />
+            ) : (
+              <AmapNavigateMap
+                key={`nav-${activeLegIndex}-${focusWaypoint?.id}`}
+                className="min-h-[360px] flex-1"
+                plan={macroPlan}
+                activeWaypoint={focusWaypoint}
+                activeLegIndex={activeLegIndex}
+              />
+            )}
+          </div>
         ) : (
           <div className="flex min-h-[360px] items-center justify-center rounded-[2rem] border border-dashed border-[color-mix(in_srgb,var(--ds-border)_50%,transparent)] bg-white/60 font-body text-sm text-[var(--ds-muted-foreground)]">
             地图将在生成路线后显示

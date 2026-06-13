@@ -4,43 +4,43 @@ import { parseHandAccountLayout } from '../../features/diary/handAccountLayout'
 import { parseHandAccountMeta, stripHandAccountMachineLines } from '../../features/diary/publish'
 import type { DiaryLayoutStickerLayer, DiaryLayoutTextLayer } from '../../features/diary/types'
 
-const PAGE_SPLIT_MARK = '\n\n---PAGE_BREAK---\n\n'
-
-type SpreadPage = {
-  left: string
-  right: string
-  title: string
+type HandAccountBookViewerProps = {
+  post: CommunityFeedItem
 }
 
-function splitBodyPages(fullText: string, entryTitle: string): SpreadPage[] {
-  const body = stripHandAccountMachineLines(fullText)
-  if (!body) {
-    return [{ left: '（空白页）', right: '', title: entryTitle }]
-  }
-  if (body.includes(PAGE_SPLIT_MARK)) {
-    const [left, right] = body.split(PAGE_SPLIT_MARK)
-    return [{ left: left?.trim() || '', right: right?.trim() || '', title: entryTitle }]
-  }
-  const chunks = body.split(/\n\n+/).filter(Boolean)
-  if (chunks.length <= 2) {
-    return [{ left: chunks[0] ?? '', right: chunks[1] ?? '', title: entryTitle }]
-  }
-  const spreads: SpreadPage[] = []
-  for (let i = 0; i < chunks.length; i += 2) {
-    spreads.push({
-      left: chunks[i] ?? '',
-      right: chunks[i + 1] ?? '',
-      title: i === 0 ? entryTitle : `${entryTitle} · 续 ${Math.floor(i / 2) + 1}`,
-    })
-  }
-  return spreads
-}
-
-function resolveMediaUrl(url: string, imgs: string[]): string {
+function toAbsoluteMediaUrl(url: string): string {
   if (!url) return ''
-  if (url.startsWith('http') || url.startsWith('/files/') || url.startsWith('data:')) return url
-  const hit = imgs.find((img) => img.includes(url.split('/').pop() ?? '___'))
-  return hit ?? url
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url
+  }
+  if (typeof window !== 'undefined' && url.startsWith('/')) {
+    return `${window.location.origin}${url}`
+  }
+  return url
+}
+
+function resolveMediaUrl(
+  url: string,
+  imgs: string[],
+  videos: string[] = [],
+  kind?: DiaryLayoutStickerLayer['kind'],
+): string {
+  if (!url) {
+    if (kind === 'video') return toAbsoluteMediaUrl(videos[0] ?? '')
+    return toAbsoluteMediaUrl(imgs[0] ?? '')
+  }
+  if (url.startsWith('http') || url.startsWith('/files/') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return toAbsoluteMediaUrl(url)
+  }
+  if (url.startsWith('/')) return toAbsoluteMediaUrl(url)
+  const tail = url.split('/').pop() ?? ''
+  if (kind === 'video' || url.includes('.mp4') || url.includes('.webm') || url.includes('.mov')) {
+    const videoHit =
+      videos.find((v) => v.includes(tail) || tail.includes(v.split('/').pop() ?? '___')) ?? videos[0]
+    if (videoHit) return toAbsoluteMediaUrl(videoHit)
+  }
+  const imgHit = imgs.find((img) => img.includes(tail))
+  return toAbsoluteMediaUrl(imgHit ?? url)
 }
 
 function ReadonlyTextLayer({ layer }: { layer: DiaryLayoutTextLayer }) {
@@ -67,13 +67,15 @@ function ReadonlyTextLayer({ layer }: { layer: DiaryLayoutTextLayer }) {
 function ReadonlyStickerLayer({
   sticker,
   imgs,
+  videos,
 }: {
   sticker: DiaryLayoutStickerLayer
   imgs: string[]
+  videos: string[]
 }) {
   const baseSize = sticker.kind === 'video' ? 120 : 80
   const box = baseSize * sticker.scale
-  const src = resolveMediaUrl(sticker.url, imgs)
+  const src = resolveMediaUrl(sticker.url, imgs, videos, sticker.kind)
   return (
     <div
       className="pointer-events-none absolute"
@@ -88,16 +90,12 @@ function ReadonlyStickerLayer({
       }}
     >
       {sticker.kind === 'video' ? (
-        <video src={src} className="h-full w-full object-contain" controls playsInline />
+        <video src={src} className="h-full w-full object-contain" controls playsInline preload="metadata" />
       ) : (
         <img src={src} alt="" className="h-full w-full object-contain" loading="lazy" />
       )}
     </div>
   )
-}
-
-type HandAccountBookViewerProps = {
-  post: CommunityFeedItem
 }
 
 export function HandAccountBookViewer({ post }: HandAccountBookViewerProps) {
@@ -107,29 +105,24 @@ export function HandAccountBookViewer({ post }: HandAccountBookViewerProps) {
   const bookTitle = meta?.bookTitle || post.title || post.bookTitle || '手账'
   const entryTitle = meta?.entryTitle || post.location || '旅程'
   const paperUrl = layout?.paperUrl
-
-  const spreads = useMemo(
-    () => splitBodyPages(post.fullText || post.excerpt, entryTitle),
-    [post.fullText, post.excerpt, entryTitle],
-  )
+  const videos = post.videos ?? []
+  const imgs = post.imgs ?? []
 
   const [bookOpened, setBookOpened] = useState(false)
-  const [pageIndex, setPageIndex] = useState(0)
 
-  const current = spreads[pageIndex] ?? spreads[0]
+  const pageStyle = useMemo(
+    () =>
+      ({
+        backgroundImage: paperUrl
+          ? `linear-gradient(rgba(255,255,255,0.2),rgba(255,255,255,0.24)), url('${paperUrl}')`
+          : undefined,
+        backgroundSize: paperUrl ? 'cover, cover' : undefined,
+        backgroundPosition: 'center',
+      }) as const,
+    [paperUrl],
+  )
 
-  const flip = (dir: -1 | 1) => {
-    setPageIndex((i) => Math.max(0, Math.min(spreads.length - 1, i + dir)))
-  }
-
-  const pageStyle = () =>
-    ({
-      backgroundImage: paperUrl
-        ? `linear-gradient(rgba(255,255,255,0.2),rgba(255,255,255,0.24)), url('${paperUrl}')`
-        : undefined,
-      backgroundSize: paperUrl ? 'cover, cover' : undefined,
-      backgroundPosition: 'center',
-    }) as const
+  const legacyBody = useMemo(() => stripHandAccountMachineLines(post.fullText || post.excerpt), [post.fullText, post.excerpt])
 
   if (!bookOpened) {
     return (
@@ -150,11 +143,14 @@ export function HandAccountBookViewer({ post }: HandAccountBookViewerProps) {
             <p className="font-display text-xl font-semibold text-white">{bookTitle}</p>
             <p className="mt-1 text-sm text-white/85">点击翻开手账</p>
           </div>
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-6 rounded-l-[20px] bg-gradient-to-r from-[color-mix(in_srgb,var(--ds-forest)_28%,transparent)] to-transparent" />
         </button>
       </div>
     )
   }
+
+  const hasLayout =
+    layout &&
+    (layout.textLayers.length > 0 || layout.stickerLayers.length > 0 || Boolean(layout.paperUrl))
 
   return (
     <div className="flex min-h-[min(72vh,820px)] flex-col items-center justify-center py-2">
@@ -166,31 +162,12 @@ export function HandAccountBookViewer({ post }: HandAccountBookViewerProps) {
           <button
             type="button"
             className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_48%,transparent)] bg-white/90 px-2.5 py-1 text-[11px]"
-            onClick={() => flip(-1)}
-            disabled={pageIndex <= 0}
-          >
-            上一页
-          </button>
-          <button
-            type="button"
-            className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_48%,transparent)] bg-white/90 px-2.5 py-1 text-[11px]"
-            onClick={() => flip(1)}
-            disabled={pageIndex >= spreads.length - 1}
-          >
-            下一页
-          </button>
-          <button
-            type="button"
-            className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_48%,transparent)] bg-white/90 px-2.5 py-1 text-[11px]"
-            onClick={() => {
-              setBookOpened(false)
-              setPageIndex(0)
-            }}
+            onClick={() => setBookOpened(false)}
           >
             合上
           </button>
           <span className="rounded-full border border-[color-mix(in_srgb,var(--ds-border)_40%,transparent)] bg-white/85 px-2.5 py-1 text-[11px] text-[var(--ds-muted-foreground)]">
-            第 {pageIndex + 1} / {spreads.length} 页
+            {entryTitle}
           </span>
         </div>
 
@@ -199,35 +176,34 @@ export function HandAccountBookViewer({ post }: HandAccountBookViewerProps) {
           <div className="pointer-events-none absolute left-1/2 top-10 z-30 h-[12%] w-2 -translate-x-1/2 rounded-b bg-gradient-to-b from-[var(--ds-moss)] to-[var(--ds-forest)]" />
 
           <div
-            className="relative overflow-hidden rounded-[18px] border border-[color-mix(in_srgb,var(--ds-border)_38%,transparent)] bg-white/76 p-5 shadow-[inset_-8px_0_16px_rgba(141,177,198,0.18)]"
-            style={pageStyle()}
-          >
-            {current?.left ? (
-              <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-[var(--ds-foreground)]">
-                {current.left}
-              </p>
-            ) : (
-              <p className="text-sm text-[var(--ds-muted-foreground)]">—</p>
-            )}
-          </div>
-
+            className="relative overflow-hidden rounded-[18px] border border-[color-mix(in_srgb,var(--ds-border)_38%,transparent)] bg-white/76 shadow-[inset_-8px_0_16px_rgba(141,177,198,0.18)]"
+            style={pageStyle}
+          />
           <div
-            className="relative min-h-[280px] overflow-hidden rounded-[18px] border border-[color-mix(in_srgb,var(--ds-border)_42%,transparent)] bg-white/78 p-5 shadow-[inset_8px_0_16px_rgba(141,177,198,0.2)]"
-            style={pageStyle()}
-          >
-            <p className="font-display text-lg font-semibold text-[var(--ds-foreground)]">{current?.title}</p>
-            {current?.right ? (
-              <p className="mt-3 whitespace-pre-wrap font-body text-sm leading-relaxed text-[var(--ds-muted-foreground)]">
-                {current.right}
-              </p>
-            ) : null}
+            className="relative overflow-hidden rounded-[18px] border border-[color-mix(in_srgb,var(--ds-border)_42%,transparent)] bg-white/78 shadow-[inset_8px_0_16px_rgba(141,177,198,0.2)]"
+            style={pageStyle}
+          />
 
-            {layout?.textLayers.map((layer) => (
-              <ReadonlyTextLayer key={layer.id} layer={layer} />
-            ))}
-            {layout?.stickerLayers.map((sticker) => (
-              <ReadonlyStickerLayer key={sticker.id} sticker={sticker} imgs={post.imgs} />
-            ))}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-10 z-10">
+            {hasLayout ? (
+              <>
+                {layout.textLayers.map((layer) => (
+                  <ReadonlyTextLayer key={layer.id} layer={layer} />
+                ))}
+                {layout.stickerLayers.map((sticker) => (
+                  <ReadonlyStickerLayer key={sticker.id} sticker={sticker} imgs={imgs} videos={videos} />
+                ))}
+              </>
+            ) : (
+              <div className="grid h-full grid-cols-2 gap-2 px-5 py-4">
+                <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-[var(--ds-foreground)]">
+                  {legacyBody || '（空白页）'}
+                </p>
+                <div>
+                  <p className="font-display text-lg font-semibold text-[var(--ds-foreground)]">{entryTitle}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

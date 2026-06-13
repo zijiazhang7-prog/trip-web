@@ -1,28 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ensureNodeGpsCoords,
+  fetchDestinationMapEdges,
   fetchDestinationMapNodes,
   quickDisplayGpsCoords,
+  type MapCatalogEdge,
   type MapNodeOption,
 } from '../../api/mapNode'
 import {
-  planMultiRoute,
-  planSingleRoute,
-  toBackendTransport,
   type PathNodeResult,
   type RoutePlanVO,
   type RouteStrategyType,
   type RouteTransportType,
 } from '../../api/route'
 import { hasStoredToken } from '../../api/http'
-import { macroPlanFromRoutePlanVO } from '../../lib/route/backendRoutePlan'
 import { isBeijingAreaCoord } from '../../lib/geo/beijingCoord'
 import { resolveDestinationCoords } from '../../lib/geo/resolveCoords'
-import {
-  buildInternalWalkingPolyline,
-  filterBeijingPolyline,
-} from '../../lib/route/internalRoutePolyline'
+import { filterBeijingPolyline } from '../../lib/route/internalRoutePolyline'
+import { executeInternalRoutePlan } from '../../lib/route/planInternalRoute'
+import { resolveDefaultStartNode, resolveDefaultTargetNode } from '../../lib/route/resolveStartNode'
 import { AmapMapView } from './AmapMapView'
+import { MapViewModeToggle, type MapViewMode } from './MapViewModeToggle'
+import { RoadGraphView } from './RoadGraphView'
 import type { MacroRoutePlan, RouteWaypoint } from '../../types/macroRoute'
 
 const STRATEGIES: { value: RouteStrategyType; label: string }[] = [
@@ -139,6 +137,7 @@ export function InternalRoutePlanModal({
 
   const [destinationId, setDestinationId] = useState<number | null>(null)
   const [nodes, setNodes] = useState<MapNodeOption[]>([])
+  const [catalogEdges, setCatalogEdges] = useState<MapCatalogEdge[]>([])
   const [usedPlaceFallback, setUsedPlaceFallback] = useState(false)
   const [loadingNodes, setLoadingNodes] = useState(false)
   const [startNodeId, setStartNodeId] = useState<number | null>(null)
@@ -151,6 +150,7 @@ export function InternalRoutePlanModal({
   const [result, setResult] = useState<RoutePlanVO | null>(null)
   const [previewPlan, setPreviewPlan] = useState<MacroRoutePlan | null>(null)
   const [scenicCenter, setScenicCenter] = useState<[number, number]>(UNIVERSAL_STUDIOS_CENTER)
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('route')
   const [mapMounted, setMapMounted] = useState(false)
 
   const activeDestination = useMemo(
@@ -209,15 +209,21 @@ export function InternalRoutePlanModal({
     setError(null)
     void (async () => {
       try {
-        const res = await fetchDestinationMapNodes(destinationId)
+        const [res, edges] = await Promise.all([
+          fetchDestinationMapNodes(destinationId),
+          fetchDestinationMapEdges(destinationId),
+        ])
         if (cancelled) return
         const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
         const displayNodes = quickDisplayGpsCoords(res.nodes, center)
         setNodes(displayNodes)
+        setCatalogEdges(edges)
         setUsedPlaceFallback(res.usedPlaceFallback)
         const pick = displayNodes.filter((n) => !isTechnicalNodeName(n.nodeName))
-        setStartNodeId(pick[0]?.nodeId ?? displayNodes[0]?.nodeId ?? null)
-        setTargetNodeIds(pick.length > 1 ? [pick[1].nodeId] : [])
+        const defaultStart = resolveDefaultStartNode(pick.length ? pick : displayNodes)
+        const defaultTarget = resolveDefaultTargetNode(pick.length ? pick : displayNodes, defaultStart)
+        setStartNodeId(defaultStart)
+        setTargetNodeIds(defaultTarget != null ? [defaultTarget] : [])
       } catch (err) {
         if (!cancelled) {
           setNodes([])
@@ -290,71 +296,21 @@ export function InternalRoutePlanModal({
     setPlanning(true)
     setError(null)
     try {
-      const backendTransport = toBackendTransport(transport)
-      let vo: RoutePlanVO
-      if (targetNodeIds.length <= 1) {
-        const target = targetNodeIds[0] ?? startNodeId
-        vo = await planSingleRoute({
-          destinationId,
-          startNodeId,
-          targetNodeId: target,
-          strategyType: strategy,
-          transportType: transport,
-        })
-      } else {
-        vo = await planMultiRoute({
-          destinationId,
-          startNodeId,
-          targetNodeIds,
-          strategyType: strategy,
-          transportType: transport,
-          returnToStart,
-        })
-      }
+      const activeDestination = destinationOptions.find((wp) => wp.destinationId === destinationId)
+      const { vo, macro } = await executeInternalRoutePlan({
+        destinationId,
+        startNodeId,
+        targetNodeIds,
+        returnToStart,
+        strategy,
+        transport,
+        nodeById,
+        scenicCenter,
+        destinationName: activeDestination?.name,
+        usedPlaceFallback,
+        buildVisitSequence,
+      })
       setResult(vo)
-      const visitIds = buildVisitSequence(vo, startNodeId, targetNodeIds, returnToStart)
-      const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
-      const routeWaypoints: RouteWaypoint[] = []
-      for (let i = 0; i < visitIds.length; i++) {
-        const id = visitIds[i]
-        const raw = nodeById.get(id)
-        if (!raw) continue
-        const resolved = await ensureNodeGpsCoords(
-          raw,
-          activeDestination?.name,
-          center,
-          i,
-          visitIds.length,
-        )
-        routeWaypoints.push({
-          id: resolved.nodeId,
-          name: resolved.nodeName,
-          lng: resolved.lng,
-          lat: resolved.lat,
-          destinationId,
-        })
-      }
-
-      const macroBase = macroPlanFromRoutePlanVO({ ...vo, transportType: backendTransport }, nodeById)
-      const mergedPolyline: [number, number][] = []
-      for (let i = 0; i < routeWaypoints.length - 1; i++) {
-        const seg = await buildInternalWalkingPolyline(
-          routeWaypoints[i],
-          routeWaypoints[i + 1],
-          macroBase.transportMode,
-        )
-        if (seg.length >= 2) {
-          if (mergedPolyline.length) mergedPolyline.push(...seg.slice(1))
-          else mergedPolyline.push(...seg)
-        }
-      }
-
-      const macro: MacroRoutePlan = {
-        ...macroBase,
-        waypoints: routeWaypoints,
-        polyline: filterBeijingPolyline(mergedPolyline),
-        summary: `景区内部 · ${visitIds.length} 站 · 约 ${vo.estimatedTime} 分钟`,
-      }
       setPreviewPlan(macro)
     } catch (err) {
       setError(err instanceof Error ? err.message : '内部路线规划失败')
@@ -561,13 +517,18 @@ export function InternalRoutePlanModal({
             <p className="font-body text-sm font-semibold text-[var(--ds-foreground)]">
               {hasPlannedRoute ? '规划路线预览' : '景区节点分布'}
             </p>
-            <p className="font-body text-xs text-[var(--ds-muted-foreground)]">
-              {loadingNodes
-                ? '加载节点…'
-                : hasPlannedRoute
-                  ? '已贴合道路图路径'
-                  : '选择起点与途经点后生成路线'}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <MapViewModeToggle mode={mapViewMode} onChange={setMapViewMode} />
+              <p className="font-body text-xs text-[var(--ds-muted-foreground)]">
+                {loadingNodes
+                  ? '加载节点…'
+                  : hasPlannedRoute
+                    ? usedPlaceFallback
+                      ? '本地道路图规划'
+                      : '已贴合道路图路径'
+                    : '选择起点与途经点后生成路线'}
+              </p>
+            </div>
           </div>
 
           <div className="relative min-h-0 flex-1">
@@ -579,6 +540,16 @@ export function InternalRoutePlanModal({
               <div className="flex h-full min-h-[240px] items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--ds-border)] bg-white/80 px-6 text-center font-body text-sm text-[var(--ds-muted-foreground)]">
                 请先选择带编号的目的地，地图将展示景区内节点位置
               </div>
+            ) : mapViewMode === 'road-graph' ? (
+              <RoadGraphView
+                className="h-full min-h-[240px] rounded-[1.5rem]"
+                nodeCatalog={nodes}
+                catalogEdges={catalogEdges}
+                routePathNodes={mapPathNodes}
+                routePathEdges={result?.pathEdges}
+                startNodeId={startNodeId}
+                endNodeId={targetNodeIds[targetNodeIds.length - 1] ?? startNodeId}
+              />
             ) : mapMounted ? (
               <AmapMapView
                 key={`internal-map-${destinationId ?? 'none'}`}

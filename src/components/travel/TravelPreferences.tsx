@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   fetchMyPreferences,
   interestTagsToThemeList,
@@ -68,6 +69,28 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
   const [saving, setSaving] = useState(false)
   const [loadingPrefs, setLoadingPrefs] = useState(false)
   const [customAiText, setCustomAiText] = useState('')
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0, width: 420 })
+
+  const updatePanelPos = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const width = Math.min(420, window.innerWidth - 16)
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))
+    setPanelPos({ top: rect.bottom + 8, left, width })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!panelOpen) return undefined
+    updatePanelPos()
+    window.addEventListener('resize', updatePanelPos)
+    window.addEventListener('scroll', updatePanelPos, true)
+    return () => {
+      window.removeEventListener('resize', updatePanelPos)
+      window.removeEventListener('scroll', updatePanelPos, true)
+    }
+  }, [panelOpen, updatePanelPos])
 
   useEffect(() => {
     let cancelled = false
@@ -177,10 +200,10 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
   const selectMode = (mode: 'single' | 'multi') => setNested((prev) => (prev === mode ? null : mode))
 
   return (
-    <div className={`relative z-[2] flex flex-col ${className}`}>
+    <div className={`relative ${className}`}>
       <motion.button
+        ref={triggerRef}
         type="button"
-        layout
         onClick={() => setPanelOpen((o) => !o)}
         aria-expanded={panelOpen}
         aria-controls="travel-preferences-panel"
@@ -202,17 +225,28 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
       </motion.button>
 
       <AnimatePresence initial={false}>
-        {panelOpen ? (
-          <motion.div
-            id="travel-preferences-panel"
-            key="panel"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.38, ease: panelEase }}
-            className="overflow-hidden"
-          >
-            <div className="mt-3 rounded-2xl border border-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)] bg-[color-mix(in_srgb,white_85%,var(--ds-background))] p-3 shadow-[var(--ds-shadow-soft)] backdrop-blur-md sm:p-4">
+        {panelOpen
+          ? createPortal(
+              <>
+                <motion.button
+                  type="button"
+                  aria-label="关闭行程偏好"
+                  className="fixed inset-0 z-[1200] cursor-default bg-black/10 backdrop-blur-[1px]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setPanelOpen(false)}
+                />
+                <motion.div
+                  id="travel-preferences-panel"
+                  key="panel"
+                  initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ duration: 0.24, ease: panelEase }}
+                  className="fixed z-[1210] max-h-[min(72vh,640px)] overflow-y-auto rounded-2xl border border-[color-mix(in_srgb,var(--ds-primary)_12%,transparent)] bg-[color-mix(in_srgb,white_96%,var(--ds-background))] p-3 shadow-[0_24px_60px_-20px_rgba(42,107,78,0.35)] backdrop-blur-md sm:p-4"
+                  style={{ top: panelPos.top, left: panelPos.left, width: panelPos.width }}
+                >
               {loadingPrefs ? (
                 <p className="mb-3 font-body text-xs text-[var(--ds-muted-foreground)]">正在加载已保存偏好…</p>
               ) : null}
@@ -337,9 +371,11 @@ export function TravelPreferences({ className = '', onSaved, openPanel = false }
                   {saving ? '保存中…' : '保存偏好'}
                 </PrimaryButton>
               </div>
-            </div>
-          </motion.div>
-        ) : null}
+            </motion.div>
+              </>,
+              document.body,
+            )
+          : null}
       </AnimatePresence>
     </div>
   )

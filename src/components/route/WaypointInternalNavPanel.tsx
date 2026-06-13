@@ -1,25 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ensureNodeGpsCoords,
+  fetchDestinationMapEdges,
   fetchDestinationMapNodes,
   quickDisplayGpsCoords,
+  type MapCatalogEdge,
   type MapNodeOption,
 } from '../../api/mapNode'
 import {
-  planSingleRoute,
-  toBackendTransport,
+  type RoutePlanVO,
   type RouteStrategyType,
   type RouteTransportType,
 } from '../../api/route'
 import { hasStoredToken } from '../../api/http'
-import { macroPlanFromRoutePlanVO } from '../../lib/route/backendRoutePlan'
 import { isBeijingAreaCoord } from '../../lib/geo/beijingCoord'
 import { resolveDestinationCoords } from '../../lib/geo/resolveCoords'
-import {
-  buildInternalWalkingPolyline,
-  filterBeijingPolyline,
-} from '../../lib/route/internalRoutePolyline'
+import { filterBeijingPolyline } from '../../lib/route/internalRoutePolyline'
+import { executeInternalRoutePlan } from '../../lib/route/planInternalRoute'
+import { resolveDefaultStartNode, resolveDefaultTargetNode } from '../../lib/route/resolveStartNode'
 import { AmapMapView } from './AmapMapView'
+import { MapViewModeToggle, type MapViewMode } from './MapViewModeToggle'
+import { RoadGraphView } from './RoadGraphView'
 import type { MacroRoutePlan, RouteWaypoint } from '../../types/macroRoute'
 
 const UNIVERSAL_STUDIOS_CENTER: [number, number] = [116.681128, 39.852226]
@@ -48,6 +48,8 @@ function isValidCoord(lng: number, lat: number): boolean {
 export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: WaypointInternalNavPanelProps) {
   const destinationId = waypoint.destinationId
   const [nodes, setNodes] = useState<MapNodeOption[]>([])
+  const [catalogEdges, setCatalogEdges] = useState<MapCatalogEdge[]>([])
+  const [usedPlaceFallback, setUsedPlaceFallback] = useState(false)
   const [loading, setLoading] = useState(false)
   const [startNodeId, setStartNodeId] = useState<number | null>(null)
   const [targetNodeId, setTargetNodeId] = useState<number | null>(null)
@@ -56,6 +58,8 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
   const [planning, setPlanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewPlan, setPreviewPlan] = useState<MacroRoutePlan | null>(null)
+  const [routeResult, setRouteResult] = useState<RoutePlanVO | null>(null)
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('route')
   const [scenicCenter, setScenicCenter] = useState<[number, number]>(UNIVERSAL_STUDIOS_CENTER)
   const [mapMounted, setMapMounted] = useState(false)
 
@@ -85,12 +89,20 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
     const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
     void (async () => {
       try {
-        const res = await fetchDestinationMapNodes(destinationId)
+        const [res, edges] = await Promise.all([
+          fetchDestinationMapNodes(destinationId),
+          fetchDestinationMapEdges(destinationId),
+        ])
         const displayNodes = quickDisplayGpsCoords(res.nodes, center)
         if (cancelled) return
+        setUsedPlaceFallback(res.usedPlaceFallback)
         setNodes(displayNodes)
-        setStartNodeId(displayNodes[0]?.nodeId ?? null)
-        setTargetNodeId(displayNodes[1]?.nodeId ?? displayNodes[0]?.nodeId ?? null)
+        setCatalogEdges(edges)
+        const pick = displayNodes.filter((n) => !/^OSM/i.test(n.nodeName?.trim() ?? ''))
+        const defaultStart = resolveDefaultStartNode(pick.length ? pick : displayNodes)
+        const defaultTarget = resolveDefaultTargetNode(pick.length ? pick : displayNodes, defaultStart)
+        setStartNodeId(defaultStart)
+        setTargetNodeId(defaultTarget)
       } catch (err) {
         if (!cancelled) {
           setNodes([])
@@ -157,54 +169,37 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
     setPlanning(true)
     setError(null)
     try {
-      const vo = await planSingleRoute({
+      const buildVisitSequence = (
+        vo: RoutePlanVO | null,
+        start: number | null,
+        targets: number[],
+        _returnToStart: boolean,
+      ) => {
+        if (vo?.pathNodes?.length) return vo.pathNodes.map((n) => n.nodeId)
+        const ordered: number[] = []
+        if (start != null) ordered.push(start)
+        if (targets[0] != null && !ordered.includes(targets[0])) ordered.push(targets[0])
+        return ordered
+      }
+      const { vo, macro } = await executeInternalRoutePlan({
         destinationId,
         startNodeId,
-        targetNodeId,
-        strategyType: strategy,
-        transportType: transport,
-      })
-      const macro = macroPlanFromRoutePlanVO(
-        { ...vo, transportType: toBackendTransport(transport) },
+        targetNodeIds: [targetNodeId],
+        returnToStart: false,
+        strategy,
+        transport,
         nodeById,
-      )
-      const rawStart = nodeById.get(startNodeId)
-      const rawEnd = nodeById.get(targetNodeId)
-      if (!rawStart || !rawEnd) {
-        throw new Error('起点或终点坐标缺失')
-      }
-      const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
-      const [startNode, endNode] = await Promise.all([
-        ensureNodeGpsCoords(rawStart, waypoint.name, center, 0, 2),
-        ensureNodeGpsCoords(rawEnd, waypoint.name, center, 1, 2),
-      ])
-      const roadLine = filterBeijingPolyline(
-        await buildInternalWalkingPolyline(startNode, endNode, macro.transportMode),
-      )
-      const routeWaypoints: RouteWaypoint[] = [
-        {
-          id: startNodeId,
-          name: startNode.nodeName,
-          lng: startNode.lng,
-          lat: startNode.lat,
-          destinationId,
-        },
-        {
-          id: targetNodeId,
-          name: endNode.nodeName,
-          lng: endNode.lng,
-          lat: endNode.lat,
-          destinationId,
-        },
-      ]
-      setPreviewPlan({
-        ...macro,
-        waypoints: routeWaypoints,
-        polyline: roadLine,
+        scenicCenter,
+        destinationName: waypoint.name,
+        usedPlaceFallback,
+        buildVisitSequence,
       })
+      setRouteResult(vo)
+      setPreviewPlan(macro)
     } catch (err) {
       setError(err instanceof Error ? err.message : '内部路线失败')
       setPreviewPlan(null)
+      setRouteResult(null)
     } finally {
       setPlanning(false)
     }
@@ -290,8 +285,23 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
         ))}
       </div>
 
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[10px] text-[var(--ds-muted-foreground)]">地图预览</span>
+        <MapViewModeToggle mode={mapViewMode} onChange={setMapViewMode} />
+      </div>
+
       <div className="h-[min(48vh,420px)] overflow-hidden rounded-xl border border-[var(--ds-border)]/40 bg-white">
-        {mapMounted ? (
+        {mapViewMode === 'road-graph' ? (
+          <RoadGraphView
+            className="h-full min-h-[min(48vh,420px)] rounded-xl"
+            nodeCatalog={nodes}
+            catalogEdges={catalogEdges}
+            routePathNodes={routeResult?.pathNodes ?? []}
+            routePathEdges={routeResult?.pathEdges}
+            startNodeId={startNodeId}
+            endNodeId={targetNodeId}
+          />
+        ) : mapMounted ? (
           <AmapMapView
             key={`internal-amap-${destinationId}`}
             className="h-full min-h-[min(48vh,420px)] rounded-xl"

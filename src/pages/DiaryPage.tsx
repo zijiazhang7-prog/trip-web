@@ -124,6 +124,8 @@ export function DiaryPage() {
   const [activeStickerId, setActiveStickerId] = useState<string | null>(null)
   const [snapGuide, setSnapGuide] = useState<SnapGuide>({ x: null, y: null })
   const [deleteTarget, setDeleteTarget] = useState<DiaryBook | null>(null)
+  const [editingBookId, setEditingBookId] = useState<string | null>(null)
+  const [bookTitleDraft, setBookTitleDraft] = useState('')
   const [activeMaterialTab, setActiveMaterialTab] = useState<MaterialTab>('cover')
   const spreadRef = useRef<HTMLDivElement | null>(null)
   const rightPageRef = useRef<HTMLDivElement | null>(null)
@@ -431,6 +433,26 @@ export function DiaryPage() {
       if (showToast) setSaveToast(true)
     } catch {
       /* 静默失败，避免误提示已保存 */
+    }
+  }
+
+  const commitBookTitle = async (bookId: string) => {
+    const trimmed = bookTitleDraft.trim()
+    setEditingBookId(null)
+    if (!trimmed) return
+    const book = books.find((b) => b.id === bookId)
+    if (!book || book.title === trimmed) return
+    try {
+      const updated = await diaryApi.updateBook(bookId, {
+        title: trimmed,
+        coverAssetUrl: book.coverAssetUrl,
+        days: book.days,
+        startDate: book.startDate,
+      })
+      setBooks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
+      if (selectedBookId === bookId) setSelectedBook(updated)
+    } catch {
+      /* 改名失败时保持原标题 */
     }
   }
 
@@ -1184,7 +1206,32 @@ export function DiaryPage() {
                   </div>
                   {!isShelfCollapsed ? (
                     <div className="px-2.5 py-2">
-                      <p className="truncate text-xs font-semibold text-[var(--ds-foreground)]">{book.title}</p>
+                      {editingBookId === book.id ? (
+                        <input
+                          value={bookTitleDraft}
+                          onChange={(e) => setBookTitleDraft(e.target.value)}
+                          onBlur={() => void commitBookTitle(book.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') void commitBookTitle(book.id)
+                            if (e.key === 'Escape') setEditingBookId(null)
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full rounded-md border border-[var(--ds-primary)]/30 bg-white px-1.5 py-0.5 text-xs font-semibold text-[var(--ds-foreground)] outline-none focus:ring-2 focus:ring-[var(--ds-primary)]/20"
+                          autoFocus
+                        />
+                      ) : (
+                        <p
+                          className="truncate text-xs font-semibold text-[var(--ds-foreground)]"
+                          title="双击可改名"
+                          onDoubleClick={(e) => {
+                            e.stopPropagation()
+                            setEditingBookId(book.id)
+                            setBookTitleDraft(book.title)
+                          }}
+                        >
+                          {book.title}
+                        </p>
+                      )}
                       <p className="mt-0.5 text-[10px] text-[var(--ds-muted-foreground)]">{book.startDate}</p>
                     </div>
                   ) : null}
@@ -1595,7 +1642,11 @@ export function DiaryPage() {
                 <button
                   key={tab}
                   type="button"
-                  className={`w-full rounded-xl border px-1 py-3 text-xs ${activeMaterialTab === tab ? 'border-[#6ba0b9] bg-white text-[#2b5f77]' : 'border-white/70 bg-white/55 text-[#6a8799]'}`}
+                  className={`w-full rounded-xl border-2 px-1 py-3.5 text-sm font-bold shadow-sm transition ${
+                    activeMaterialTab === tab
+                      ? 'border-[var(--ds-primary)] bg-[var(--ds-primary)] text-white'
+                      : 'border-[var(--ds-primary)]/30 bg-white text-[var(--ds-primary)] hover:bg-[var(--ds-primary)]/10'
+                  }`}
                   onClick={() => {
                     setActiveMaterialTab(tab)
                     setIsMaterialCollapsed(false)
@@ -1634,7 +1685,11 @@ export function DiaryPage() {
                       <button
                         key={tab}
                         type="button"
-                        className={`h-[33.333%] text-xs font-semibold transition ${activeMaterialTab === tab ? 'bg-white text-[#2b5f77]' : 'text-[#6a8799] hover:bg-white/60'}`}
+                        className={`h-[33.333%] border-b border-[var(--ds-primary)]/15 text-sm font-bold transition last:border-b-0 ${
+                          activeMaterialTab === tab
+                            ? 'bg-[var(--ds-primary)] text-white shadow-inner'
+                            : 'bg-white/70 text-[var(--ds-primary)] hover:bg-[var(--ds-primary)]/12'
+                        }`}
                         onClick={() => setActiveMaterialTab(tab)}
                       >
                         {tab === 'cover' ? '封面' : tab === 'paper' ? '内页' : '贴纸'}
