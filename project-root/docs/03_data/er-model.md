@@ -121,9 +121,12 @@ erDiagram
         varchar node_name
         varchar node_type
         bigint ref_id
+        bigint place_id FK
         decimal lng
         decimal lat
         int floor_no
+        decimal indoor_x
+        decimal indoor_y
     }
 
     MAP_EDGE {

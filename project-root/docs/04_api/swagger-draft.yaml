@@ -371,6 +371,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseRouteHistoryVO'
 
+  /indoor/buildings:
+    get:
+      tags: [Route]
+      summary: 查询可用室内导航建筑
+      security: []
+      parameters:
+        - name: destinationId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseIndoorBuildingVOList'
+
+  /indoor/buildings/{buildingId}/map:
+    get:
+      tags: [Route]
+      summary: 获取建筑室内楼层图
+      security: []
+      parameters:
+        - name: buildingId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseIndoorMapVO'
+
+  /indoor/routes/plan:
+    post:
+      tags: [Route]
+      summary: 室内单目标路线规划
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IndoorRoutePlanRequest'
+      responses:
+        '200':
+          description: 规划成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseIndoorRoutePlanVO'
+
   /facilities/search:
     get:
       tags: [Facility]
@@ -1460,6 +1520,32 @@ components:
             data:
               $ref: '#/components/schemas/RouteHistoryVO'
 
+    ApiResponseIndoorBuildingVOList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/IndoorBuildingVO'
+
+    ApiResponseIndoorMapVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/IndoorMapVO'
+
+    ApiResponseIndoorRoutePlanVO:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/IndoorRoutePlanVO'
+
     ApiResponseFacilityNearbyVOList:
       allOf:
         - $ref: '#/components/schemas/ApiResponseBase'
@@ -1711,6 +1797,35 @@ components:
         returnToStart:
           type: boolean
           default: true
+
+    IndoorRoutePlanRequest:
+      type: object
+      required: [destinationId, buildingId, startNodeId, targetNodeId]
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+          minimum: 1
+        buildingId:
+          type: integer
+          format: int64
+          minimum: 1
+        startNodeId:
+          type: integer
+          format: int64
+          minimum: 1
+        targetNodeId:
+          type: integer
+          format: int64
+          minimum: 1
+        strategyType:
+          type: string
+          enum: [shortest_distance, shortest_time]
+          default: shortest_time
+        verticalMode:
+          type: string
+          enum: [elevator, stair, any]
+          default: any
 
     CreateDiaryRequest:
       type: object
@@ -2041,6 +2156,10 @@ components:
         nodeType:
           type: string
         refId:
+          type: integer
+          format: int64
+          nullable: true
+        placeId:
           type: integer
           format: int64
           nullable: true
@@ -2508,6 +2627,136 @@ components:
         historyId:
           type: integer
           format: int64
+
+    IndoorBuildingVO:
+      type: object
+      properties:
+        buildingId:
+          type: integer
+          format: int64
+        destinationId:
+          type: integer
+          format: int64
+        buildingName:
+          type: string
+        placeType:
+          type: string
+        floorInfo:
+          type: string
+        floorNos:
+          type: array
+          items:
+            type: integer
+
+    IndoorNodeVO:
+      type: object
+      properties:
+        nodeId:
+          type: integer
+          format: int64
+        nodeName:
+          type: string
+        nodeType:
+          type: string
+          enum: [gate, hall, elevator, stair, corridor, room]
+        floorNo:
+          type: integer
+        indoorX:
+          type: number
+          format: double
+        indoorY:
+          type: number
+          format: double
+        x:
+          type: number
+          format: double
+        y:
+          type: number
+          format: double
+
+    IndoorEdgeVO:
+      type: object
+      properties:
+        edgeId:
+          type: integer
+          format: int64
+        fromNodeId:
+          type: integer
+          format: int64
+        toNodeId:
+          type: integer
+          format: int64
+        fromNodeName:
+          type: string
+        toNodeName:
+          type: string
+        fromFloorNo:
+          type: integer
+        toFloorNo:
+          type: integer
+        edgeType:
+          type: string
+          enum: [corridor, elevator, stair]
+        distance:
+          type: number
+          format: double
+        timeCost:
+          type: integer
+          description: 路径响应中为秒；楼层图响应中为空
+          nullable: true
+
+    IndoorMapVO:
+      type: object
+      properties:
+        building:
+          $ref: '#/components/schemas/IndoorBuildingVO'
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/IndoorNodeVO'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/IndoorEdgeVO'
+
+    IndoorRoutePlanVO:
+      type: object
+      properties:
+        destinationId:
+          type: integer
+          format: int64
+        buildingId:
+          type: integer
+          format: int64
+        buildingName:
+          type: string
+        strategyType:
+          type: string
+          enum: [shortest_distance, shortest_time]
+        verticalMode:
+          type: string
+          enum: [elevator, stair, any]
+        totalDistance:
+          type: number
+          format: double
+        totalTime:
+          type: integer
+          description: 总耗时，单位为秒
+        timeUnit:
+          type: string
+          enum: [second]
+        pathNodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/IndoorNodeVO'
+        pathEdges:
+          type: array
+          items:
+            $ref: '#/components/schemas/IndoorEdgeVO'
+        steps:
+          type: array
+          items:
+            type: string
 
     RouteHistoryVO:
       type: object

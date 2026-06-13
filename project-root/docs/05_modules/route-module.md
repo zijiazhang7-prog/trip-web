@@ -519,21 +519,37 @@ P1 阶段采用“**启发式分解**”实现：
 ### 设计目标
 室内导航属于课程要求中的增强方向，重点是展示“建筑内部也能建模”，不追求高精定位。
 
-### 当前建议
-可选一个简化场景，例如：
-- 教学楼
-- 图书馆
-- 博物馆
+### 当前实现
 
-建模要点：
-- 楼层节点
-- 电梯节点
-- 楼梯节点
-- 房间节点
-- 楼层间边
+1. 复用 `map_node/map_edge` 建模，不新增室内专用图表；
+2. `map_node.place_id` 隔离建筑子图，`floor_no` 表示楼层，
+   `indoor_x/indoor_y` 提供 SVG 归一化坐标；
+3. 节点类型为 `gate/hall/elevator/stair/corridor/room`；
+4. 边类型为 `corridor/elevator/stair`；
+5. `IndoorRouteService -> MapService -> GraphEngine` 复用 Dijkstra；
+6. `verticalMode=elevator/stair/any` 在 GraphEngine 松弛前过滤边类型；
+7. 室内结果包含楼层、节点类型、边类型、距离、秒级单边耗时和中文步骤；
+8. 当前室内路线不写入 `route_history`，避免改变已有室外历史契约。
 
-### 实现优先级
-P2
+### 接口
+
+- `GET /api/v1/indoor/buildings`
+- `GET /api/v1/indoor/buildings/{buildingId}/map`
+- `POST /api/v1/indoor/routes/plan`
+
+### 演示数据
+
+- 北京邮电大学沙河校区：教学楼A，3 层；
+- 颐和园：园史博物馆，3 层；
+- 每栋建筑同时配置电梯和楼梯通道，可演示大门到电梯、跨层和楼层内房间导航。
+
+### 算法说明
+
+- 数据结构：有向带权邻接表、优先队列、前驱映射；
+- 算法：Dijkstra；
+- 时间复杂度：`O((V + E) log V)`；
+- 空间复杂度：`O(V + E)`；
+- 适用范围：节点和边规模较小、边权非负的教学楼和博物馆室内导航。
 
 ---
 

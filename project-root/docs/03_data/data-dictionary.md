@@ -229,13 +229,17 @@
 |node_name|varchar(100)|否|是||节点名称|
 |node_type|varchar(50)|否|是||节点类型，如 `intersection/place/facility`|
 |ref_id|bigint|否|否||对应场所或设施 ID|
+|place_id|bigint|否|否||室内节点所属建筑，对应 `place.id`|
 |lng|decimal(10,6)|否|否||经度|
 |lat|decimal(10,6)|否|否||纬度|
 |floor_no|int|否|否||楼层号|
+|indoor_x|decimal(8,2)|否|否||室内楼层图归一化 X 坐标|
+|indoor_y|decimal(8,2)|否|否||室内楼层图归一化 Y 坐标|
 
 **建议索引：**
 - `destination_id`
 - `(node_type, ref_id)`
+- `(destination_id, place_id, floor_no)`
 
 ---
 
@@ -254,7 +258,7 @@
 |ideal_speed|decimal(5,2)|否|否||道路理想最高速度，单位为米/分钟；为空时使用交通工具默认速度|
 |crowd_factor|decimal(3,2)|否|否||拥挤度系数|
 |transport_type|varchar(20)|否|否||道路通行权限：`walk/bike/cart/walk_bike/walk_cart/bike_cart/all`|
-|edge_type|varchar(20)|否|否||边类型，如 `road/stairs/elevator`|
+|edge_type|varchar(20)|否|否||边类型，如 `road/corridor/stair/elevator`|
 |bidirectional_flag|tinyint|否|否|0|是否双向|
 
 **建议索引：**

@@ -11,6 +11,7 @@ import com.trip.model.route.RouteTransportType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -131,6 +132,39 @@ class GraphEngineTests {
         assertEquals(2L, graphEngine.nearestTarget(List.of(4L, 3L, 2L), result.weights()));
     }
 
+    @Test
+    void shortestPathsShouldRespectAllowedEdgeTypes() {
+        Graph graph = graph(Map.of(
+                1L, List.of(
+                        edge(11L, 1L, 2L, "12.00", "24", "1.00", EdgeTransportAccess.WALK, "elevator"),
+                        edge(12L, 1L, 3L, "18.00", "18", "1.00", EdgeTransportAccess.WALK, "stair")),
+                2L, List.of(edge(
+                        13L, 2L, 4L, "10.00", "80", "1.00", EdgeTransportAccess.WALK, "corridor")),
+                3L, List.of(edge(
+                        14L, 3L, 4L, "10.00", "80", "1.00", EdgeTransportAccess.WALK, "corridor"))));
+
+        ShortestPathTree elevator = graphEngine.shortestPaths(
+                graph,
+                1L,
+                new RouteConstraint(
+                        GraphEngine.STRATEGY_SHORTEST_TIME,
+                        RouteTransportType.WALK,
+                        Set.of("corridor", "elevator")));
+        ShortestPathTree stair = graphEngine.shortestPaths(
+                graph,
+                1L,
+                new RouteConstraint(
+                        GraphEngine.STRATEGY_SHORTEST_TIME,
+                        RouteTransportType.WALK,
+                        Set.of("corridor", "stair")));
+
+        assertEquals(List.of(1L, 2L, 4L), graphEngine.backtrackNodeIds(1L, 4L, elevator));
+        assertEquals(List.of(1L, 3L, 4L), graphEngine.backtrackNodeIds(1L, 4L, stair));
+        assertEquals("elevator", graphEngine.backtrackEdges(1L, 4L, elevator).get(0).edge().edgeType());
+        assertEquals(new BigDecimal("0.50000000"),
+                graphEngine.backtrackEdges(1L, 4L, elevator).get(0).timeCost());
+    }
+
     private RouteConstraint constraint(String strategyType, RouteTransportType transportType) {
         return new RouteConstraint(strategyType, transportType);
     }
@@ -154,6 +188,27 @@ class GraphEngineTests {
                 new BigDecimal(distance),
                 idealSpeed == null ? null : new BigDecimal(idealSpeed),
                 new BigDecimal(crowdFactor),
-                access);
+                access,
+                "road");
+    }
+
+    private GraphEdge edge(
+            Long id,
+            Long fromNodeId,
+            Long toNodeId,
+            String distance,
+            String idealSpeed,
+            String crowdFactor,
+            EdgeTransportAccess access,
+            String edgeType) {
+        return new GraphEdge(
+                id,
+                fromNodeId,
+                toNodeId,
+                new BigDecimal(distance),
+                idealSpeed == null ? null : new BigDecimal(idealSpeed),
+                new BigDecimal(crowdFactor),
+                access,
+                edgeType);
     }
 }

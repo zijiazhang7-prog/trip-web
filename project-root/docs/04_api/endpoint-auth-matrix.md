@@ -31,6 +31,9 @@
 | `/api/v1/routes/plan/multi` | POST | 是 | 已登录用户 | JWT | 同上 | `SecurityConfig.java`、`RouteController.java` | 会使用当前用户保存历史 |
 | `/api/v1/routes/history` | GET | 是 | 已登录用户，仅本人 | JWT | 未命中公开 GET，落入 `.anyRequest().authenticated()`；Service 固定使用 JWT userId | `SecurityConfig.java`、`RouteController.java`、`RouteServiceImpl.java` | 不接受 userId |
 | `/api/v1/routes/history/{id}` | GET | 是 | 已登录用户，仅记录所有者 | JWT + Service 所有者条件 | Service 使用 `id + 当前 userId` 联合查询 | `RouteController.java`、`RouteServiceImpl.java` | 他人记录与不存在记录统一返回 404 |
+| `/api/v1/indoor/buildings` | GET | 否 | 无 | 无 | `SecurityConfig` 对 `/api/v1/indoor/buildings/**` 的 GET permitAll | `IndoorRouteController.java`、`SecurityConfig.java` | 查询有室内数据的建筑 |
+| `/api/v1/indoor/buildings/{buildingId}/map` | GET | 否 | 无 | 无 | 同上 | `IndoorRouteController.java`、`SecurityConfig.java` | 返回楼层 SVG 数据 |
+| `/api/v1/indoor/routes/plan` | POST | 是 | 已登录用户 | JWT | 未命中公开 GET，落入 `.anyRequest().authenticated()` | `IndoorRouteController.java`、`SecurityConfig.java` | 当前不写路线历史 |
 | `/api/v1/facilities/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/facilities/**").permitAll()` | `SecurityConfig.java`、`FacilityController.java` | 当前实现 `/nearby` |
 | `/api/v1/foods/**` | GET | 否 | 无 | 无 | `requestMatchers(GET, "/api/v1/foods/**").permitAll()` | `SecurityConfig.java`、`FoodController.java` | 推荐/搜索公开 |
 | `/api/v1/diaries/recommend` | GET | 是 | 已登录用户 | JWT | 专用 authenticated matcher 位于日记公开 GET 规则之前 | `SecurityConfig.java`、`DiaryController.java`、`DiaryRecommendServiceImpl.java` | 使用当前用户偏好返回 Top-K |

@@ -56,6 +56,9 @@
 | 多目标路线规划 | `/api/v1/routes/plan/multi` | POST | Route | 是 | 是 | 已可用 | `MultiRoutePlanRequest` | `RoutePlanVO` | `RouteController.java` | `api-spec.md` 10.2 | 需要登录；支持交通约束；代码实际返回 `RoutePlanVO` |
 | 路线历史列表 | `/api/v1/routes/history` | GET | Route | 是 | 是 | 已可用 | `RouteHistoryPageQuery` | `PageResultVO<RouteHistoryVO>` | `RouteController.java`、`RouteServiceImpl.java` | `api-spec.md` 10.3 | JWT 当前用户；不接受 userId；按时间倒序 |
 | 路线历史详情 | `/api/v1/routes/history/{id}` | GET | Route | 是 | 是 | 已可用 | path `id` | `RouteHistoryVO` | `RouteController.java`、`RouteServiceImpl.java` | `api-spec.md` 10.4 | 读取历史 JSON 快照，不重新规划；越权按不存在处理 |
+| 室内建筑列表 | `/api/v1/indoor/buildings` | GET | Indoor Route | 是 | 是 | 已可用 | query `destinationId` | `List<IndoorBuildingVO>` | `IndoorRouteController.java`、`IndoorRouteServiceImpl.java` | `api-spec.md` 10.5 | 仅返回已有室内节点的建筑 |
+| 室内楼层图 | `/api/v1/indoor/buildings/{buildingId}/map` | GET | Indoor Route | 是 | 是 | 已可用 | path `buildingId` | `IndoorMapVO` | `IndoorRouteController.java`、`IndoorRouteServiceImpl.java` | `api-spec.md` 10.6 | 提供分楼层 SVG 所需节点和边 |
+| 室内路线规划 | `/api/v1/indoor/routes/plan` | POST | Indoor Route | 是 | 是 | 已可用 | `IndoorRoutePlanRequest` | `IndoorRoutePlanVO` | `IndoorRouteController.java`、`MapServiceImpl.java` | `api-spec.md` 10.7 | JWT；复用 GraphEngine Dijkstra；当前不保存历史 |
 | 附近设施 | `/api/v1/facilities/nearby` | GET | Facility | 是 | 是 | 已可用 | `NearbyFacilityQuery` | `PageResultVO<NearbyFacilityVO>` | `FacilityController.java` | `api-spec.md` 11.1 | 公开接口，基于图上可达距离 |
 | 搜索设施 | `/api/v1/facilities/search` | GET | Facility | 否 | 是 | 文档有但代码未找到 | 文档定义 query | `Page<FacilityVO>` | 未找到 Controller 入口 | `api-spec.md` 11.2、`swagger-draft.yaml` | 当前只有 nearby |
 | 美食推荐 | `/api/v1/foods/recommend` | GET | Food | 是 | 是 | 已可用 | `FoodRecommendQuery` | `PageResultVO<FoodVO>` | `FoodController.java`、`FoodServiceImpl.java`、`TaxonomyService.java` | `api-spec.md` 12.1 | 公开接口；标准口味标签仅加权排序，不过滤未命中条目 |

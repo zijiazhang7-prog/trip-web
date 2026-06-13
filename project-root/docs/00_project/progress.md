@@ -863,3 +863,16 @@
 - `DestinationVO` 追加 `destType/interestTags`，`FoodVO` 追加 `cuisineTags`；
   原路径、字段、分页和显式 `topK` 兼容语义不变。
 - 已新增 taxonomy、匿名推荐、旧偏好兼容、美食标签排序测试。
+
+## 8.6 2026-06-13 室内导航后端 MVP
+
+- `map_node` 新增 `place_id/indoor_x/indoor_y`，用于建筑子图隔离和楼层 SVG 坐标。
+- 新增 `GET /api/v1/indoor/buildings`、`GET /api/v1/indoor/buildings/{buildingId}/map`
+  和 `POST /api/v1/indoor/routes/plan`。
+- 室内路线复用 `MapService -> GraphEngine` Dijkstra，未在 Controller 或业务 Service 重写算法。
+- 已支持 `elevator/stair/any` 边类型约束，返回楼层、节点类型、边类型、距离、
+  秒级耗时和中文路径步骤。
+- 新增教学楼A与园史博物馆 3 层演示 SQL，包含大门、大厅、电梯、楼梯、走廊和房间。
+- Admin 和 ImportService 已支持新增室内节点字段，建筑删除会检查室内节点引用。
+- 全量 292 个 Maven 测试通过，构建通过；实库迁移、演示数据导入、
+  JWT 接口验证和前端 SVG 展示待执行。

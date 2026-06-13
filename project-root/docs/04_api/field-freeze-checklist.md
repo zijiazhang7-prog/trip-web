@@ -78,6 +78,10 @@
 | RouteHistoryVO | `strategyType/transportType/totalDistance/estimatedTime` | response | string/decimal/integer | 历史规划策略、交通方式、距离和分钟级时间 | 强冻结 | 否 | 否 | 否 | 路线摘要核心字段 | `RouteHistoryVO.java` | 单位和枚举语义不可变 |
 | RouteHistoryVO | `pathNodes/pathEdges` | response | array | 保存时的完整路径快照，仅详情返回 | 强冻结 | 否 | 否 | 否 | 历史回放不能重新规划 | `RouteHistoryVO.java`、`RouteServiceImpl.java` | 列表中为 null |
 | RouteHistoryVO | `orderedTargetNodeIds` | response | array<long> | 多目标实际访问顺序 | 建议冻结 | 否 | 否 | 否 | 新增持久化快照支持 | `RouteHistoryVO.java`、`route_history.ordered_target_node_json` | 单目标和旧历史为空数组 |
+| `/api/v1/indoor/routes/plan` | `destinationId/buildingId/startNodeId/targetNodeId` | body | long | 室内建筑与起终节点标识 | 强冻结 | 否 | 否 | 否 | 室内子图隔离和规划必需 | `IndoorRoutePlanRequest.java` | 高风险字段 |
+| `/api/v1/indoor/routes/plan` | `strategyType/verticalMode` | body | string | 距离/时间策略及电梯、楼梯约束 | 强冻结 | 否 | 否 | 否 | 直接影响 Dijkstra 边过滤和边权 | `IndoorRoutePlanRequest.java`、`IndoorVerticalMode.java` | 枚举不可由前端自由扩展 |
+| IndoorRoutePlanVO | `totalDistance/totalTime/timeUnit` | response | decimal/integer/string | 总距离与秒级总耗时 | 强冻结 | 否 | 否 | 否 | 室内路线展示核心字段 | `IndoorRoutePlanVO.java` | 与室外分钟单位不同 |
+| IndoorRoutePlanVO | `pathNodes/pathEdges/steps` | response | array | 带楼层、节点类型、边类型和单边耗时的路径 | 强冻结 | 否 | 否 | 否 | SVG 与步骤展示依赖 | `IndoorRoutePlanVO.java`、`IndoorEdgeVO.java` | `timeCost` 单位为秒 |
 | Map node/admin | `lng` / `lat` | body/response | decimal | 节点经纬度 | 强冻结 | 否 | 否 | 否 | 管理端地图维护字段 | `AdminMapNodeRequest.java`、`AdminMapNodeVO.java` | 高风险字段 |
 
 ## 7. 周边设施字段

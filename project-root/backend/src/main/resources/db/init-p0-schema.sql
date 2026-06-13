@@ -115,14 +115,21 @@ CREATE TABLE IF NOT EXISTS `map_node` (
   `node_name` VARCHAR(100) NOT NULL COMMENT '节点名称',
   `node_type` VARCHAR(50) NOT NULL COMMENT '节点类型，如 intersection/place/facility',
   `ref_id` BIGINT NULL COMMENT '对应场所或设施 ID',
+  `place_id` BIGINT NULL COMMENT '室内节点所属建筑，对应 place.id',
   `lng` DECIMAL(10,6) NULL COMMENT '经度',
   `lat` DECIMAL(10,6) NULL COMMENT '纬度',
   `floor_no` INT NULL COMMENT '楼层号',
+  `indoor_x` DECIMAL(8,2) NULL COMMENT '室内楼层图归一化 X 坐标',
+  `indoor_y` DECIMAL(8,2) NULL COMMENT '室内楼层图归一化 Y 坐标',
   PRIMARY KEY (`id`),
   KEY `idx_map_node_destination_id` (`destination_id`),
   KEY `idx_map_node_type_ref` (`node_type`, `ref_id`),
+  KEY `idx_map_node_indoor` (`destination_id`, `place_id`, `floor_no`),
   CONSTRAINT `fk_map_node_destination`
     FOREIGN KEY (`destination_id`) REFERENCES `destination` (`id`)
+    ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT `fk_map_node_place`
+    FOREIGN KEY (`place_id`) REFERENCES `place` (`id`)
     ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='地图节点表';
 

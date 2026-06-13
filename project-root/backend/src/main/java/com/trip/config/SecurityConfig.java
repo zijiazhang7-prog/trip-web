@@ -50,6 +50,8 @@ public class SecurityConfig {
                                 "/api/v1/facilities/**",
                                 "/api/v1/foods/**",
                                 "/api/v1/diaries/**",
+                                "/api/v1/indoor/buildings",
+                                "/api/v1/indoor/buildings/**",
                                 "/files/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/files/upload").authenticated()

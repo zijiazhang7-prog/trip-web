@@ -291,9 +291,12 @@
 - `node_name`
 - `node_type`
 - `ref_id`
+- `place_id`
 - `lng`
 - `lat`
 - `floor_no`
+- `indoor_x`
+- `indoor_y`
 
 ### 设计要点
 1. 节点可以代表：
@@ -303,11 +306,14 @@
    - 室内楼层点位
 2. `node_type` 用于区分节点来源；
 3. `ref_id` 可用于关联 `place` 或 `facility`；
-4. 室内导航可借助 `floor_no` 扩展。
+4. `place_id` 表示室内节点所属建筑，避免把建筑归属语义混入 `ref_id`；
+5. `floor_no` 表示楼层，`indoor_x/indoor_y` 使用 `0~1000` 归一化坐标供楼层 SVG 绘制；
+6. 室内节点类型当前支持 `gate/hall/elevator/stair/corridor/room`。
 
 ### 建议索引
 - `destination_id`
 - `(node_type, ref_id)`
+- `(destination_id, place_id, floor_no)`
 
 ---
 
@@ -333,7 +339,8 @@
 2. `distance` 用于最短距离策略；
 3. `ideal_speed` 表示道路理想最高速度（米/分钟），与交通工具默认速度、`crowd_factor` 共同支撑最短时间策略；
 4. `transport_type` 已用于道路通行权限，允许 `walk/bike/cart/walk_bike/walk_cart/bike_cart/all`；
-5. `edge_type` 可区分道路、楼梯、电梯等类型。
+5. `edge_type` 可区分 `road/corridor/stair/elevator` 等类型；
+6. 室内边继续使用正数 `distance`、`ideal_speed` 和 `crowd_factor` 计算时间，不新增独立 `time_cost` 字段。
 
 ### 建议索引
 - `destination_id`

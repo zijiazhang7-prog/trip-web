@@ -13,9 +13,12 @@ public class AdminMapNodeVO {
     private String nodeName;
     private String nodeType;
     private Long refId;
+    private Long placeId;
     private BigDecimal lng;
     private BigDecimal lat;
     private Integer floorNo;
+    private BigDecimal indoorX;
+    private BigDecimal indoorY;
 
     public static AdminMapNodeVO from(MapNode node) {
         AdminMapNodeVO vo = new AdminMapNodeVO();
@@ -24,9 +27,12 @@ public class AdminMapNodeVO {
         vo.setNodeName(node.getNodeName());
         vo.setNodeType(node.getNodeType());
         vo.setRefId(node.getRefId());
+        vo.setPlaceId(node.getPlaceId());
         vo.setLng(node.getLng());
         vo.setLat(node.getLat());
         vo.setFloorNo(node.getFloorNo());
+        vo.setIndoorX(node.getIndoorX());
+        vo.setIndoorY(node.getIndoorY());
         return vo;
     }
 
@@ -70,6 +76,14 @@ public class AdminMapNodeVO {
         this.refId = refId;
     }
 
+    public Long getPlaceId() {
+        return placeId;
+    }
+
+    public void setPlaceId(Long placeId) {
+        this.placeId = placeId;
+    }
+
     public BigDecimal getLng() {
         return lng;
     }
@@ -92,5 +106,21 @@ public class AdminMapNodeVO {
 
     public void setFloorNo(Integer floorNo) {
         this.floorNo = floorNo;
+    }
+
+    public BigDecimal getIndoorX() {
+        return indoorX;
+    }
+
+    public void setIndoorX(BigDecimal indoorX) {
+        this.indoorX = indoorX;
+    }
+
+    public BigDecimal getIndoorY() {
+        return indoorY;
+    }
+
+    public void setIndoorY(BigDecimal indoorY) {
+        this.indoorY = indoorY;
     }
 }

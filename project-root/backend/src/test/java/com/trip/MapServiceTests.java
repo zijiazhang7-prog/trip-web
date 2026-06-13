@@ -3,6 +3,7 @@ package com.trip;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.trip.common.ErrorCode;
 import com.trip.dto.map.MultiPathResult;
+import com.trip.dto.map.IndoorPathResult;
 import com.trip.dto.map.ShortestPathResult;
 import com.trip.entity.MapEdge;
 import com.trip.entity.MapNode;
@@ -284,6 +285,53 @@ class MapServiceTests {
         assertEquals(ErrorCode.ROUTE_008, exception.getErrorCode());
     }
 
+    @Test
+    void indoorShortestPathShouldFilterVerticalModeAndReturnIndoorFields() {
+        MapNode gate = indoorNode(1L, 101L, 201L, "大门", "gate", 1);
+        MapNode elevatorOne = indoorNode(2L, 101L, 201L, "一层电梯", "elevator", 1);
+        MapNode stairOne = indoorNode(3L, 101L, 201L, "一层楼梯", "stair", 1);
+        MapNode elevatorTwo = indoorNode(4L, 101L, 201L, "二层电梯", "elevator", 2);
+        MapNode stairTwo = indoorNode(5L, 101L, 201L, "二层楼梯", "stair", 2);
+        MapNode room = indoorNode(6L, 101L, 201L, "201室", "room", 2);
+        mockGraph(List.of(gate, elevatorOne, stairOne, elevatorTwo, stairTwo, room), List.of(
+                indoorEdge(11L, 101L, 1L, 2L, "10", "80", "corridor"),
+                indoorEdge(12L, 101L, 1L, 3L, "10", "80", "corridor"),
+                indoorEdge(13L, 101L, 2L, 4L, "12", "24", "elevator"),
+                indoorEdge(14L, 101L, 3L, 5L, "18", "18", "stair"),
+                indoorEdge(15L, 101L, 4L, 6L, "10", "80", "corridor"),
+                indoorEdge(16L, 101L, 5L, 6L, "10", "80", "corridor")));
+
+        IndoorPathResult elevator = mapService.indoorShortestPath(
+                101L, 201L, 1L, 6L, "shortest_time", "elevator");
+        IndoorPathResult stair = mapService.indoorShortestPath(
+                101L, 201L, 1L, 6L, "shortest_time", "stair");
+
+        assertEquals(List.of(1L, 2L, 4L, 6L), elevator.getPathNodes().stream()
+                .map(item -> item.getNodeId())
+                .toList());
+        assertEquals(List.of("corridor", "elevator", "corridor"), elevator.getPathEdges().stream()
+                .map(item -> item.getEdgeType())
+                .toList());
+        assertEquals(List.of(1L, 3L, 5L, 6L), stair.getPathNodes().stream()
+                .map(item -> item.getNodeId())
+                .toList());
+        assertEquals(2, elevator.getPathNodes().get(3).getFloorNo());
+    }
+
+    @Test
+    void indoorShortestPathShouldRejectNodesOutsideBuilding() {
+        mockGraph(List.of(
+                indoorNode(1L, 101L, 201L, "大门", "gate", 1),
+                indoorNode(2L, 101L, 202L, "其他楼房间", "room", 2)), List.of());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> mapService.indoorShortestPath(
+                        101L, 201L, 1L, 2L, "shortest_time", "any"));
+
+        assertEquals(ErrorCode.ROUTE_013, exception.getErrorCode());
+    }
+
     private void mockGraph(List<MapNode> nodes, List<MapEdge> edges) {
         when(mapNodeMapper.selectList(anyNodeQuery())).thenReturn(nodes);
         when(mapEdgeMapper.selectList(anyEdgeQuery())).thenReturn(edges);
@@ -303,6 +351,22 @@ class MapServiceTests {
         node.setDestinationId(destinationId);
         node.setNodeName(name);
         node.setNodeType("intersection");
+        return node;
+    }
+
+    private MapNode indoorNode(
+            Long id,
+            Long destinationId,
+            Long placeId,
+            String name,
+            String nodeType,
+            Integer floorNo) {
+        MapNode node = node(id, destinationId, name);
+        node.setPlaceId(placeId);
+        node.setNodeType(nodeType);
+        node.setFloorNo(floorNo);
+        node.setIndoorX(new BigDecimal("100"));
+        node.setIndoorY(new BigDecimal("200"));
         return node;
     }
 
@@ -349,6 +413,28 @@ class MapServiceTests {
         edge.setIdealSpeed(idealSpeed == null ? null : new BigDecimal(idealSpeed));
         edge.setCrowdFactor(new BigDecimal(crowdFactor));
         edge.setTransportType(transportType);
+        return edge;
+    }
+
+    private MapEdge indoorEdge(
+            Long id,
+            Long destinationId,
+            Long fromNodeId,
+            Long toNodeId,
+            String distance,
+            String idealSpeed,
+            String edgeType) {
+        MapEdge edge = edgeWithTransport(
+                id,
+                destinationId,
+                fromNodeId,
+                toNodeId,
+                distance,
+                idealSpeed,
+                "1.00",
+                "walk",
+                0);
+        edge.setEdgeType(edgeType);
         return edge;
     }
 }

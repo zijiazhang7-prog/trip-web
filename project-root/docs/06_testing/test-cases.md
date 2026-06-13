@@ -504,3 +504,16 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 |TC-FOOD-PAGE-001|Food|P0|美食推荐分页参数生效|未传 `topK` 时使用 `pageNum/pageSize`，不再默认截为 10 条|通过：单元测试与 MySQL 8 HTTP 测试|
 |TC-FOOD-PAGE-002|Food|P1|美食 Top-K 兼容|显式 `topK=5` 时仍只返回 5 条，响应页码为 1|通过：单元测试与 MySQL 8 HTTP 测试|
 |TC-FOOD-PAGE-003|Food|P1|美食跨页切片|65 条候选按 32 条分页应返回 32、32、1，页间 ID 不重复|通过：构造候选单元测试|
+
+## 21. 室内导航测试
+
+|用例编号|模块|优先级|测试目标|验收标准|当前状态|
+|---|---|---|---|---|---|
+|TC-INDOOR-001|GraphEngine|P0|边类型约束|`elevator/stair` 模式只允许对应垂直边和走廊边|通过：单元测试|
+|TC-INDOOR-002|MapService|P0|建筑子图隔离|起终节点必须属于同一 `destinationId + placeId`|通过：单元测试|
+|TC-INDOOR-003|MapService|P0|室内路径字段|节点返回楼层、类型、坐标；边返回类型、距离、单边耗时|通过：单元测试|
+|TC-INDOOR-004|Indoor Route|P0|步骤与时间单位|跨层电梯生成清晰步骤，时间统一换算为秒|通过：单元测试|
+|TC-INDOOR-005|Indoor Route|P0|建筑目的地校验|建筑不属于请求目的地时返回 `ROUTE_011`|通过：单元测试|
+|TC-INDOOR-006|Security|P0|权限边界|建筑和楼层图 GET 公开，室内规划 POST 必须携带 JWT|待实库接口回归|
+|TC-INDOOR-007|Demo Data|P0|两栋演示建筑|教学楼A和园史博物馆各有 3 层、电梯、楼梯和房间路径|待执行演示 SQL 后验证|
+|TC-INDOOR-008|Regression|P0|室外路线回归|单目标、多目标、交通方式和附近设施行为不变|单元测试通过，实库待回归|

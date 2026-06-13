@@ -19,11 +19,17 @@ public class MapNode {
 
     private Long refId;
 
+    private Long placeId;
+
     private BigDecimal lng;
 
     private BigDecimal lat;
 
     private Integer floorNo;
+
+    private BigDecimal indoorX;
+
+    private BigDecimal indoorY;
 
     public Long getId() {
         return id;
@@ -65,6 +71,14 @@ public class MapNode {
         this.refId = refId;
     }
 
+    public Long getPlaceId() {
+        return placeId;
+    }
+
+    public void setPlaceId(Long placeId) {
+        this.placeId = placeId;
+    }
+
     public BigDecimal getLng() {
         return lng;
     }
@@ -87,5 +101,21 @@ public class MapNode {
 
     public void setFloorNo(Integer floorNo) {
         this.floorNo = floorNo;
+    }
+
+    public BigDecimal getIndoorX() {
+        return indoorX;
+    }
+
+    public void setIndoorX(BigDecimal indoorX) {
+        this.indoorX = indoorX;
+    }
+
+    public BigDecimal getIndoorY() {
+        return indoorY;
+    }
+
+    public void setIndoorY(BigDecimal indoorY) {
+        this.indoorY = indoorY;
     }
 }

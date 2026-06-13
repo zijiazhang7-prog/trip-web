@@ -56,6 +56,9 @@ public class GraphEngine {
             }
 
             for (GraphEdge edge : graph.adjacency().getOrDefault(current.state().nodeId(), List.of())) {
+                if (!constraint.allowsEdgeType(edge.edgeType())) {
+                    continue;
+                }
                 for (RouteTransportType actualType : transitionTypes(edge, constraint.transportType())) {
                     BigDecimal timeCost = edgeCostCalculator.timeCost(edge, actualType);
                     BigDecimal edgeWeight = STRATEGY_SHORTEST_TIME.equals(constraint.strategyType())
@@ -136,7 +139,10 @@ public class GraphEngine {
             if (previousStep == null) {
                 return List.of();
             }
-            pathEdges.add(new PathEdge(previousStep.edge(), previousStep.transportType()));
+            pathEdges.add(new PathEdge(
+                    previousStep.edge(),
+                    previousStep.transportType(),
+                    edgeCostCalculator.timeCost(previousStep.edge(), previousStep.transportType())));
             currentState = previousStep.previousState();
         }
         Collections.reverse(pathEdges);
@@ -196,13 +202,14 @@ public class GraphEngine {
             BigDecimal distance,
             BigDecimal idealSpeed,
             BigDecimal crowdFactor,
-            EdgeTransportAccess transportAccess) {
+            EdgeTransportAccess transportAccess,
+            String edgeType) {
     }
 
     public record PathState(Long nodeId, RouteTransportType transportType) {
     }
 
-    public record PathEdge(GraphEdge edge, RouteTransportType transportType) {
+    public record PathEdge(GraphEdge edge, RouteTransportType transportType, BigDecimal timeCost) {
     }
 
     public record PreviousStep(PathState previousState, GraphEdge edge, RouteTransportType transportType) {

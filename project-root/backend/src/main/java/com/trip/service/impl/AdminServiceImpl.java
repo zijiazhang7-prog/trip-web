@@ -229,8 +229,11 @@ public class AdminServiceImpl implements AdminService {
             throw new BusinessException(ErrorCode.COMMON_002);
         }
         Long mapNodeCount = mapNodeMapper.selectCount(new LambdaQueryWrapper<MapNode>()
-                .eq(MapNode::getNodeType, "place")
-                .eq(MapNode::getRefId, id));
+                .and(wrapper -> wrapper
+                        .eq(MapNode::getPlaceId, id)
+                        .or(nested -> nested
+                                .eq(MapNode::getNodeType, "place")
+                                .eq(MapNode::getRefId, id))));
         if (mapNodeCount != null && mapNodeCount > 0) {
             throw new BusinessException(ErrorCode.COMMON_002);
         }
@@ -650,9 +653,18 @@ public class AdminServiceImpl implements AdminService {
         node.setNodeName(normalizeRequired(request.getNodeName()));
         node.setNodeType(normalizeRequired(request.getNodeType()));
         node.setRefId(request.getRefId());
+        if (request.getPlaceId() != null) {
+            Place place = requirePlace(request.getPlaceId());
+            if (!request.getDestinationId().equals(place.getDestinationId())) {
+                throw new BusinessException(ErrorCode.COMMON_002);
+            }
+        }
+        node.setPlaceId(request.getPlaceId());
         node.setLng(request.getLng());
         node.setLat(request.getLat());
         node.setFloorNo(request.getFloorNo());
+        node.setIndoorX(request.getIndoorX());
+        node.setIndoorY(request.getIndoorY());
     }
 
     private void fillMapEdge(MapEdge edge, AdminMapEdgeRequest request) {

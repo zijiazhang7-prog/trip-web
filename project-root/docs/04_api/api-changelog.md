@@ -573,3 +573,13 @@
 - **兼容性**：仅追加可选查询参数和响应字段；未修改路径、原字段、分页、Top-K 或响应包装。
 - **语义**：标准标签只参与推荐排序，不硬过滤未命中候选；`heat/rating` 原排序在未传标签时不变。
 - **实现证据**：`TaxonomyService.java`、`RecommendServiceImpl.java`、`FoodServiceImpl.java`。
+
+## 22. 2026-06-13 室内导航 MVP
+
+- 新增公开接口 `GET /api/v1/indoor/buildings` 和
+  `GET /api/v1/indoor/buildings/{buildingId}/map`。
+- 新增 JWT 接口 `POST /api/v1/indoor/routes/plan`。
+- 新增 `verticalMode=elevator/stair/any`，会真实过滤 `corridor/elevator/stair` 边。
+- 室内响应新增楼层、节点类型、归一化坐标、边类型、距离、秒级耗时和路径步骤。
+- Admin 地图节点请求/响应追加可选 `placeId/indoorX/indoorY`。
+- 现有 `/api/v1/routes/**` 路径、请求、响应和路线历史语义不变。

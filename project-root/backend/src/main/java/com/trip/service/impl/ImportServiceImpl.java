@@ -318,9 +318,19 @@ public class ImportServiceImpl implements ImportService {
         node.setNodeName(text(values, "node_name"));
         node.setNodeType(text(values, "node_type"));
         node.setRefId(longValue(values, "ref_id"));
+        Long placeId = longValue(values, "place_id");
+        if (placeId != null) {
+            Place place = placeMapper.selectById(placeId);
+            if (place == null || !destinationId.equals(place.getDestinationId())) {
+                throw new BusinessException(ErrorCode.IMPORT_004);
+            }
+        }
+        node.setPlaceId(placeId);
         node.setLng(decimal(values, "lng"));
         node.setLat(decimal(values, "lat"));
         node.setFloorNo(intValue(values, "floor_no"));
+        node.setIndoorX(decimal(values, "indoor_x"));
+        node.setIndoorY(decimal(values, "indoor_y"));
         mapNodeMapper.insert(node);
     }
 

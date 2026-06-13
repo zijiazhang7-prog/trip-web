@@ -730,6 +730,62 @@ Authorization: Bearer <token>
 - 历史查询直接读取 `route_history` 中保存的 JSON 快照，不重新调用 `MapService` 或 `GraphEngine`。
 - 新生成的多目标历史保存 `orderedTargetNodeIds`；单目标和迁移前旧记录返回空数组。
 
+## 10.5 查询可用室内导航建筑
+
+* 方法：`GET`
+* 路径：`/api/v1/indoor/buildings`
+* 权限：公开
+
+Query 参数：`destinationId`，必须为正整数。
+
+返回 `List<IndoorBuildingVO>`，包含 `buildingId`、`destinationId`、`buildingName`、
+`placeType`、`floorInfo` 和 `floorNos`。只返回已经配置 `map_node.place_id` 与楼层节点的建筑。
+
+## 10.6 获取建筑室内楼层图
+
+* 方法：`GET`
+* 路径：`/api/v1/indoor/buildings/{buildingId}/map`
+* 权限：公开
+
+返回 `IndoorMapVO`：
+
+- `building`：建筑摘要与可用楼层；
+- `nodes`：节点 ID、名称、`nodeType`、`floorNo`、归一化 `x/y`；
+- `edges`：边 ID、起终节点及楼层、`edgeType`、`distance`。
+
+前端可使用 `viewBox="0 0 1000 600"` 按 `floorNo` 分组绘制 SVG。跨层
+`elevator/stair` 边建议显示为垂直通行图标，不直接跨楼层连线。
+
+## 10.7 室内单目标路线规划
+
+* 方法：`POST`
+* 路径：`/api/v1/indoor/routes/plan`
+* 权限：需要登录
+
+请求：
+
+```json
+{
+  "destinationId": 101,
+  "buildingId": 201,
+  "startNodeId": 10001,
+  "targetNodeId": 10015,
+  "strategyType": "shortest_time",
+  "verticalMode": "elevator"
+}
+```
+
+说明：
+
+- `strategyType` 支持 `shortest_distance/shortest_time`，默认 `shortest_time`；
+- `verticalMode` 支持 `elevator/stair/any`，默认 `any`；
+- `elevator` 允许 `corridor + elevator`，`stair` 允许 `corridor + stair`；
+- `any` 允许三类室内边，并由 Dijkstra 按当前策略选择；
+- 室内接口的 `totalTime`、`pathEdges[].timeCost` 单位固定为秒；
+- `pathNodes` 包含 `floorNo/nodeType/x/y`，`pathEdges` 包含
+  `edgeType/distance/timeCost`，`steps` 返回可直接展示的中文路径步骤；
+- 当前室内路线不写入 `route_history`，不影响室外路线历史契约。
+
 ---
 
 ## 11. Facility 接口
@@ -1427,9 +1483,12 @@ Authorization: Bearer <token>
 | nodeName | string | 是 | 节点名称 |
 | nodeType | string | 是 | 节点类型 |
 | refId | long | 否 | 关联 place / facility 等业务对象 ID |
+| placeId | long | 否 | 室内节点所属建筑，对应 `place.id` |
 | lng | decimal | 否 | 经度 |
 | lat | decimal | 否 | 纬度 |
 | floorNo | int | 否 | 楼层 |
+| indoorX | decimal | 否 | 楼层 SVG 归一化 X 坐标 |
+| indoorY | decimal | 否 | 楼层 SVG 归一化 Y 坐标 |
 
 ### Response
 

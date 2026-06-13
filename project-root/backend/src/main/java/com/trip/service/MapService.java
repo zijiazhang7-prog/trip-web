@@ -1,6 +1,7 @@
 package com.trip.service;
 
 import com.trip.dto.map.MultiPathResult;
+import com.trip.dto.map.IndoorPathResult;
 import com.trip.dto.map.ShortestPathResult;
 import java.math.BigDecimal;
 import java.util.List;
@@ -18,6 +19,14 @@ public interface MapService {
             Long targetNodeId,
             String strategyType,
             String transportType);
+
+    IndoorPathResult indoorShortestPath(
+            Long destinationId,
+            Long buildingId,
+            Long startNodeId,
+            Long targetNodeId,
+            String strategyType,
+            String verticalMode);
 
     MultiPathResult multiTargetPath(
             Long destinationId,

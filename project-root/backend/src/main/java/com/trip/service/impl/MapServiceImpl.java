@@ -2,6 +2,9 @@ package com.trip.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.trip.common.ErrorCode;
+import com.trip.dto.map.IndoorPathEdgeResult;
+import com.trip.dto.map.IndoorPathNodeResult;
+import com.trip.dto.map.IndoorPathResult;
 import com.trip.dto.map.MultiPathResult;
 import com.trip.dto.map.PathEdgeResult;
 import com.trip.dto.map.PathNodeResult;
@@ -19,6 +22,7 @@ import com.trip.exception.BusinessException;
 import com.trip.mapper.MapEdgeMapper;
 import com.trip.mapper.MapNodeMapper;
 import com.trip.model.route.EdgeTransportAccess;
+import com.trip.model.route.IndoorVerticalMode;
 import com.trip.model.route.RouteTransportType;
 import com.trip.service.MapService;
 import java.math.BigDecimal;
@@ -121,6 +125,59 @@ public class MapServiceImpl implements MapService {
         result.setEstimatedTime(totalWeight == null ? ZERO : totalWeight.time());
         result.setPathNodes(buildPathNodes(graphContext, startNodeId, targetNodeId, shortestPathTree));
         result.setPathEdges(buildPathEdges(startNodeId, targetNodeId, shortestPathTree));
+        return result;
+    }
+
+    /**
+     * 在指定建筑室内子图上计算最短路径。
+     *
+     * <p>数据结构为有向带权邻接表；算法复用 GraphEngine 的 Dijkstra。
+     * 建图 O(V + E)，最短路 O((V + E) log V)，路径回溯 O(P)。</p>
+     */
+    @Override
+    public IndoorPathResult indoorShortestPath(
+            Long destinationId,
+            Long buildingId,
+            Long startNodeId,
+            Long targetNodeId,
+            String strategyType,
+            String verticalMode) {
+        validateId(destinationId);
+        validateId(buildingId);
+        validateId(startNodeId);
+        validateId(targetNodeId);
+        String normalizedStrategyType = normalizeStrategyType(strategyType);
+        IndoorVerticalMode normalizedVerticalMode = normalizeVerticalMode(verticalMode);
+
+        GraphContext graphContext = buildIndoorGraph(destinationId, buildingId);
+        MapNode startNode = graphContext.nodeMap().get(startNodeId);
+        MapNode targetNode = graphContext.nodeMap().get(targetNodeId);
+        if (startNode == null || targetNode == null) {
+            throw new BusinessException(ErrorCode.ROUTE_013);
+        }
+
+        ShortestPathTree shortestPathTree = graphEngine.shortestPaths(
+                graphContext.graph(),
+                startNodeId,
+                new RouteConstraint(
+                        normalizedStrategyType,
+                        RouteTransportType.WALK,
+                        normalizedVerticalMode.allowedEdgeTypes()));
+        WeightDistance totalWeight = shortestPathTree.weights().get(targetNodeId);
+        BigDecimal totalDistance = shortestPathTree.distances().get(targetNodeId);
+        if (totalDistance == null) {
+            throw new BusinessException(ErrorCode.ROUTE_003);
+        }
+
+        IndoorPathResult result = new IndoorPathResult();
+        result.setDestinationId(destinationId);
+        result.setBuildingId(buildingId);
+        result.setStartNodeId(startNodeId);
+        result.setTargetNodeId(targetNodeId);
+        result.setTotalDistance(totalDistance);
+        result.setEstimatedTime(totalWeight == null ? ZERO : totalWeight.time());
+        result.setPathNodes(buildIndoorPathNodes(graphContext, startNodeId, targetNodeId, shortestPathTree));
+        result.setPathEdges(buildIndoorPathEdges(startNodeId, targetNodeId, shortestPathTree));
         return result;
     }
 
@@ -289,6 +346,31 @@ public class MapServiceImpl implements MapService {
         return new GraphContext(nodeMap, new Graph(adjacency));
     }
 
+    private GraphContext buildIndoorGraph(Long destinationId, Long buildingId) {
+        List<MapNode> nodes = mapNodeMapper.selectList(new LambdaQueryWrapper<MapNode>()
+                .eq(MapNode::getDestinationId, destinationId)
+                .eq(MapNode::getPlaceId, buildingId));
+        Map<Long, MapNode> nodeMap = new HashMap<>();
+        for (MapNode node : nodes) {
+            if (node.getId() != null
+                    && destinationId.equals(node.getDestinationId())
+                    && buildingId.equals(node.getPlaceId())) {
+                nodeMap.put(node.getId(), node);
+            }
+        }
+
+        List<MapEdge> edges = mapEdgeMapper.selectList(new LambdaQueryWrapper<MapEdge>()
+                .eq(MapEdge::getDestinationId, destinationId));
+        Map<Long, List<GraphEdge>> adjacency = new HashMap<>();
+        for (MapEdge edge : edges) {
+            addDirectedEdge(nodeMap, adjacency, edge, edge.getFromNodeId(), edge.getToNodeId());
+            if (Integer.valueOf(BIDIRECTIONAL).equals(edge.getBidirectionalFlag())) {
+                addDirectedEdge(nodeMap, adjacency, edge, edge.getToNodeId(), edge.getFromNodeId());
+            }
+        }
+        return new GraphContext(nodeMap, new Graph(adjacency));
+    }
+
     private void addDirectedEdge(
             Map<Long, MapNode> nodeMap,
             Map<Long, List<GraphEdge>> adjacency,
@@ -313,7 +395,8 @@ public class MapServiceImpl implements MapService {
                         edge.getDistance(),
                         edge.getIdealSpeed(),
                         edge.getCrowdFactor(),
-                        transportAccess));
+                        transportAccess,
+                        edge.getEdgeType()));
     }
 
     private ShortestPathResult buildSegment(
@@ -396,6 +479,56 @@ public class MapServiceImpl implements MapService {
         return pathEdges;
     }
 
+    private List<IndoorPathNodeResult> buildIndoorPathNodes(
+            GraphContext graphContext,
+            Long startNodeId,
+            Long targetNodeId,
+            ShortestPathTree shortestPathTree) {
+        List<Long> nodeIds = graphEngine.backtrackNodeIds(startNodeId, targetNodeId, shortestPathTree);
+        if (nodeIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.ROUTE_003);
+        }
+        List<IndoorPathNodeResult> results = new ArrayList<>();
+        for (Long nodeId : nodeIds) {
+            MapNode node = graphContext.nodeMap().get(nodeId);
+            IndoorPathNodeResult result = new IndoorPathNodeResult();
+            result.setNodeId(nodeId);
+            result.setNodeName(node.getNodeName());
+            result.setNodeType(node.getNodeType());
+            result.setFloorNo(node.getFloorNo());
+            result.setIndoorX(node.getIndoorX());
+            result.setIndoorY(node.getIndoorY());
+            results.add(result);
+        }
+        return results;
+    }
+
+    private List<IndoorPathEdgeResult> buildIndoorPathEdges(
+            Long startNodeId,
+            Long targetNodeId,
+            ShortestPathTree shortestPathTree) {
+        if (startNodeId.equals(targetNodeId)) {
+            return List.of();
+        }
+        List<PathEdge> graphEdges = graphEngine.backtrackEdges(startNodeId, targetNodeId, shortestPathTree);
+        if (graphEdges.isEmpty()) {
+            throw new BusinessException(ErrorCode.ROUTE_003);
+        }
+        List<IndoorPathEdgeResult> results = new ArrayList<>();
+        for (PathEdge pathEdge : graphEdges) {
+            GraphEdge edge = pathEdge.edge();
+            IndoorPathEdgeResult result = new IndoorPathEdgeResult();
+            result.setEdgeId(edge.edgeId());
+            result.setFromNodeId(edge.fromNodeId());
+            result.setToNodeId(edge.toNodeId());
+            result.setEdgeType(edge.edgeType());
+            result.setDistance(edge.distance());
+            result.setTimeCost(pathEdge.timeCost());
+            results.add(result);
+        }
+        return results;
+    }
+
     private void validateId(Long id) {
         if (id == null || id <= 0) {
             throw new BusinessException(ErrorCode.COMMON_001);
@@ -425,6 +558,12 @@ public class MapServiceImpl implements MapService {
     private RouteTransportType normalizeTransportType(String transportType) {
         return RouteTransportType.fromValue(transportType)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_005));
+    }
+
+    private IndoorVerticalMode normalizeVerticalMode(String verticalMode) {
+        String effectiveMode = verticalMode == null ? IndoorVerticalMode.ANY.value() : verticalMode;
+        return IndoorVerticalMode.fromValue(effectiveMode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_012));
     }
 
     private ErrorCode unreachableError(

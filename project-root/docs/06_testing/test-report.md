@@ -858,3 +858,20 @@
   65 条候选的跨页行为已由单元测试覆盖。
 - 全量 `mvn -q test`：40 个测试套件、278 个测试，0 失败、0 错误、0 跳过；
   `mvn -q -DskipTests package` 通过。
+
+## 29. 2026-06-13 室内导航后端 MVP
+
+- 新增建筑列表、楼层图和室内单目标规划三组接口。
+- GraphEngine 增加可选 `edgeType` 白名单，默认空集合保持室外路径行为不变。
+- 室内子图按 `destination_id + place_id` 隔离，避免同一目的地下跨建筑寻路。
+- `elevator/stair/any` 分别控制可用垂直边；路径继续使用 Dijkstra。
+- 路径节点返回 `floorNo/nodeType/x/y`，路径边返回 `edgeType/distance/timeCost`，
+  时间单位固定为秒，并生成中文步骤。
+- `GraphEngineTests`、`MapServiceTests`、`IndoorRouteServiceTests` 及相关
+  Route/Admin/Import 定向回归通过。
+- 全量执行 `mvn -q test`：292 个测试，0 失败、0 错误、0 跳过；
+  `mvn -q -DskipTests package` 通过。
+- `spotless:apply` 受仓库现有 `googleJavaFormat` Maven 配置解析错误阻塞；
+  Checkstyle 受既有 `CompressionEngine.java` 语法解析兼容问题阻塞；
+  PMD 受既有 `rulesets/java/bugs.xml` 规则资源失效阻塞，均不是本次室内代码测试失败。
+- MySQL 字段迁移、演示 SQL 和真实 JWT 接口回归尚待执行，不在本次单元测试中虚报通过。
