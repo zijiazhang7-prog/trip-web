@@ -1,163 +1,121 @@
-import { useEffect, useRef, useState } from 'react'
-import type { AigcPipelinePhase } from '../../lib/aigc/pipeline'
+import { useEffect, useRef } from 'react'
+import { AigcAnimationPlayer } from './AigcAnimationPlayer'
+import type { AigcAnimationPhase } from '../../lib/aigc/types'
+import type { DiaryAnimationResult } from '../../lib/aigc/types'
 
 type AigcVideoStageProps = {
-  phase: AigcPipelinePhase
+  phase: AigcAnimationPhase
   progressDetail?: string
-  mergedUrl: string | null
-  clipUrls: string[]
-  playbackMode: 'merged' | 'playlist'
-  title?: string
-  narration?: string
+  animation: DiaryAnimationResult | null
+  videoUrl: string | null
+  videoBlob: Blob | null
 }
 
-const VIDEO_PREVIEW_HEIGHT_PX = 432
+const STAGE_HEIGHT_PX = 432
 
 export function AigcVideoStage({
   phase,
   progressDetail,
-  mergedUrl,
-  clipUrls,
-  playbackMode,
-  title,
-  narration,
+  animation,
+  videoUrl,
+  videoBlob,
 }: AigcVideoStageProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [segmentIndex, setSegmentIndex] = useState(0)
-  const [viewMode, setViewMode] = useState<'segment' | 'merged'>('segment')
+  const downloadRef = useRef<HTMLAnchorElement>(null)
 
-  const hasMultipleSegments = clipUrls.length > 1
-  const canShowMerged = Boolean(mergedUrl && playbackMode === 'merged' && hasMultipleSegments)
+  const busy =
+    phase === 'uploading' || phase === 'creating' || phase === 'generating' || phase === 'rendering'
 
   useEffect(() => {
-    setSegmentIndex(0)
-    setViewMode('segment')
-  }, [clipUrls, mergedUrl, playbackMode])
+    return () => {
+      if (videoUrl?.startsWith('blob:')) URL.revokeObjectURL(videoUrl)
+    }
+  }, [videoUrl])
 
-  const currentSrc =
-    viewMode === 'merged' && mergedUrl
-      ? mergedUrl
-      : clipUrls[segmentIndex] ?? mergedUrl ?? clipUrls[0] ?? null
-
-  const goPrev = () => {
-    if (viewMode === 'merged') return
-    setSegmentIndex((i) => Math.max(0, i - 1))
+  const handleDownload = () => {
+    if (!videoBlob || !downloadRef.current) return
+    const url = URL.createObjectURL(videoBlob)
+    downloadRef.current.href = url
+    downloadRef.current.download = `${animation?.title ?? '旅行动画'}.webm`
+    downloadRef.current.click()
+    URL.revokeObjectURL(url)
   }
-
-  const goNext = () => {
-    if (viewMode === 'merged') return
-    setSegmentIndex((i) => Math.min(clipUrls.length - 1, i + 1))
-  }
-
-  const busy = phase === 'analyzing' || phase === 'generating' || phase === 'merging'
-  const showNav = phase === 'ready' && hasMultipleSegments
 
   return (
     <div className="flex flex-col rounded-[28px] border border-white/80 bg-white/65 p-4 shadow-[0_8px_32px_rgba(42,107,78,0.07)] backdrop-blur-xl">
       <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
         <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[var(--ds-accent-foreground)]">
-          AI 动画预览
+          旅行动画预览
         </p>
-        {showNav && canShowMerged ? (
-          <div className="flex rounded-full border border-[var(--ds-border)]/50 bg-white/80 p-0.5 text-[10px]">
-            <button
-              type="button"
-              className={`rounded-full px-2.5 py-0.5 ${viewMode === 'segment' ? 'bg-[var(--ds-primary)] text-white' : 'text-[var(--ds-muted-foreground)]'}`}
-              onClick={() => setViewMode('segment')}
-            >
-              分段
-            </button>
-            <button
-              type="button"
-              className={`rounded-full px-2.5 py-0.5 ${viewMode === 'merged' ? 'bg-[var(--ds-primary)] text-white' : 'text-[var(--ds-muted-foreground)]'}`}
-              onClick={() => setViewMode('merged')}
-            >
-              完整版
-            </button>
-          </div>
+          {animation?.provider === 'local-fallback' ? (
+          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] text-amber-900">
+            本地分镜
+          </span>
+        ) : animation?.provider ? (
+          <span className="rounded-full bg-[color-mix(in_srgb,var(--ds-primary)_10%,white)] px-2.5 py-0.5 text-[10px] text-[var(--ds-primary)]">
+            {animation.provider}
+          </span>
         ) : null}
       </div>
 
       <div
-        style={{ height: VIDEO_PREVIEW_HEIGHT_PX }}
+        style={{ minHeight: STAGE_HEIGHT_PX }}
         className="relative shrink-0 w-full overflow-hidden rounded-2xl border border-[var(--ds-border)]/40 bg-[color-mix(in_srgb,var(--ds-background)_40%,white)]"
       >
-        {currentSrc ? (
+        {phase === 'ready' && videoUrl ? (
           <video
-            ref={videoRef}
-            key={currentSrc}
-            src={currentSrc}
+            key={videoUrl}
+            src={videoUrl}
             className="h-full w-full object-contain"
+            style={{ minHeight: STAGE_HEIGHT_PX }}
             controls
             playsInline
-            onEnded={() => {
-              if (viewMode === 'segment' && segmentIndex < clipUrls.length - 1) {
-                setSegmentIndex((i) => i + 1)
-              }
-            }}
+            autoPlay
+            loop
           />
+        ) : phase === 'ready' && animation?.script ? (
+          <div className="p-3">
+            <AigcAnimationPlayer
+              script={animation.script}
+              title={animation.title}
+              narration={animation.narration}
+            />
+          </div>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-[var(--ds-muted-foreground)]">
+          <div
+            className="flex flex-col items-center justify-center gap-2 px-6 text-center text-sm text-[var(--ds-muted-foreground)]"
+            style={{ minHeight: STAGE_HEIGHT_PX }}
+          >
             {busy ? (
               <>
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--ds-primary)] border-t-transparent" />
-                <p>{progressDetail ?? 'AI 创作中…'}</p>
+                <p>{progressDetail ?? '正在生成旅行动画…'}</p>
               </>
             ) : (
               <>
-                <p className="font-display text-lg text-[var(--ds-foreground)]">等待你的旅行记忆</p>
-                <p className="text-xs">左侧上传照片后，点击下方按钮开始生成</p>
+                <p className="font-display text-lg text-[var(--ds-foreground)]">等待你的旅行照片</p>
+                <p className="text-xs">上传照片并选择目的地后，将走后端分镜并渲染为视频</p>
               </>
             )}
           </div>
         )}
-        {busy && currentSrc ? (
-          <div className="absolute inset-x-0 bottom-0 bg-black/50 px-3 py-2 text-center text-xs text-white">
-            {progressDetail}
-          </div>
-        ) : null}
       </div>
 
-      {showNav ? (
-        <div className="mt-3 flex items-center justify-center gap-3">
+      {phase === 'ready' && videoBlob ? (
+        <div className="mt-3 flex justify-center">
           <button
             type="button"
-            disabled={viewMode === 'merged' || segmentIndex === 0}
-            onClick={goPrev}
-            className="rounded-full border border-[var(--ds-border)]/60 bg-white/90 px-4 py-1.5 text-xs font-semibold text-[var(--ds-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={handleDownload}
+            className="rounded-full bg-[var(--ds-primary)] px-5 py-2 text-xs font-semibold text-white"
           >
-            上一个
+            下载视频 (.webm)
           </button>
-          <span className="min-w-[4.5rem] text-center text-[11px] text-[var(--ds-muted-foreground)]">
-            {viewMode === 'merged' ? '完整版' : `第 ${segmentIndex + 1}/${clipUrls.length} 段`}
-          </span>
-          <button
-            type="button"
-            disabled={viewMode === 'merged' || segmentIndex >= clipUrls.length - 1}
-            onClick={goNext}
-            className="rounded-full border border-[var(--ds-border)]/60 bg-white/90 px-4 py-1.5 text-xs font-semibold text-[var(--ds-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            下一个
-          </button>
+          <a ref={downloadRef} className="hidden" href="#" download />
         </div>
       ) : null}
 
-      {showNav && viewMode === 'segment' && !canShowMerged ? (
+      {phase === 'ready' && animation && !videoUrl ? (
         <p className="mt-2 text-center text-[10px] text-[var(--ds-muted-foreground)]">
-          后端 FFmpeg 合并未就绪，使用分段预览与连播演示
-        </p>
-      ) : null}
-
-      {title ? (
-        <div className="mt-4 rounded-xl border border-[var(--ds-border)]/40 bg-white/70 p-3">
-          <p className="text-sm font-semibold text-[var(--ds-foreground)]">{title}</p>
-          {narration ? <p className="mt-1 text-xs leading-relaxed text-[var(--ds-muted-foreground)]">{narration}</p> : null}
-        </div>
-      ) : null}
-
-      {clipUrls.length > 0 && phase === 'ready' ? (
-        <p className="mt-2 text-[10px] text-[var(--ds-muted-foreground)]">
-          智谱视频链接约 30 天有效，请及时下载保存。
+          视频渲染未成功，已切换为分镜实时预览模式
         </p>
       ) : null}
     </div>
