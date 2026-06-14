@@ -26,16 +26,13 @@ export type RoutePlanVO = {
 
 export type RouteStrategyType = 'shortest_distance' | 'shortest_time'
 
-/** UI 交通选项：步行、骑行、汽车、公共交通 */
-export type RouteTransportType = 'walk' | 'bike' | 'drive' | 'transit'
+/** 景区/校园内部导航交通：对接后端 walk / bike / cart / mixed */
+export type RouteTransportType = 'walk' | 'bike' | 'cart' | 'mixed'
 
-type BackendTransportType = 'walk' | 'bike' | 'cart'
+type BackendTransportType = 'walk' | 'bike' | 'cart' | 'mixed'
 
 export function toBackendTransport(t: RouteTransportType): BackendTransportType {
-  if (t === 'bike') return 'bike'
-  if (t === 'drive') return 'cart'
-  if (t === 'transit') return 'walk'
-  return 'walk'
+  return t
 }
 
 export type SingleRoutePlanRequest = {

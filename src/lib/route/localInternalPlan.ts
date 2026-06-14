@@ -64,7 +64,11 @@ export async function planInternalRouteLocally(input: {
     const seg = await buildInternalWalkingPolyline(
       routeWaypoints[i],
       routeWaypoints[i + 1],
-      backendTransport === 'bike' ? 'bicycling' : backendTransport === 'cart' ? 'driving' : 'walking',
+      backendTransport === 'bike'
+        ? 'bicycling'
+        : backendTransport === 'cart'
+          ? 'driving'
+          : 'walking',
     )
     const dist = seg.length >= 2 ? haversineM(seg) : 0
     totalDistance += dist
@@ -129,6 +133,10 @@ export function shouldUseLocalInternalPlan(usedPlaceFallback: boolean): boolean 
 export function isBackendPlanErrorRetryable(message: string): boolean {
   return (
     message.includes('系统内部错误') ||
+    message.includes('起点节点不存在') ||
+    message.includes('终点节点不存在') ||
+    message.includes('ROUTE_001') ||
+    message.includes('ROUTE_002') ||
     message.includes('节点') ||
     message.includes('不可达') ||
     message.includes('HTTP 5')

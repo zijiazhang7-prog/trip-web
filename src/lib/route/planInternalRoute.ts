@@ -30,7 +30,7 @@ export async function executeInternalRoutePlan(input: {
     returnToStart: boolean,
   ) => number[]
 }): Promise<{ vo: RoutePlanVO; macro: MacroRoutePlan }> {
-  if (shouldUseLocalInternalPlan(input.usedPlaceFallback)) {
+  if (shouldUseLocalInternalPlan(input.usedPlaceFallback) || !canAttemptBackendGraphPlan(input)) {
     return planInternalRouteLocally(input)
   }
 
@@ -61,6 +61,15 @@ export async function executeInternalRoutePlan(input: {
     if (!isBackendPlanErrorRetryable(msg)) throw err
     return planInternalRouteLocally(input)
   }
+}
+
+function canAttemptBackendGraphPlan(input: {
+  startNodeId: number
+  targetNodeIds: number[]
+  nodeById: Map<number, MapNodeOption>
+}): boolean {
+  if (!input.nodeById.has(input.startNodeId)) return false
+  return input.targetNodeIds.every((id) => input.nodeById.has(id))
 }
 
 async function buildMacroFromVo(

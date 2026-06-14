@@ -17,7 +17,12 @@ import { isBeijingAreaCoord } from '../../lib/geo/beijingCoord'
 import { resolveDestinationCoords } from '../../lib/geo/resolveCoords'
 import { filterBeijingPolyline } from '../../lib/route/internalRoutePolyline'
 import { executeInternalRoutePlan } from '../../lib/route/planInternalRoute'
-import { resolveDefaultStartNode, resolveDefaultTargetNode } from '../../lib/route/resolveStartNode'
+import {
+  detectVenueNavKind,
+  internalTransportOptions,
+  normalizeInternalTransport,
+} from '../../lib/route/internalTransport'
+import { resolveDefaultStartNode, resolveDefaultTargetNode, preserveNodeSelection } from '../../lib/route/resolveStartNode'
 import { AmapMapView } from './AmapMapView'
 import { MapViewModeToggle, type MapViewMode } from './MapViewModeToggle'
 import { RoadGraphView } from './RoadGraphView'
@@ -29,13 +34,6 @@ const STRATEGIES: { value: RouteStrategyType; label: string }[] = [
 ]
 
 const UNIVERSAL_STUDIOS_CENTER: [number, number] = [116.681128, 39.852226]
-
-const TRANSPORTS: { value: RouteTransportType; label: string }[] = [
-  { value: 'walk', label: '步行' },
-  { value: 'bike', label: '骑行' },
-  { value: 'drive', label: '汽车' },
-  { value: 'transit', label: '公共交通' },
-]
 
 type InternalRoutePlanModalProps = {
   open: boolean
@@ -134,7 +132,7 @@ export function InternalRoutePlanModal({
   )
 
   const [destinationId, setDestinationId] = useState<number | null>(null)
-  const [nodes, setNodes] = useState<MapNodeOption[]>([])
+  const [catalogNodes, setCatalogNodes] = useState<MapNodeOption[]>([])
   const [catalogEdges, setCatalogEdges] = useState<MapCatalogEdge[]>([])
   const [usedPlaceFallback, setUsedPlaceFallback] = useState(false)
   const [loadingNodes, setLoadingNodes] = useState(false)
@@ -156,10 +154,15 @@ export function InternalRoutePlanModal({
     [destinationOptions, destinationId],
   )
 
-  const scenicNodes = useMemo(
-    () => nodes.filter((n) => !isTechnicalNodeName(n.nodeName)),
-    [nodes],
+  const venueNavKind = useMemo(
+    () => detectVenueNavKind(activeDestination?.name),
+    [activeDestination?.name],
   )
+  const transportOptions = useMemo(() => internalTransportOptions(venueNavKind), [venueNavKind])
+
+  useEffect(() => {
+    setTransport((prev) => normalizeInternalTransport(prev, transportOptions))
+  }, [transportOptions])
 
   useEffect(() => {
     if (!open) return
@@ -212,19 +215,13 @@ export function InternalRoutePlanModal({
           fetchDestinationMapEdges(destinationId),
         ])
         if (cancelled) return
-        const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
-        const displayNodes = quickDisplayGpsCoords(res.nodes, center)
-        setNodes(displayNodes)
+        setCatalogNodes(res.nodes)
         setCatalogEdges(edges)
         setUsedPlaceFallback(res.usedPlaceFallback)
-        const pick = displayNodes.filter((n) => !isTechnicalNodeName(n.nodeName))
-        const defaultStart = resolveDefaultStartNode(pick.length ? pick : displayNodes)
-        const defaultTarget = resolveDefaultTargetNode(pick.length ? pick : displayNodes, defaultStart)
-        setStartNodeId(defaultStart)
-        setTargetNodeIds(defaultTarget != null ? [defaultTarget] : [])
       } catch (err) {
         if (!cancelled) {
-          setNodes([])
+          setCatalogNodes([])
+          setCatalogEdges([])
           setError(err instanceof Error ? err.message : '加载景区节点失败')
         }
       } finally {
@@ -234,7 +231,39 @@ export function InternalRoutePlanModal({
     return () => {
       cancelled = true
     }
-  }, [open, destinationId, scenicCenter])
+  }, [open, destinationId])
+
+  const nodes = useMemo(
+    () =>
+      quickDisplayGpsCoords(catalogNodes, {
+        lng: scenicCenter[0],
+        lat: scenicCenter[1],
+      }),
+    [catalogNodes, scenicCenter],
+  )
+
+  const scenicNodes = useMemo(
+    () => nodes.filter((n) => !isTechnicalNodeName(n.nodeName)),
+    [nodes],
+  )
+
+  useEffect(() => {
+    if (!catalogNodes.length) {
+      setStartNodeId(null)
+      setTargetNodeIds([])
+      return
+    }
+    const pick = catalogNodes.filter((n) => !isTechnicalNodeName(n.nodeName))
+    const pool = pick.length ? pick : catalogNodes
+    const defaultStart = resolveDefaultStartNode(pool)
+    const defaultTarget = resolveDefaultTargetNode(pool, defaultStart)
+    setStartNodeId((prev) => preserveNodeSelection(prev, catalogNodes, () => defaultStart))
+    setTargetNodeIds((prev) => {
+      const kept = prev.filter((id) => catalogNodes.some((n) => n.nodeId === id))
+      if (kept.length) return kept
+      return defaultTarget != null ? [defaultTarget] : []
+    })
+  }, [catalogNodes])
 
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.nodeId, n])), [nodes])
 
@@ -289,6 +318,10 @@ export function InternalRoutePlanModal({
     }
     if (destinationId == null || startNodeId == null) {
       setError('请选择目的地和起点')
+      return
+    }
+    if (!nodeById.has(startNodeId) || targetNodeIds.some((id) => !nodeById.has(id))) {
+      setError('起点或终点已失效，请重新选择')
       return
     }
     setPlanning(true)
@@ -444,10 +477,11 @@ export function InternalRoutePlanModal({
                 交通方式
               </span>
               <div className="flex flex-wrap gap-2">
-                {TRANSPORTS.map((t) => (
+                {transportOptions.map((t) => (
                   <button
                     key={t.value}
                     type="button"
+                    title={t.hint}
                     onClick={() => setTransport(t.value)}
                     className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
                       transport === t.value

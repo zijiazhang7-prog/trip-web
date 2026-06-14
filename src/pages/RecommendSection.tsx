@@ -50,6 +50,20 @@ const sidebarTitle =
 
 const PAGE_SIZE = 32
 
+type RecommendSortBy = 'recommend' | 'heat' | 'rating'
+
+const RECOMMEND_SORT_OPTIONS: { value: RecommendSortBy; label: string }[] = [
+  { value: 'recommend', label: '综合推荐' },
+  { value: 'heat', label: '按热度' },
+  { value: 'rating', label: '按评分' },
+]
+
+const TOP10_TITLES: Record<RecommendSortBy, string> = {
+  recommend: '综合推荐 Top10',
+  heat: '热度 Top10',
+  rating: '评分 Top10',
+}
+
 function isRealDestination(d: Destination): boolean {
   return !isDemoDestination(d.name, d.reason)
 }
@@ -229,6 +243,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   const loadMoreInFlightRef = useRef(false)
   const canAutoLoadMoreRef = useRef(false)
   const [venueKind, setVenueKind] = useState<VenueKind>('all')
+  const [recommendSortBy, setRecommendSortBy] = useState<RecommendSortBy>('recommend')
   const [heatTop10, setHeatTop10] = useState<Destination[]>([])
   const [loadingTop10, setLoadingTop10] = useState(false)
   const [relatedDiaries, setRelatedDiaries] = useState<CommunityFeedItem[]>([])
@@ -256,7 +271,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
   useEffect(() => {
     let cancelled = false
     setLoadingTop10(true)
-    void fetchRecommendedDestinations({ topK: 10, sortBy: 'heat', pageSize: 10 })
+    void fetchRecommendedDestinations({ topK: 10, sortBy: recommendSortBy, pageSize: 10 })
       .then((rows) => {
         if (!cancelled) {
           setHeatTop10(
@@ -275,7 +290,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [recommendSortBy])
 
   const activeTagSelection = useMemo(
     () =>
@@ -397,14 +412,16 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     void runDestinationRanking(pending.customText, pending.tags)
   }, [items, loadingInitial, runDestinationRanking])
 
-  /** 宽召回分页：标签仅用于前端排序，不作为 API 过滤条件 */
+  /** 宽召回分页：排序交给后端 Top-K / RankService */
   const buildFetchParams = useCallback(
     (page: number) => ({
-      sortBy: 'heat' as const,
+      sortBy: recommendSortBy,
       pageNum: page,
       pageSize: PAGE_SIZE,
+      ...(selectedDestType ? { destType: selectedDestType } : {}),
+      ...(selectedInterests.length ? { interestTags: selectedInterests } : {}),
     }),
-    [],
+    [recommendSortBy, selectedDestType, selectedInterests],
   )
 
   const resetRecommendFirstPage = useCallback(async () => {
@@ -436,9 +453,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     return () => {
       cancelled = true
     }
-    // 仅首屏拉取；兴趣/目的地类型变更只做本地排序，避免 API 过滤导致空列表
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [recommendSortBy, resetRecommendFirstPage])
 
   useEffect(() => {
     if (!detailOpen) return
@@ -462,7 +477,11 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     try {
       const res =
         listMode === 'search'
-          ? await searchDestinationsPage(activeSearchKeyword, { pageNum: next, pageSize: PAGE_SIZE })
+          ? await searchDestinationsPage(activeSearchKeyword, {
+              pageNum: next,
+              pageSize: PAGE_SIZE,
+              sortBy: recommendSortBy === 'recommend' ? 'heat' : recommendSortBy,
+            })
           : await fetchRecommendedDestinationsPage(buildFetchParams(next))
 
       const mapped = res.list.map(destinationVOToDestination)
@@ -485,7 +504,7 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
       loadMoreInFlightRef.current = false
       setLoadingMore(false)
     }
-  }, [usingFallback, loadingInitial, pageNum, totalPages, listMode, activeSearchKeyword, buildFetchParams])
+  }, [usingFallback, loadingInitial, pageNum, totalPages, listMode, activeSearchKeyword, buildFetchParams, recommendSortBy])
 
   useEffect(() => {
     loadNextPageRef.current = loadNextPage
@@ -559,7 +578,11 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
     setCatalogDestinations(null)
     try {
       const [apiRes, catalog] = await Promise.all([
-        searchDestinationsPage(q, { pageNum: 1, pageSize: PAGE_SIZE }),
+        searchDestinationsPage(q, {
+          pageNum: 1,
+          pageSize: PAGE_SIZE,
+          sortBy: recommendSortBy === 'recommend' ? 'heat' : recommendSortBy,
+        }),
         fetchAllDestinationsCatalog(),
       ])
       const apiMapped = mergeDestinationLists(
@@ -796,16 +819,36 @@ export function RecommendSection({ openPreferences = false }: RecommendSectionPr
           ) : null}
 
           <Top10Strip
-            title="热度 Top10"
+            title={TOP10_TITLES[recommendSortBy]}
             loading={loadingTop10}
             items={heatTop10.map((d) => ({
               id: d.id ?? d.name,
               name: d.name,
-              meta: d.price,
+              meta: recommendSortBy === 'rating' ? `评分 ${d.rating}` : d.price,
               image: d.image,
               onClick: () => openDetail(d),
             }))}
           />
+
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <span className="mr-1 font-body text-xs font-semibold uppercase tracking-[0.1em] text-[color-mix(in_srgb,var(--ds-muted-foreground)_85%,var(--ds-border))]">
+              推荐排序
+            </span>
+            {RECOMMEND_SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setRecommendSortBy(opt.value)}
+                className={`rounded-full border px-4 py-1.5 font-body text-xs font-semibold transition ${
+                  recommendSortBy === opt.value
+                    ? 'border-[var(--ds-primary)] bg-[var(--ds-primary)] text-white'
+                    : 'border-[var(--ds-primary)]/15 bg-white/70 text-[var(--ds-primary)] hover:bg-white'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
 
           <div className="mb-9 flex flex-wrap items-center gap-3">
             <span className="mr-2 font-body text-xs font-semibold uppercase tracking-[0.1em] text-[color-mix(in_srgb,var(--ds-muted-foreground)_85%,var(--ds-border))]">

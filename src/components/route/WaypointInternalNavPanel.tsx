@@ -16,7 +16,12 @@ import { isBeijingAreaCoord } from '../../lib/geo/beijingCoord'
 import { resolveDestinationCoords } from '../../lib/geo/resolveCoords'
 import { filterBeijingPolyline } from '../../lib/route/internalRoutePolyline'
 import { executeInternalRoutePlan } from '../../lib/route/planInternalRoute'
-import { resolveDefaultStartNode, resolveDefaultTargetNode } from '../../lib/route/resolveStartNode'
+import {
+  detectVenueNavKind,
+  internalTransportOptions,
+  normalizeInternalTransport,
+} from '../../lib/route/internalTransport'
+import { resolveDefaultStartNode, resolveDefaultTargetNode, preserveNodeSelection } from '../../lib/route/resolveStartNode'
 import { AmapMapView } from './AmapMapView'
 import { MapViewModeToggle, type MapViewMode } from './MapViewModeToggle'
 import { RoadGraphView } from './RoadGraphView'
@@ -27,13 +32,6 @@ const UNIVERSAL_STUDIOS_CENTER: [number, number] = [116.681128, 39.852226]
 const STRATEGIES: { value: RouteStrategyType; label: string }[] = [
   { value: 'shortest_distance', label: '最短距离' },
   { value: 'shortest_time', label: '最短时间' },
-]
-
-const TRANSPORTS: { value: RouteTransportType; label: string }[] = [
-  { value: 'walk', label: '步行' },
-  { value: 'bike', label: '骑行' },
-  { value: 'drive', label: '汽车' },
-  { value: 'transit', label: '公共交通' },
 ]
 
 type WaypointInternalNavPanelProps = {
@@ -47,7 +45,7 @@ function isValidCoord(lng: number, lat: number): boolean {
 
 export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: WaypointInternalNavPanelProps) {
   const destinationId = waypoint.destinationId
-  const [nodes, setNodes] = useState<MapNodeOption[]>([])
+  const [catalogNodes, setCatalogNodes] = useState<MapNodeOption[]>([])
   const [catalogEdges, setCatalogEdges] = useState<MapCatalogEdge[]>([])
   const [usedPlaceFallback, setUsedPlaceFallback] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -55,6 +53,12 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
   const [targetNodeId, setTargetNodeId] = useState<number | null>(null)
   const [strategy, setStrategy] = useState<RouteStrategyType>('shortest_distance')
   const [transport, setTransport] = useState<RouteTransportType>('walk')
+  const venueNavKind = useMemo(() => detectVenueNavKind(waypoint.name), [waypoint.name])
+  const transportOptions = useMemo(() => internalTransportOptions(venueNavKind), [venueNavKind])
+
+  useEffect(() => {
+    setTransport((prev) => normalizeInternalTransport(prev, transportOptions))
+  }, [transportOptions])
   const [planning, setPlanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewPlan, setPreviewPlan] = useState<MacroRoutePlan | null>(null)
@@ -86,26 +90,20 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
     setLoading(true)
     setError(null)
     setPreviewPlan(null)
-    const center = { lng: scenicCenter[0], lat: scenicCenter[1] }
     void (async () => {
       try {
         const [res, edges] = await Promise.all([
           fetchDestinationMapNodes(destinationId),
           fetchDestinationMapEdges(destinationId),
         ])
-        const displayNodes = quickDisplayGpsCoords(res.nodes, center)
         if (cancelled) return
         setUsedPlaceFallback(res.usedPlaceFallback)
-        setNodes(displayNodes)
+        setCatalogNodes(res.nodes)
         setCatalogEdges(edges)
-        const pick = displayNodes.filter((n) => !/^OSM/i.test(n.nodeName?.trim() ?? ''))
-        const defaultStart = resolveDefaultStartNode(pick.length ? pick : displayNodes)
-        const defaultTarget = resolveDefaultTargetNode(pick.length ? pick : displayNodes, defaultStart)
-        setStartNodeId(defaultStart)
-        setTargetNodeId(defaultTarget)
       } catch (err) {
         if (!cancelled) {
-          setNodes([])
+          setCatalogNodes([])
+          setCatalogEdges([])
           setError(err instanceof Error ? err.message : '加载节点失败')
         }
       } finally {
@@ -115,7 +113,30 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
     return () => {
       cancelled = true
     }
-  }, [destinationId, waypoint.name, scenicCenter])
+  }, [destinationId, waypoint.name])
+
+  const nodes = useMemo(
+    () =>
+      quickDisplayGpsCoords(catalogNodes, {
+        lng: scenicCenter[0],
+        lat: scenicCenter[1],
+      }),
+    [catalogNodes, scenicCenter],
+  )
+
+  useEffect(() => {
+    if (!catalogNodes.length) {
+      setStartNodeId(null)
+      setTargetNodeId(null)
+      return
+    }
+    const pick = catalogNodes.filter((n) => !/^OSM/i.test(n.nodeName?.trim() ?? ''))
+    const pool = pick.length ? pick : catalogNodes
+    const defaultStart = resolveDefaultStartNode(pool)
+    const defaultTarget = resolveDefaultTargetNode(pool, defaultStart)
+    setStartNodeId((prev) => preserveNodeSelection(prev, catalogNodes, () => defaultStart))
+    setTargetNodeId((prev) => preserveNodeSelection(prev, catalogNodes, () => defaultTarget))
+  }, [catalogNodes])
 
   useEffect(() => {
     if (!modalOpen) {
@@ -180,6 +201,10 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
     }
     if (destinationId == null || startNodeId == null || targetNodeId == null) {
       setError('请选择起点与终点')
+      return
+    }
+    if (!nodeById.has(startNodeId) || !nodeById.has(targetNodeId)) {
+      setError('起点或终点已失效，请重新选择')
       return
     }
     setPlanning(true)
@@ -287,10 +312,11 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
         ))}
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {TRANSPORTS.map((t) => (
+        {transportOptions.map((t) => (
           <button
             key={t.value}
             type="button"
+            title={t.hint}
             onClick={() => setTransport(t.value)}
             className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
               transport === t.value ? 'bg-[var(--ds-primary)] text-white' : 'border border-[var(--ds-primary)]/20 text-[var(--ds-primary)]'
@@ -342,7 +368,7 @@ export function WaypointInternalNavPanel({ waypoint, modalOpen = true }: Waypoin
 
       <button
         type="button"
-        disabled={planning || nodes.length === 0}
+        disabled={planning || loading || nodes.length === 0}
         onClick={() => void handlePlan()}
         className="w-full rounded-full bg-[var(--ds-primary)] py-2 text-xs font-semibold text-white disabled:opacity-50"
       >

@@ -63,3 +63,17 @@ export function resolveDefaultTargetNode(
   const nonEntrance = scenic.filter((n) => scoreStartNodeCandidate(n) < 40)
   return (nonEntrance[0] ?? scenic[0])?.nodeId ?? null
 }
+
+export function isNodeIdInCatalog(nodeId: number | null, nodes: MapNodeOption[]): boolean {
+  return nodeId != null && nodes.some((n) => n.nodeId === nodeId)
+}
+
+/** 节点列表刷新后保留仍有效的用户选择，否则回退默认 */
+export function preserveNodeSelection(
+  current: number | null,
+  nodes: MapNodeOption[],
+  resolveDefault: () => number | null,
+): number | null {
+  if (isNodeIdInCatalog(current, nodes)) return current
+  return resolveDefault()
+}
