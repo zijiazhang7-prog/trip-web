@@ -1,0 +1,58 @@
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-rise {
+  animation: fade-rise 0.8s ease-out forwards;
+}
+
+.animate-fade-rise-delay {
+  animation: fade-rise 0.8s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.animate-fade-rise-delay-2 {
+  animation: fade-rise 0.8s ease-out 0.4s forwards;
+  opacity: 0;
+}
+
+.ds-glass-panel {
+  border: 1px solid color-mix(in srgb, var(--ds-border) 48%, transparent);
+  background: color-mix(in srgb, var(--ds-surface) 76%, var(--ds-cream));
+  box-shadow: var(--ds-shadow-soft), var(--ds-shadow-inset);
+  backdrop-filter: blur(16px);
+}
+
+.ds-glass-dark {
+  border: 1px solid color-mix(in srgb, var(--ds-sage) 28%, transparent);
+  background: color-mix(in srgb, var(--ds-forest) 90%, transparent);
+  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+}
+
+.ds-hero-overlay {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ds-forest) 72%, transparent) 0%,
+    color-mix(in srgb, var(--ds-forest) 45%, transparent) 38%,
+    color-mix(in srgb, var(--ds-forest) 62%, transparent) 100%
+  );
+}
+
+.ds-card-lift {
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s ease;
+}
+
+.ds-card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--ds-shadow-lift);
+}

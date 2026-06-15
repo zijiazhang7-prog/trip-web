@@ -14,6 +14,11 @@ Desktop.ini
 *.iml
 *.ipr
 *.iws
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 
 # =========================
 # Logs / Reports
@@ -50,8 +55,7 @@ tmp/
 temp/
 .cache/
 *.tmp
-*.swp
-*.swo
+*.sw?
 *.bak
 
 # =========================
@@ -59,6 +63,7 @@ temp/
 # =========================
 frontend/node_modules/
 frontend/dist/
+frontend/dist-ssr/
 frontend/.vite/
 frontend/.nuxt/
 frontend/.output/
@@ -228,3 +233,7 @@ docs/export/
 !docs/**
 !assets/diagrams/**
 !assets/presentation/**
+
+# 大体积首页视频（本地保留于 public/video/，不入库）
+public/video/*.mp4
+**/4K*.mp4

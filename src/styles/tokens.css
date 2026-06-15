@@ -1,0 +1,29 @@
+/* 森林绿高级感 — #12372A · #436850 · #ADBC9F · #FBFADA */
+:root {
+  --ds-forest: #12372a;
+  --ds-moss: #436850;
+  --ds-sage: #adbc9f;
+  --ds-cream: #fbfada;
+
+  --ds-background: #fbfada;
+  --ds-foreground: #12372a;
+  --ds-primary: #436850;
+  --ds-primary-foreground: #fbfada;
+  --ds-secondary: #12372a;
+  --ds-secondary-foreground: #ffffff;
+  --ds-accent: #adbc9f;
+  --ds-accent-foreground: #12372a;
+  --ds-muted: #e8ede3;
+  --ds-muted-foreground: #436850;
+  --ds-border: #adbc9f;
+  --ds-surface: #ffffff;
+  --ds-destructive: #9b4a42;
+  --ds-shadow-soft: 0 4px 24px -6px rgba(18, 55, 42, 0.14);
+  --ds-shadow-float: 0 12px 40px -12px rgba(18, 55, 42, 0.2);
+  --ds-shadow-lift: 0 24px 56px -16px rgba(18, 55, 42, 0.22);
+  --ds-shadow-inset: inset 0 1px 0 0 rgba(255, 255, 255, 0.55);
+  --ds-organic-tl: 3.75rem;
+  --ds-organic-tr: 2.25rem;
+  --ds-glass: color-mix(in srgb, var(--ds-surface) 78%, var(--ds-cream));
+  --ds-glass-dark: color-mix(in srgb, var(--ds-forest) 88%, transparent);
+}
