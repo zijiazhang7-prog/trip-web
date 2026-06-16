@@ -1,2 +1,0 @@
-name,type,category,city,description,heat_score,rating_score,tag_json,cover_url,status
-P1导入验证目的地无BOM20260506200514,campus,校园,北京,用于验证ImportService multipart实库导入,66.5,4.4,导入验证,/files/destination/import-check.jpg,1
