@@ -9,6 +9,7 @@ Desktop.ini
 # IDE / Editor
 # =========================
 .idea/
+.cursor/
 .vscode/
 .vscode-test/
 *.iml
